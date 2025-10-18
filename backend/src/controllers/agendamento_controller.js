@@ -1,6 +1,6 @@
 // backend/src/controllers/agendamento_controller.js
 const crypto = require('node:crypto');
-const { Op, Sequelize } = require('sequelize'); // ⬅️ importa Sequelize
+const { Op, Sequelize } = require('sequelize');
 const {
   Agendamento,
   TipoServico,
@@ -103,19 +103,14 @@ exports.listCliente = async (req, res) => {
         {
           model: TipoServico,
           as: 'tipo',
-          attributes: [
-            'id',
-            ['nome', 'nomeServico'], // ⬅️ alias do campo real
-          ],
+          attributes: ['id', 'nome'], // <-- usa a coluna real
           required: false,
         },
       ],
       order: [
-        [Sequelize.col('Agendamento.data_servico'), 'ASC'], // ⬅️ coluna real
+        [Sequelize.col('Agendamento.data_servico'), 'ASC'],
         [Sequelize.col('Agendamento.hora_servico'), 'ASC'],
       ],
-      raw: true,
-      nest: true,
     });
 
     const out = itens.map((a) => ({
@@ -130,7 +125,8 @@ exports.listCliente = async (req, res) => {
       endereco: a.endereco,
       status: a.status,
       created_at: a.createdAt,
-      tipo_nome: a.tipo?.nomeServico || null,
+      // pega direto o campo 'nome'
+      tipo_nome: a.tipo?.nome ?? null,
 
       checkin_at: a.checkinAt ?? null,
       start_at:   a.startAt   ?? null,
@@ -160,10 +156,7 @@ exports.listPrestadorPendentes = async (req, res) => {
         {
           model: TipoServico,
           as: 'tipo',
-          attributes: [
-            'id',
-            ['nome', 'nomeServico'], // ⬅️ alias
-          ],
+          attributes: ['id', 'nome'],
           required: false,
         },
       ],
@@ -171,8 +164,6 @@ exports.listPrestadorPendentes = async (req, res) => {
         [Sequelize.col('Agendamento.data_servico'), 'ASC'],
         [Sequelize.col('Agendamento.hora_servico'), 'ASC'],
       ],
-      raw: true,
-      nest: true,
     });
 
     const out = itens.map((a) => ({
@@ -187,7 +178,7 @@ exports.listPrestadorPendentes = async (req, res) => {
       endereco: a.endereco,
       status: a.status,
       created_at: a.createdAt,
-      tipo_nome: a.tipo?.nomeServico || null,
+      tipo_nome: a.tipo?.nome ?? null,
     }));
 
     return res.json(out);
@@ -221,10 +212,7 @@ exports.listPrestador = async (req, res) => {
         {
           model: TipoServico,
           as: 'tipo',
-          attributes: [
-            'id',
-            ['nome', 'nomeServico'], // ⬅️ alias
-          ],
+          attributes: ['id', 'nome'],
           required: false,
         },
       ],
@@ -232,8 +220,6 @@ exports.listPrestador = async (req, res) => {
         [Sequelize.col('Agendamento.data_servico'), 'ASC'],
         [Sequelize.col('Agendamento.hora_servico'), 'ASC'],
       ],
-      raw: true,
-      nest: true,
     });
 
     const out = itens.map((a) => ({
@@ -248,7 +234,7 @@ exports.listPrestador = async (req, res) => {
       endereco: a.endereco,
       status: a.status,
       created_at: a.createdAt,
-      tipo_nome: a.tipo?.nomeServico || null,
+      tipo_nome: a.tipo?.nome ?? null,
 
       checkin_at: a.checkinAt ?? null,
       start_at:   a.startAt   ?? null,
