@@ -4,13 +4,13 @@ const { Sequelize } = require('sequelize');
 const isProd = process.env.NODE_ENV === 'production';
 
 const sequelize = new Sequelize(
-  process.env.DB_NAME || 'railway',
-  process.env.DB_USER || 'root',
-  process.env.DB_PASSWORD || '',
+  process.env.DB_NAME || process.env.MYSQLDATABASE || 'railway',
+  process.env.DB_USER || process.env.MYSQLUSER || 'root',
+  process.env.DB_PASSWORD || process.env.MYSQLPASSWORD || '',
   {
-    host: process.env.DB_HOST || '127.0.0.1',
-    port: process.env.DB_PORT || 3306,
-    dialect: 'mysql',
+    host: process.env.DB_HOST || process.env.MYSQLHOST || '127.0.0.1',
+    port: Number(process.env.DB_PORT || process.env.MYSQLPORT || 3306),
+    dialect: 'mysql', // 👈 aqui o Sequelize entende que é MySQL
     logging: false,
     timezone: '-03:00',
     dialectOptions: isProd
@@ -27,7 +27,7 @@ const sequelize = new Sequelize(
 (async () => {
   try {
     await sequelize.authenticate();
-    console.log('✅ DB conectado com sucesso');
+    console.log('✅ DB conectado com sucesso!');
   } catch (err) {
     console.error('❌ Erro ao conectar ao DB:', err.message);
   }
