@@ -37,7 +37,7 @@ export default function CadastroPage() {
 
     setLoading(true);
     try {
-      await apiFetch('/auth/register', {
+      await apiFetch('auth/register', {
         method: 'POST',
         body: JSON.stringify(form),
       });
