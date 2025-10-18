@@ -1,7 +1,7 @@
-// src/models/tipo_servico.js
 module.exports = (sequelize, DataTypes) => {
   const TipoServico = sequelize.define('TipoServico', {
-    // ... seus campos ...
+    id:   { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+    nome: { type: DataTypes.STRING(100), allowNull: false }, // ajuste os campos que você usa
   }, {
     tableName: 'tipos_servico',
     underscored: true,
@@ -9,7 +9,7 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   TipoServico.associate = (models) => {
-    TipoServico.hasMany(models.Agendamento, { as: 'agendamentos', foreignKey: 'tipo_servico_id' });
+    TipoServico.hasMany(models.Agendamento, { as: 'agendamentos', foreignKey: 'tipoServicoId' });
   };
 
   return TipoServico;

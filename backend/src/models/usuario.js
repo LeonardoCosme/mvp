@@ -1,6 +1,7 @@
 'use strict';
 module.exports = (sequelize, DataTypes) => {
   const Usuario = sequelize.define('Usuario', {
+    id:          { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
     nomeUsuario: { type: DataTypes.STRING(100), allowNull: false, field: 'nomeUsuario' },
     cpfUsuario:  { type: DataTypes.STRING(14),  allowNull: true,  field: 'cpfUsuario' },
     email:       { type: DataTypes.STRING(100), allowNull: false, unique: true, field: 'email' },
@@ -11,7 +12,7 @@ module.exports = (sequelize, DataTypes) => {
     timestamps: true,
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-    underscored: false, // 👈 importante
+    underscored: false,
   });
 
   Usuario.associate = (models) => {

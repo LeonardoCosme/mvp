@@ -2,7 +2,8 @@ const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 
 module.exports = sequelize.define('Avaliacao', {
-  agendamento_id: { type: DataTypes.INTEGER, allowNull: false },
+  id:             { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+  agendamento_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false }, // -> agendamentos.id (UNSIGNED)
   nota:           { type: DataTypes.TINYINT, allowNull: false },
   comentario:     { type: DataTypes.TEXT }
 }, {
