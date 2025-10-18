@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/utils/api';
 import { getToken, removeToken } from '@/utils/auth';
 
-// componentes auxiliares
 import Modal from '@/app/components/modal';
 import QrDisplay from '@/app/components/QrDisplay';
 
@@ -32,7 +31,6 @@ type TAgendamento = {
   status: 'pendente' | 'aceita' | 'concluida' | 'cancelada';
   created_at?: string;
 
-  // trilhas QR
   checkin_at?: string | null;
   start_at?: string | null;
   end_at?: string | null;
@@ -52,47 +50,47 @@ type FormNovo = {
 
 type QRPhase = 'checkin' | 'start' | 'end';
 
-/* ===== Helpers (escopo externo) ===== */
+/* ===== Helpers ===== */
 
 function fmtData(d?: string | null) {
   if (!d || typeof d !== 'string') return '--';
   const parts = d.split('-');
   if (parts.length < 3) return d;
-  const [y, m, day] = parts.map(Number); // arrow era equivalente a Number
+  const [y, m, day] = parts.map(Number);
   if (!y || !m || !day) return d;
   return new Date(y, m - 1, day).toLocaleDateString('pt-BR');
 }
 
 function fmtHora(h?: string | null) {
   if (!h || typeof h !== 'string') return '--';
-  const parts = h.split(':');
-  if (parts.length < 2) return h;
-  return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+  const [hh = '00', mm = '00'] = h.split(':');
+  return `${hh.padStart(2, '0')}:${mm.padStart(2, '0')}`;
 }
 
 function fmtDateTime(dt?: string | null) {
   if (!dt) return null;
   const d = new Date(dt);
-  if (Number.isNaN(d.getTime())) return dt; // prefer Number.isNaN
+  if (Number.isNaN(d.getTime())) return dt;
   const dia = d.toLocaleDateString('pt-BR');
   const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   return `${dia} ${hora}`;
 }
 
-/* ==================================== */
-
 export default function AgendamentosPage() {
   const router = useRouter();
 
+  // guard: se não tiver token, nem tenta carregar
+  const token = useMemo(() => getToken(), []);
+  const [redirecting, setRedirecting] = useState(false);
+
   const [user, setUser] = useState<TUser | null>(null);
   const [tipos, setTipos] = useState<TTipoServico[]>([]);
-  // duas listas para o prestador
   const [pendentes, setPendentes] = useState<TAgendamento[]>([]);
   const [meusAceitos, setMeusAceitos] = useState<TAgendamento[]>([]);
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string>('');
+  const [hintPrestador, setHintPrestador] = useState<boolean>(false);
 
-  // formulário (só para contratante)
   const [form, setForm] = useState<FormNovo>({
     tipo_servico_id: '',
     data: '',
@@ -103,7 +101,6 @@ export default function AgendamentosPage() {
   });
   const [sending, setSending] = useState(false);
 
-  // modal QR (contratante)
   const [qrOpen, setQrOpen] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
   const [qrFor, setQrFor] = useState<{ id: number; phase: QRPhase; token: string } | null>(null);
@@ -111,31 +108,46 @@ export default function AgendamentosPage() {
   const isPrestador = useMemo(() => user?.tipo === 'prestador', [user]);
   const isContratante = useMemo(() => user?.tipo === 'contratante', [user]);
 
+  // redireciona para login se não houver token
   useEffect(() => {
+    if (!token) {
+      setRedirecting(true);
+      router.replace('/login');
+    }
+  }, [token, router]);
+
+  useEffect(() => {
+    if (!token) return; // já vai redirecionar
+
     (async () => {
       try {
-        if (!getToken()) {
-          router.replace('/login');
-          return;
-        }
-
         // 1) usuário
         const me = (await apiFetch('/user/me')) as TUser;
         setUser(me);
 
-        // 2) tipos de serviço
+        // 2) tipos de serviço (array puro ou {itens:[]})
         const resTipos = (await apiFetch('/tipos-servico')) as { itens?: TTipoServico[] } | TTipoServico[];
         const itens = Array.isArray(resTipos) ? resTipos : resTipos?.itens || [];
         setTipos(itens);
 
         // 3) listas conforme perfil
         if (me.tipo === 'prestador') {
-          const [pend, meus] = await Promise.all([
-            apiFetch('/agendamentos/pendentes') as Promise<TAgendamento[]>,
-            apiFetch('/agendamentos/prestador') as Promise<TAgendamento[]>, // “aceitos/concluídos” do prestador
-          ]);
-          setPendentes(Array.isArray(pend) ? pend : []);
-          setMeusAceitos(Array.isArray(meus) ? meus : []);
+          try {
+            const [pend, meus] = await Promise.all([
+              apiFetch('/agendamentos/pendentes') as Promise<TAgendamento[]>,
+              apiFetch('/agendamentos/prestador') as Promise<TAgendamento[]>,
+            ]);
+            setPendentes(Array.isArray(pend) ? pend : []);
+            setMeusAceitos(Array.isArray(meus) ? meus : []);
+          } catch (e: any) {
+            const t = String(e?.message || '');
+            // se for “Perfil de prestador não encontrado.” mostra dica para completar cadastro
+            if (t.toLowerCase().includes('prestador') && t.toLowerCase().includes('não encontrado')) {
+              setHintPrestador(true);
+            } else {
+              setMsg(t || 'Erro ao carregar agendamentos do prestador.');
+            }
+          }
         } else {
           const meus = (await apiFetch('/agendamentos/cliente')) as TAgendamento[];
           setPendentes([]);
@@ -143,8 +155,9 @@ export default function AgendamentosPage() {
         }
       } catch (e: any) {
         const text = String(e?.message || '');
+        // 401 ou token inválido
         if (text.toLowerCase().includes('token')) {
-          removeToken?.();
+          removeToken();
           router.replace('/login');
           return;
         }
@@ -153,7 +166,7 @@ export default function AgendamentosPage() {
         setLoading(false);
       }
     })();
-  }, [router]);
+  }, [token, router]);
 
   function labelStatus(s: TAgendamento['status']) {
     if (s === 'pendente') return 'Pendente';
@@ -178,11 +191,9 @@ export default function AgendamentosPage() {
       await apiFetch('/agendamentos', { method: 'POST', body: JSON.stringify(payload) });
       setMsg('✅ Agendamento criado como pendente! Um prestador poderá aceitá-lo em breve.');
 
-      // recarregar lista do cliente
       const meus = (await apiFetch('/agendamentos/cliente')) as TAgendamento[];
       setMeusAceitos(Array.isArray(meus) ? meus : []);
 
-      // limpar form
       setForm({ tipo_servico_id: '', data: '', hora: '', endereco: '', descricao: '', duracao_horas: '' });
     } catch (e: any) {
       setMsg(`❌ ${e?.message || 'Erro ao criar agendamento.'}`);
@@ -196,6 +207,7 @@ export default function AgendamentosPage() {
     try {
       const r = await apiFetch(`/agendamentos/${id}/aceitar`, { method: 'POST' });
       if (r?.id) {
+        // envia pro scanner logo após aceitar
         router.push(`/agendamento/${r.id}/scanner`);
         return;
       }
@@ -233,6 +245,14 @@ export default function AgendamentosPage() {
     }
   }
 
+  if (redirecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#F89D13]/10">
+        Redirecionando para login…
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F89D13]/10">
@@ -243,7 +263,6 @@ export default function AgendamentosPage() {
 
   if (!user) return null;
 
-  // estilos de chip
   const chipBase = 'px-2 py-1 rounded-full border';
   const chipOn = 'bg-green-50 text-green-700 border-green-200';
   const chipOff = 'bg-gray-50 text-gray-600 border-gray-200';
@@ -251,7 +270,6 @@ export default function AgendamentosPage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 p-6">
       <div className="mx-auto max-w-5xl space-y-8">
-        {/* Header */}
         <header className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-[#8F1D14]">Agendamentos</h1>
@@ -264,7 +282,6 @@ export default function AgendamentosPage() {
           </div>
         </header>
 
-        {/* Mensagem */}
         {msg && (
           <div
             className={`rounded-xl p-3 text-sm ${
@@ -277,7 +294,15 @@ export default function AgendamentosPage() {
           </div>
         )}
 
-        {/* CONTRATANTE: Form novo agendamento */}
+        {/* Dica se logou como prestador mas não tem perfil em `prestadores` */}
+        {isPrestador && hintPrestador && (
+          <div className="rounded-xl p-3 text-sm bg-yellow-50 text-yellow-800 border border-yellow-200">
+            Seu usuário é do tipo <b>prestador</b>, mas não encontramos seu perfil na tabela de prestadores.
+            Abra sua página de perfil/cadastro de prestador e complete os dados para conseguir aceitar serviços.
+          </div>
+        )}
+
+        {/* CONTRATANTE */}
         {isContratante && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
             <h2 className="text-lg font-semibold text-[#8F1D14] mb-4">Novo agendamento</h2>
