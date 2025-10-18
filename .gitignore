@@ -1,0 +1,25 @@
+# Variáveis de ambiente
+.env
+.env.*.local
+
+# Logs
+logs
+*.log
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Builds
+dist/
+build/
+coverage/
+.next/
+out/
+
+# Sistema / IDE
+.vscode/
+.DS_Store
+Thumbs.db
