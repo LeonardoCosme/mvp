@@ -1,7 +1,8 @@
 'use strict';
 module.exports = (sequelize, DataTypes) => {
   const Contratante = sequelize.define('Contratante', {
-    usuario_id: { type: DataTypes.INTEGER, allowNull: false, unique: true, field: 'usuario_id' },
+    id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
+    usuario_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, unique: true, field: 'usuario_id' },
     endereco:   { type: DataTypes.STRING(255), allowNull: true, field: 'endereco' },
     telefone:   { type: DataTypes.STRING(20),  allowNull: true, field: 'telefone' },
   }, {
