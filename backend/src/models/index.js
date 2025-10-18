@@ -1,33 +1,50 @@
-// src/models/index.js
+// backend/src/models/index.js
 'use strict';
-const { Sequelize, DataTypes } = require('sequelize');
 
-let config = require('../config/database');
-if (config.development || config.production || config.test) {
-  const env = process.env.NODE_ENV || 'development';
-  config = config[env];
-}
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
 
-const sequelize = new Sequelize(
-  config.database, config.username, config.password, {
-    host: config.host,
-    port: config.port,
-    dialect: config.dialect,
-    logging: config.logging ?? false,
-    timezone: config.timezone || '-03:00',
+// Importa todos os models e inicializa com a instância correta
+const Usuario            = require('./usuario')(sequelize, DataTypes);
+const Prestador          = require('./prestador')(sequelize, DataTypes);
+const Contratante        = require('./contratante')(sequelize, DataTypes);
+const TipoServico        = require('./tipo_servico')(sequelize, DataTypes);
+const Agendamento        = require('./agendamento')(sequelize, DataTypes);
+const ServicoDisponivel  = require('./servico_disponivel');
+const SolicitacaoServico = require('./solicitacao_servico');
+const Avaliacao          = require('./avaliacao');
+
+// Executa as associações (se existirem)
+const models = {
+  Usuario,
+  Prestador,
+  Contratante,
+  TipoServico,
+  Agendamento,
+  ServicoDisponivel,
+  SolicitacaoServico,
+  Avaliacao,
+};
+
+Object.values(models).forEach((model) => {
+  if (typeof model.associate === 'function') {
+    model.associate(models);
   }
-);
+});
 
-const db = {};
-db.Usuario     = require('./usuario')(sequelize, DataTypes);
-db.Prestador   = require('./prestador')(sequelize, DataTypes);
-db.Contratante = require('./contratante')(sequelize, DataTypes);
-db.TipoServico = require('./tipo_servico')(sequelize, DataTypes);
-db.Agendamento = require('./agendamento')(sequelize, DataTypes);
+// Testa a conexão e sincroniza as tabelas (opcional em produção)
+(async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('✅ Banco conectado com sucesso.');
+    await sequelize.sync(); // Cria tabelas se não existirem
+    console.log('✅ Models sincronizados.');
+  } catch (err) {
+    console.error('❌ Erro ao conectar ou sincronizar o banco:', err.message);
+  }
+})();
 
-// chama associate se existir (sem duplicar aliases)
-Object.values(db).forEach(m => typeof m?.associate === 'function' && m.associate(db));
-
-db.sequelize = sequelize;
-db.Sequelize = Sequelize;
-module.exports = db;
+module.exports = {
+  ...models,
+  sequelize,
+};
