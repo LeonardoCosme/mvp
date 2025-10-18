@@ -3,9 +3,15 @@ const { TipoServico } = require('../models');
 exports.listTipos = async (req, res) => {
   try {
     const itens = await TipoServico.findAll({
-      attributes: ['id', 'nomeServico'],
-      order: [['nomeServico', 'ASC']], // 👈 use o atributo (mapeado ao campo)
+      // Lê do banco o campo 'nome' e devolve como 'nomeServico' (alias)
+      attributes: [
+        'id',
+        ['nome', 'nomeServico']
+      ],
+      order: [['nome', 'ASC']],
+      raw: true,
     });
+
     return res.json(itens);
   } catch (err) {
     console.error('❌ listTipos:', err);
