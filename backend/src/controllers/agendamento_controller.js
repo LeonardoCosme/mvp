@@ -6,6 +6,7 @@ const {
   TipoServico,
   Prestador,
   Contratante,
+  Avaliacao, // ✅ adicionamos para o /status
 } = require('../models');
 
 /** Util: token randômico p/ QR */
@@ -103,7 +104,7 @@ exports.listCliente = async (req, res) => {
         {
           model: TipoServico,
           as: 'tipo',
-          attributes: ['id', 'nome'], // <-- usa a coluna real
+          attributes: ['id', 'nome'],
           required: false,
         },
       ],
@@ -125,7 +126,6 @@ exports.listCliente = async (req, res) => {
       endereco: a.endereco,
       status: a.status,
       created_at: a.createdAt,
-      // pega direto o campo 'nome'
       tipo_nome: a.tipo?.nome ?? null,
 
       checkin_at: a.checkinAt ?? null,
@@ -316,7 +316,7 @@ exports.qrcode = async (req, res) => {
     const tokenField = `${phase}Qr`;
     if (!ag[tokenField]) {
       ag[tokenField] = genToken();
-      await ag.save();
+      await ag.save({ fields: [tokenField] }); // ✅ salva só o campo gerado
     }
 
     const base = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
@@ -375,5 +375,44 @@ exports.scan = async (req, res) => {
   } catch (err) {
     console.error('❌ Agendamento.scan:', err);
     return res.status(500).json({ error: 'Erro ao validar QR' });
+  }
+};
+
+/** ✅ GET /api/agendamentos/:id/status — cliente dono (para polling abrir a avaliação) */
+exports.status = async (req, res) => {
+  try {
+    const agId = Number(req.params.id);
+    if (!agId) return res.status(400).json({ error: 'ID inválido' });
+
+    const contr = await Contratante.findOne({
+      where: { usuario_id: req.user.id },
+      attributes: ['id'],
+    });
+    if (!contr) return res.status(403).json({ error: 'Apenas contratantes' });
+
+    const ag = await Agendamento.findByPk(agId, {
+      attributes: ['id','contratanteId','prestadorId','status','checkinAt','startAt','endAt'],
+    });
+    if (!ag) return res.status(404).json({ error: 'Agendamento não encontrado' });
+    if (ag.contratanteId !== contr.id) {
+      return res.status(403).json({ error: 'Este agendamento não pertence a você' });
+    }
+
+    const avaliacao = await Avaliacao.findOne({
+      where: { agendamentoId: ag.id },
+      attributes: ['id'],
+    });
+
+    return res.json({
+      id: ag.id,
+      status: ag.status,      // 'pendente' | 'aceita' | 'concluida'
+      checkinAt: ag.checkinAt,
+      startAt: ag.startAt,
+      endAt: ag.endAt,
+      avaliado: !!avaliacao,
+    });
+  } catch (err) {
+    console.error('❌ Agendamento.status:', err);
+    return res.status(500).json({ error: 'Erro ao consultar status' });
   }
 };

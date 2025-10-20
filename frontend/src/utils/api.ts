@@ -4,35 +4,51 @@ import { getToken } from '@/utils/auth';
 const RAW_BASE =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
-// remove barras no fim; vamos garantir só uma barra entre base e path
 export const API_BASE_URL = RAW_BASE.replace(/\/+$/, '');
 
 function safeJsonParse(text: string) {
-  try { return JSON.parse(text); } catch { return null; }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
-export async function apiFetch(path: string, options: RequestInit = {}) {
-  const headers: Record<string, string> = { ...(options.headers as any) };
+export type ApiInit = Omit<RequestInit, 'headers'> & {
+  auth?: boolean;
+  headers?: HeadersInit;
+};
 
-  const hasBody = options.body !== undefined && options.body !== null;
-  if (hasBody && !headers['Content-Type']) {
-    headers['Content-Type'] = 'application/json';
+// retorna Promise<any> por padrão — assim não precisa de "as any"
+export async function apiFetch(path: string, options: ApiInit = {}): Promise<any> {
+  const { auth = true, headers: initHeaders, ...rest } = options;
+
+  const headers = new Headers(initHeaders || undefined);
+
+  const hasBody = rest.body !== undefined && rest.body !== null;
+  if (hasBody && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
   }
 
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (auth) {
+    const token = getToken();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+  }
 
-  // remove barras à esquerda do path
   const cleanPath = String(path).replace(/^\/+/, '');
   const url = `${API_BASE_URL}/${cleanPath}`;
 
-  const res = await fetch(url, { ...options, headers });
+  const res = await fetch(url, { ...rest, headers });
+
   const contentType = res.headers.get('content-type') || '';
   const raw = await res.text();
-  const data = contentType.includes('application/json') ? safeJsonParse(raw) : null;
+  const data = contentType.includes('application/json')
+    ? safeJsonParse(raw)
+    : null;
 
   if (!res.ok) {
-    const message = (data && (data.error || data.message)) || raw || `HTTP ${res.status}`;
+    const message =
+      (data && (data.error || data.message)) || raw || `HTTP ${res.status}`;
     throw new Error(message);
   }
 

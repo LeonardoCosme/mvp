@@ -1,14 +1,25 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+// src/models/Avaliacao.js
+module.exports = (sequelize, DataTypes) => {
+  const Avaliacao = sequelize.define('Avaliacao', {
+    nota: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      validate: { min: 1, max: 5 },
+    },
+    comentario: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+  }, {
+    tableName: 'avaliacoes',
+    underscored: true,
+  });
 
-module.exports = sequelize.define('Avaliacao', {
-  id:             { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  agendamento_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false }, // -> agendamentos.id (UNSIGNED)
-  nota:           { type: DataTypes.TINYINT, allowNull: false },
-  comentario:     { type: DataTypes.TEXT }
-}, {
-  tableName: 'avaliacoes',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at'
-});
+  Avaliacao.associate = (models) => {
+    Avaliacao.belongsTo(models.Agendamento, { foreignKey: 'agendamentoId', as: 'agendamento' });
+    Avaliacao.belongsTo(models.Contratante, { foreignKey: 'clienteId', as: 'cliente' });
+    Avaliacao.belongsTo(models.Prestador,   { foreignKey: 'prestadorId', as: 'prestador' });
+  };
+
+  return Avaliacao;
+};
