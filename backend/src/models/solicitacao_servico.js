@@ -1,16 +1,43 @@
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+// backend/src/models/solicitacao_servico.js
+module.exports = (sequelize, DataTypes) => {
+  const SolicitacaoServico = sequelize.define(
+    'SolicitacaoServico',
+    {
+      id: { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
 
-module.exports = sequelize.define('SolicitacaoServico', {
-  id:              { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
-  contratante_id:  { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  tipo_servico_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false },
-  descricao:       { type: DataTypes.TEXT },
-  data_sugerida:   { type: DataTypes.DATEONLY },
-  hora_sugerida:   { type: DataTypes.TIME }
-}, {
-  tableName: 'solicitacoes_servico',
-  timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at'
-});
+      // FK → contratantes.id
+      contratanteId: {
+        type: DataTypes.INTEGER.UNSIGNED,
+        allowNull: false,
+        field: 'contratante_id',
+      },
+
+      // FK → tipos_servico.id
+      tipoServicoId: {
+        type: DataTypes.INTEGER.UNSIGNED,
+        allowNull: false,
+        field: 'tipo_servico_id',
+      },
+
+      descricao:     { type: DataTypes.TEXT,     allowNull: true },
+      dataSugerida:  { type: DataTypes.DATEONLY, allowNull: true, field: 'data_sugerida' },
+      horaSugerida:  { type: DataTypes.TIME,     allowNull: true, field: 'hora_sugerida' },
+
+      createdAt: { type: DataTypes.DATE, field: 'created_at' },
+      updatedAt: { type: DataTypes.DATE, field: 'updated_at' },
+    },
+    {
+      tableName: 'solicitacoes_servico',
+      timestamps: true,
+      underscored: true,
+    }
+  );
+
+  SolicitacaoServico.associate = (models) => {
+    // Se quiser ligar:
+    // SolicitacaoServico.belongsTo(models.Contratante, { as: 'contratante',  foreignKey: 'contratanteId' });
+    // SolicitacaoServico.belongsTo(models.TipoServico, { as: 'tipoServico',  foreignKey: 'tipoServicoId' });
+  };
+
+  return SolicitacaoServico;
+};
