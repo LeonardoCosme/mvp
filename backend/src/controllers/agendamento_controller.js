@@ -6,7 +6,7 @@ const {
   TipoServico,
   Prestador,
   Contratante,
-  Avaliacao, // ✅ adicionamos para o /status
+  Avaliacao, // ✅ para /status
 } = require('../models');
 
 /** Util: token randômico p/ QR */
@@ -398,14 +398,15 @@ exports.status = async (req, res) => {
       return res.status(403).json({ error: 'Este agendamento não pertence a você' });
     }
 
+    // ✅ avaliado pelo CONTRATANTE dono (clienteId)
     const avaliacao = await Avaliacao.findOne({
-      where: { agendamentoId: ag.id },
+      where: { agendamentoId: ag.id, clienteId: contr.id },
       attributes: ['id'],
     });
 
     return res.json({
       id: ag.id,
-      status: ag.status,      // 'pendente' | 'aceita' | 'concluida'
+      status: ag.status, // 'pendente' | 'aceita' | 'concluida'
       checkinAt: ag.checkinAt,
       startAt: ag.startAt,
       endAt: ag.endAt,
