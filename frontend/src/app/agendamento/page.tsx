@@ -9,7 +9,7 @@ import { getToken, removeToken } from '@/utils/auth';
 
 import Modal from '@/app/components/modal';
 import QrDisplay from '@/app/components/QrDisplay';
-import AvaliacaoModal from '../components/avaliacaomodal'; // ✅ novo
+import AvaliacaoModal from '@/app/components/avaliacaomodal'; // mantém seu path
 
 type TUser = {
   id: number;
@@ -53,7 +53,6 @@ type FormNovo = {
 type QRPhase = 'checkin' | 'start' | 'end';
 
 /* ===== Helpers ===== */
-
 function fmtData(d?: string | null) {
   if (!d || typeof d !== 'string') return '--';
   const parts = d.split('-');
@@ -107,9 +106,13 @@ export default function AgendamentosPage() {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrFor, setQrFor] = useState<{ id: number; phase: QRPhase; token: string } | null>(null);
 
-  // ✅ controle do modal de avaliação
+  // ✅ controle do modal de avaliação + contexto (prestador/serviço)
   const [evalOpen, setEvalOpen] = useState(false);
-  const [evalAgId, setEvalAgId] = useState<number | null>(null);
+  const [evalCtx, setEvalCtx] = useState<{
+    agendamentoId: number;
+    prestadorNome?: string | null;
+    servicoNome?: string | null;
+  } | null>(null);
   const [avaliados, setAvaliados] = useState<Set<number>>(new Set());
 
   const isPrestador = useMemo(() => user?.tipo === 'prestador', [user]);
@@ -148,7 +151,6 @@ export default function AgendamentosPage() {
             setMeusAceitos(Array.isArray(meus) ? meus : []);
           } catch (e: any) {
             const t = String(e?.message || '');
-            // se for “Perfil de prestador não encontrado.” mostra dica para completar cadastro
             if (t.toLowerCase().includes('prestador') && t.toLowerCase().includes('não encontrado')) {
               setHintPrestador(true);
             } else {
@@ -162,7 +164,6 @@ export default function AgendamentosPage() {
         }
       } catch (e: any) {
         const text = String(e?.message || '');
-        // 401 ou token inválido
         if (text.toLowerCase().includes('token')) {
           removeToken();
           router.replace('/login');
@@ -175,7 +176,7 @@ export default function AgendamentosPage() {
     })();
   }, [token, router]);
 
-  // ✅ polling de status para o CONTRATANTE
+  // ✅ polling de status para o CONTRATANTE (abre modal com nomes)
   useEffect(() => {
     if (!isContratante) return;
     if (!meusAceitos || meusAceitos.length === 0) return;
@@ -185,34 +186,41 @@ export default function AgendamentosPage() {
     async function tick() {
       if (stop) return;
       try {
-        const ids = meusAceitos.map(a => a.id).filter(Boolean);
+        const ids = meusAceitos.map((a) => a.id).filter(Boolean);
         const checks = await Promise.all(
           ids.map(async (id) => {
             try {
-              const r = await apiFetch(`/agendamentos/${id}/status`, { auth: true });
+              const r = await apiFetch(`/agendamentos/${id}/status`);
               return { id, r };
             } catch {
-              return { id, r: null };
+              return { id, r: null as any };
             }
           })
         );
 
         const alvo = checks.find(
-          x => x.r && x.r.status === 'concluida' && !x.r.avaliado && !avaliados.has(x.id)
+          (x) => x.r && x.r.status === 'concluida' && !x.r.avaliado && !avaliados.has(x.id)
         );
+
         if (alvo && !evalOpen) {
-          setEvalAgId(alvo.id);
+          setEvalCtx({
+            agendamentoId: alvo.r.id,
+            prestadorNome: alvo.r.prestador_nome, // vindo do backend
+            servicoNome: alvo.r.tipo_nome, // vindo do backend
+          });
           setEvalOpen(true);
         }
       } catch {
-        // silencioso; opcional: console.warn
+        /* silencioso */
       }
 
       if (!stop) setTimeout(tick, 5000);
     }
 
-    tick(); // primeira chamada imediata
-    return () => { stop = true; };
+    tick(); // primeira chamada
+    return () => {
+      stop = true;
+    };
   }, [isContratante, meusAceitos, avaliados, evalOpen]);
 
   function labelStatus(s: TAgendamento['status']) {
@@ -254,7 +262,6 @@ export default function AgendamentosPage() {
     try {
       const r = await apiFetch(`/agendamentos/${id}/aceitar`, { method: 'POST' });
       if (r?.id) {
-        // envia pro scanner logo após aceitar
         router.push(`/agendamento/${r.id}/scanner`);
         return;
       }
@@ -289,6 +296,21 @@ export default function AgendamentosPage() {
       setQrOpen(false);
     } finally {
       setQrLoading(false);
+    }
+  }
+
+  // (opcional) abrir avaliação manualmente
+  async function abrirAvaliacao(agId: number) {
+    try {
+      const st = await apiFetch(`/agendamentos/${agId}/status`);
+      setEvalCtx({
+        agendamentoId: st.id,
+        prestadorNome: st.prestador_nome,
+        servicoNome: st.tipo_nome,
+      });
+      setEvalOpen(true);
+    } catch (e: any) {
+      setMsg(e?.message || 'Não foi possível abrir a avaliação.');
     }
   }
 
@@ -616,6 +638,17 @@ export default function AgendamentosPage() {
                           >
                             QR Término
                           </button>
+
+                          {/* Botão manual de avaliação após término */}
+                          {stepEnd && (
+                            <button
+                              type="button"
+                              onClick={() => abrirAvaliacao(ag.id)}
+                              className="px-3 py-2 rounded-lg bg-[#8F1D14] text-white hover:bg-[#a2261b]"
+                            >
+                              Avaliar
+                            </button>
+                          )}
                         </div>
                       </div>
                     </li>
@@ -643,10 +676,7 @@ export default function AgendamentosPage() {
               );
             })()}
 
-            <QrDisplay
-              text={JSON.stringify({ id: qrFor.id, phase: qrFor.phase, token: qrFor.token })}
-              size={256}
-            />
+            <QrDisplay text={JSON.stringify({ id: qrFor.id, phase: qrFor.phase, token: qrFor.token })} size={256} />
 
             <code className="block text-xs bg-gray-50 border border-gray-200 rounded p-2 break-all">
               {JSON.stringify({ id: qrFor.id, phase: qrFor.phase, token: qrFor.token })}
@@ -657,15 +687,24 @@ export default function AgendamentosPage() {
 
       {/* ✅ Modal de Avaliação (cliente) */}
       <AvaliacaoModal
-        agendamentoId={evalAgId ?? 0}
-        open={evalOpen && !!evalAgId}
+        agendamentoId={evalCtx?.agendamentoId ?? 0}
+        open={evalOpen && !!evalCtx}
         onClose={() => setEvalOpen(false)}
-        onSuccess={() => {
-          if (evalAgId) {
-            setAvaliados(prev => new Set(prev).add(evalAgId));
+        onSuccess={async () => {
+          // marca como avaliado e recarrega lista do cliente
+          if (evalCtx?.agendamentoId) {
+            setAvaliados((prev) => new Set(prev).add(evalCtx.agendamentoId));
           }
+          try {
+            if (isContratante) {
+              const meus = (await apiFetch('/agendamentos/cliente')) as TAgendamento[];
+              setMeusAceitos(Array.isArray(meus) ? meus : []);
+            }
+          } catch {}
           setEvalOpen(false);
         }}
+        prestadorNome={evalCtx?.prestadorNome}
+        servicoNome={evalCtx?.servicoNome}
       />
     </main>
   );
