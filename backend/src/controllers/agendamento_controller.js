@@ -6,7 +6,8 @@ const {
   TipoServico,
   Prestador,
   Contratante,
-  Avaliacao, // ✅ para /status
+  Avaliacao,
+  Usuario, // 👈 precisamos disso para pegar nome/email do prestador
 } = require('../models');
 
 /** Util: token randômico p/ QR */
@@ -316,7 +317,7 @@ exports.qrcode = async (req, res) => {
     const tokenField = `${phase}Qr`;
     if (!ag[tokenField]) {
       ag[tokenField] = genToken();
-      await ag.save({ fields: [tokenField] }); // ✅ salva só o campo gerado
+      await ag.save({ fields: [tokenField] }); // salva só o campo gerado
     }
 
     const base = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
@@ -391,14 +392,23 @@ exports.status = async (req, res) => {
     if (!contr) return res.status(403).json({ error: 'Apenas contratantes' });
 
     const ag = await Agendamento.findByPk(agId, {
-      attributes: ['id','contratanteId','prestadorId','status','checkinAt','startAt','endAt'],
+      attributes: [
+        'id','contratanteId','prestadorId','status','checkinAt','startAt','endAt','tipoServicoId'
+      ],
+      include: [
+        { model: TipoServico, as: 'tipo', attributes: ['nome'] },
+        {
+          model: Prestador, as: 'prestador', attributes: ['id'],
+          include: [{ model: Usuario, as: 'usuario', attributes: ['nomeUsuario','email'] }]
+        }
+      ],
     });
     if (!ag) return res.status(404).json({ error: 'Agendamento não encontrado' });
     if (ag.contratanteId !== contr.id) {
       return res.status(403).json({ error: 'Este agendamento não pertence a você' });
     }
 
-    // ✅ avaliado pelo CONTRATANTE dono (clienteId)
+    // avaliado pelo contratante dono
     const avaliacao = await Avaliacao.findOne({
       where: { agendamentoId: ag.id, clienteId: contr.id },
       attributes: ['id'],
@@ -411,6 +421,13 @@ exports.status = async (req, res) => {
       startAt: ag.startAt,
       endAt: ag.endAt,
       avaliado: !!avaliacao,
+
+      // contexto para o modal
+      tipo_servico_id: ag.tipoServicoId,
+      tipo_nome: ag.tipo?.nome ?? null,
+      prestador_id: ag.prestadorId ?? null,
+      prestador_nome: ag.prestador?.usuario?.nomeUsuario ?? null,
+      prestador_email: ag.prestador?.usuario?.email ?? null, // opcional
     });
   } catch (err) {
     console.error('❌ Agendamento.status:', err);
