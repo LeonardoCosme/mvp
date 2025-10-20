@@ -1,3 +1,4 @@
+// src/app/agendamento/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -8,6 +9,7 @@ import { getToken, removeToken } from '@/utils/auth';
 
 import Modal from '@/app/components/modal';
 import QrDisplay from '@/app/components/QrDisplay';
+import AvaliacaoModal from '../components/avaliacaomodal'; // ✅ novo
 
 type TUser = {
   id: number;
@@ -105,6 +107,11 @@ export default function AgendamentosPage() {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrFor, setQrFor] = useState<{ id: number; phase: QRPhase; token: string } | null>(null);
 
+  // ✅ controle do modal de avaliação
+  const [evalOpen, setEvalOpen] = useState(false);
+  const [evalAgId, setEvalAgId] = useState<number | null>(null);
+  const [avaliados, setAvaliados] = useState<Set<number>>(new Set());
+
   const isPrestador = useMemo(() => user?.tipo === 'prestador', [user]);
   const isContratante = useMemo(() => user?.tipo === 'contratante', [user]);
 
@@ -167,6 +174,46 @@ export default function AgendamentosPage() {
       }
     })();
   }, [token, router]);
+
+  // ✅ polling de status para o CONTRATANTE
+  useEffect(() => {
+    if (!isContratante) return;
+    if (!meusAceitos || meusAceitos.length === 0) return;
+
+    let stop = false;
+
+    async function tick() {
+      if (stop) return;
+      try {
+        const ids = meusAceitos.map(a => a.id).filter(Boolean);
+        const checks = await Promise.all(
+          ids.map(async (id) => {
+            try {
+              const r = await apiFetch(`/agendamentos/${id}/status`, { auth: true });
+              return { id, r };
+            } catch {
+              return { id, r: null };
+            }
+          })
+        );
+
+        const alvo = checks.find(
+          x => x.r && x.r.status === 'concluida' && !x.r.avaliado && !avaliados.has(x.id)
+        );
+        if (alvo && !evalOpen) {
+          setEvalAgId(alvo.id);
+          setEvalOpen(true);
+        }
+      } catch {
+        // silencioso; opcional: console.warn
+      }
+
+      if (!stop) setTimeout(tick, 5000);
+    }
+
+    tick(); // primeira chamada imediata
+    return () => { stop = true; };
+  }, [isContratante, meusAceitos, avaliados, evalOpen]);
 
   function labelStatus(s: TAgendamento['status']) {
     if (s === 'pendente') return 'Pendente';
@@ -607,6 +654,19 @@ export default function AgendamentosPage() {
           </div>
         )}
       </Modal>
+
+      {/* ✅ Modal de Avaliação (cliente) */}
+      <AvaliacaoModal
+        agendamentoId={evalAgId ?? 0}
+        open={evalOpen && !!evalAgId}
+        onClose={() => setEvalOpen(false)}
+        onSuccess={() => {
+          if (evalAgId) {
+            setAvaliados(prev => new Set(prev).add(evalAgId));
+          }
+          setEvalOpen(false);
+        }}
+      />
     </main>
   );
 }

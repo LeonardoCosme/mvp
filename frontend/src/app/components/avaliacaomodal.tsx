@@ -1,4 +1,3 @@
-// components/AvaliacaoModal.tsx
 'use client';
 import { useState } from 'react';
 import { apiFetch } from '@/utils/api';
@@ -30,7 +29,6 @@ export default function AvaliacaoModal({ agendamentoId, open, onClose, onSuccess
       onSuccess?.();
       onClose();
     } catch (e: unknown) {
-      // ✅ tratar erro de verdade (sem catch vazio)
       const msg = e instanceof Error ? e.message : 'Falha ao enviar avaliação.';
       setErrorMsg(msg);
       console.error('AvaliacaoModal submit error:', e);
@@ -69,7 +67,6 @@ export default function AvaliacaoModal({ agendamentoId, open, onClose, onSuccess
           onChange={(e) => setComentario(e.target.value)}
         />
 
-        {/* ✅ exibir erro tratado */}
         {errorMsg && (
           <p className="text-sm text-red-600 mb-2" role="alert">
             {errorMsg}
