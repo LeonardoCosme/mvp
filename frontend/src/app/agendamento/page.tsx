@@ -352,7 +352,7 @@ export default function AgendamentosPage() {
             {/* ✅ Botão no header só para contratante */}
             {isContratante && (
               <Link
-                href="/historico"
+                href="/historico-avaliacoes"
                 className="ml-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#8F1D14] text-white hover:bg-[#a2261b] transition"
               >
                 Histórico de avaliações
