@@ -344,10 +344,20 @@ export default function AgendamentosPage() {
             <h1 className="text-2xl font-bold text-[#8F1D14]">Agendamentos</h1>
             <p className="text-gray-600 capitalize">Perfil: {user.tipo}</p>
           </div>
-          <div className="text-sm">
+          <div className="text-sm flex items-center gap-2">
             <Link href="/home" className="text-[#8F1D14] underline hover:opacity-80">
               ← Voltar para a home
             </Link>
+
+            {/* ✅ Botão no header só para contratante */}
+            {isContratante && (
+              <Link
+                href="/historico-avaliacoes"
+                className="ml-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#8F1D14] text-white hover:bg-[#a2261b] transition"
+              >
+                Histórico de avaliações
+              </Link>
+            )}
           </div>
         </header>
 
@@ -576,7 +586,17 @@ export default function AgendamentosPage() {
         {/* CONTRATANTE: lista */}
         {isContratante && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold text-[#8F1D14] mb-3">Meus agendamentos</h2>
+            {/* ✅ Barra de título com o atalho para histórico */}
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold text-[#8F1D14]">Meus agendamentos</h2>
+              <Link
+                href="/historico-avaliacoes"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
+              >
+                Ver histórico de avaliações
+              </Link>
+            </div>
+
             {meusAceitos.length === 0 ? (
               <p className="text-gray-600">Nenhum agendamento para mostrar.</p>
             ) : (
