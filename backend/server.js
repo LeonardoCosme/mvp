@@ -4,16 +4,14 @@ const { sequelize, TipoServico } = require('./src/models');
 
 const port = process.env.PORT || 3001;
 
-// Inicia o servidor
-app.listen(port, async () => {
-  console.log(`✅ API V2 on :${port}`);
-
+(async () => {
   try {
-    // Testa a conexão com o banco
     await sequelize.authenticate();
     console.log('✅ Banco conectado com sucesso.');
 
-    // Executa seeds automáticos se a tabela estiver vazia
+    await sequelize.sync();
+
+    // Seeds (iguais aos seus)
     const count = await TipoServico.count();
     if (count === 0) {
       await TipoServico.bulkCreate([
@@ -25,7 +23,12 @@ app.listen(port, async () => {
     } else {
       console.log(`🌱 Seeds já existentes (${count} registros). Nenhuma ação necessária.`);
     }
+
+    app.listen(port, () => {
+      console.log(`✅ API V2 on :${port}`);
+    });
   } catch (err) {
-    console.error('⚠️ Erro ao conectar ou inserir seeds automáticos:', err.message);
+    console.error('⚠️ Erro ao iniciar a API:', err.message);
+    process.exit(1);
   }
-});
+})();

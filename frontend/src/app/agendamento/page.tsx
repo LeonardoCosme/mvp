@@ -9,7 +9,7 @@ import { getToken, removeToken } from '@/utils/auth';
 
 import Modal from '@/app/components/modal';
 import QrDisplay from '@/app/components/QrDisplay';
-import AvaliacaoModal from '@/app/components/avaliacaomodal'; // mantém seu path
+import AvaliacaoModal from '@/app/components/avaliacaomodal'; 
 
 type TUser = {
   id: number;

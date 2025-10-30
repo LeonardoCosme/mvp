@@ -1,0 +1,30 @@
+{
+  "name": "mvp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LeonardoCosme/mvp.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/LeonardoCosme/mvp/issues"
+  },
+  "homepage": "https://github.com/LeonardoCosme/mvp#readme",
+  "devDependencies": {
+    "chromedriver": "^141.0.4",
+    "mocha": "^11.7.4",
+    "mochawesome": "^7.1.4",
+    "selenium-webdriver": "^4.38.0"
+  }
+}

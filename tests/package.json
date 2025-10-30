@@ -1,0 +1,28 @@
+{
+  "name": "tests",
+  "version": "1.0.0",
+  "description": "Testes automatizados E2E com Selenium, Mocha e Mochawesome",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+  "test:e2e": "mocha e2e/*.test.cjs --config mocha.json && node customize-report.cjs && node open-report.cjs"
+},
+  "keywords": [
+    "selenium",
+    "mocha",
+    "mochawesome",
+    "testes",
+    "e2e"
+  ],
+  "author": "Equipe TCC - Marido de Aluguel",
+  "license": "ISC",
+  "devDependencies": {
+    "mocha": "^11.0.1",
+    "mochawesome": "^7.1.3",
+    "open": "^10.2.0"
+  },
+  "dependencies": {
+    "chromedriver": "^141.0.4",
+    "selenium-webdriver": "^4.38.0"
+  }
+}

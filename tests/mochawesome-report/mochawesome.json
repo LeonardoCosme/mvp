@@ -1,0 +1,448 @@
+{
+  "stats": {
+    "suites": 5,
+    "tests": 5,
+    "passes": 5,
+    "pending": 0,
+    "failures": 0,
+    "start": "2025-10-28T14:30:41.204Z",
+    "end": "2025-10-28T14:31:36.270Z",
+    "duration": 55066,
+    "testsRegistered": 5,
+    "passPercent": 100,
+    "pendingPercent": 0,
+    "other": 0,
+    "hasOther": false,
+    "skipped": 0,
+    "hasSkipped": false
+  },
+  "results": [
+    {
+      "uuid": "5092c19b-755b-4a6b-8036-eacf3e4db71a",
+      "title": "",
+      "fullFile": "",
+      "file": "",
+      "beforeHooks": [],
+      "afterHooks": [],
+      "tests": [],
+      "suites": [
+        {
+          "uuid": "121944c3-a67a-40d9-ae11-a196afbf0cdc",
+          "title": "Teste de Cadastro Duplicado",
+          "fullFile": "C:\\Users\\55119\\Desktop\\mvp\\tests\\e2e\\cadastro_duplicado.test.cjs",
+          "file": "\\e2e\\cadastro_duplicado.test.cjs",
+          "beforeHooks": [
+            {
+              "title": "\"before all\" hook in \"Teste de Cadastro Duplicado\"",
+              "fullTitle": "Teste de Cadastro Duplicado \"before all\" hook in \"Teste de Cadastro Duplicado\"",
+              "timedOut": false,
+              "duration": 5684,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "driver = await new Builder().forBrowser('chrome').build();",
+              "err": {},
+              "uuid": "354fdd35-07ca-4585-b1ae-c5deb9dbfcff",
+              "parentUUID": "121944c3-a67a-40d9-ae11-a196afbf0cdc",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "afterHooks": [
+            {
+              "title": "\"after all\" hook in \"Teste de Cadastro Duplicado\"",
+              "fullTitle": "Teste de Cadastro Duplicado \"after all\" hook in \"Teste de Cadastro Duplicado\"",
+              "timedOut": false,
+              "duration": 1148,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "await driver.quit();",
+              "err": {},
+              "uuid": "a11b6273-ce8c-4f28-a743-7db43e00ad39",
+              "parentUUID": "121944c3-a67a-40d9-ae11-a196afbf0cdc",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "tests": [
+            {
+              "title": "Deve exibir mensagem de erro ao tentar cadastrar um e-mail já existente",
+              "fullTitle": "Teste de Cadastro Duplicado Deve exibir mensagem de erro ao tentar cadastrar um e-mail já existente",
+              "timedOut": false,
+              "duration": 8532,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "// 1️⃣ Abre a página de cadastro\nawait driver.get('http://localhost:3000/cadastro');\n// 2️⃣ Aguarda os campos principais\nawait driver.wait(until.elementLocated(By.id('nomeUsuario')), 10000);\nawait driver.wait(until.elementLocated(By.id('email')), 10000);\nawait driver.wait(until.elementLocated(By.id('password')), 10000);\n// 3️⃣ Usa um e-mail fixo já existente no banco\nconst emailDuplicado = 'teste@exemplo.com'; // substitua por um e-mail já cadastrado\n// 4️⃣ Preenche o formulário\nawait driver.findElement(By.id('nomeUsuario')).clear();\nawait driver.findElement(By.id('nomeUsuario')).sendKeys('Usuário Duplicado');\nawait driver.findElement(By.id('email')).clear();\nawait driver.findElement(By.id('email')).sendKeys(emailDuplicado);\nawait driver.findElement(By.id('cpfUsuario')).clear();\nawait driver.findElement(By.id('cpfUsuario')).sendKeys('11122233344');\nawait driver.findElement(By.id('password')).clear();\nawait driver.findElement(By.id('password')).sendKeys('Teste@123');\nawait driver.findElement(By.id('tipo')).sendKeys('prestador');\n// 5️⃣ Envia o formulário\nconst button = await driver.findElement(By.css('button[type=\"submit\"]'));\nawait button.click();\n// 6️⃣ Aguarda a mensagem de erro\nconst errorElement = await driver.wait(\n  until.elementLocated(By.css('p.text-red-600')),\n  10000\n);\nconst errorText = await errorElement.getText();\n// 7️⃣ Valida a mensagem\nassert.ok(\n  errorText.includes('Erro') ||\n  errorText.includes('já existe') ||\n  errorText.includes('cadastrar') ||\n  errorText.includes('Este e-mail já está cadastrado'),\n  `Mensagem inesperada: ${errorText}`\n);\n\nconsole.log(`❌ Cadastro duplicado corretamente bloqueado (${emailDuplicado})`);",
+              "err": {},
+              "uuid": "100aac51-de70-4711-a185-af11c45767f8",
+              "parentUUID": "121944c3-a67a-40d9-ae11-a196afbf0cdc",
+              "isHook": false,
+              "skipped": false
+            }
+          ],
+          "suites": [],
+          "passes": [
+            "100aac51-de70-4711-a185-af11c45767f8"
+          ],
+          "failures": [],
+          "pending": [],
+          "skipped": [],
+          "duration": 8532,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 30000
+        },
+        {
+          "uuid": "1cb1caf9-6bcd-45d6-b955-d0d4179e5d89",
+          "title": "Teste de Cadastro de Usuário",
+          "fullFile": "C:\\Users\\55119\\Desktop\\mvp\\tests\\e2e\\cadastro.test.cjs",
+          "file": "\\e2e\\cadastro.test.cjs",
+          "beforeHooks": [
+            {
+              "title": "\"before all\" hook in \"Teste de Cadastro de Usuário\"",
+              "fullTitle": "Teste de Cadastro de Usuário \"before all\" hook in \"Teste de Cadastro de Usuário\"",
+              "timedOut": false,
+              "duration": 2085,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "driver = await new Builder().forBrowser('chrome').build();",
+              "err": {},
+              "uuid": "1417c7fa-c6bf-4ee4-8ea7-bb29dc8a585a",
+              "parentUUID": "1cb1caf9-6bcd-45d6-b955-d0d4179e5d89",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "afterHooks": [
+            {
+              "title": "\"after all\" hook in \"Teste de Cadastro de Usuário\"",
+              "fullTitle": "Teste de Cadastro de Usuário \"after all\" hook in \"Teste de Cadastro de Usuário\"",
+              "timedOut": false,
+              "duration": 345,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "await driver.quit();",
+              "err": {},
+              "uuid": "dfbf078d-51cd-41a9-a1f0-8ca26da6d2cd",
+              "parentUUID": "1cb1caf9-6bcd-45d6-b955-d0d4179e5d89",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "tests": [
+            {
+              "title": "Deve realizar o cadastro com sucesso e redirecionar para a página de login",
+              "fullTitle": "Teste de Cadastro de Usuário Deve realizar o cadastro com sucesso e redirecionar para a página de login",
+              "timedOut": false,
+              "duration": 13488,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "console.log('🚀 Iniciando teste de cadastro...');\nawait driver.get('http://localhost:3000/cadastro');\n// Espera pelos campos\nawait driver.wait(until.elementLocated(By.id('nomeUsuario')), 10000);\nawait driver.wait(until.elementLocated(By.id('email')), 10000);\nawait driver.wait(until.elementLocated(By.id('password')), 10000);\n// Gera e-mail aleatório\nconst randomId = Math.floor(Math.random() * 100000);\nconst email = `usuario${randomId}@teste.com`;\n// Preenche o formulário\nawait driver.findElement(By.id('nomeUsuario')).sendKeys(`Usuário Teste ${randomId}`);\nawait driver.findElement(By.id('email')).sendKeys(email);\nawait driver.findElement(By.id('cpfUsuario')).sendKeys('12345678900');\nawait driver.findElement(By.id('password')).sendKeys('Teste@123');\nawait driver.findElement(By.id('tipo')).sendKeys('contratante');\n// Envia\nconst button = await driver.findElement(By.css('button[type=\"submit\"]'));\nawait button.click();\n// Captura mensagem de sucesso se aparecer\nconst successElement = await driver.wait(\n  until.elementLocated(By.css('p.text-green-600')),\n  7000\n).catch(() => null);\nif (successElement) {\n  const msg = await successElement.getText();\n  console.log(`💬 Mensagem de sucesso: ${msg}`);\n}\n// Aguarda redirecionamento dinâmico\nlet redirecionado = false;\nconst maxWait = 20000;\nconst start = Date.now();\nwhile (Date.now() - start < maxWait && !redirecionado) {\n  const url = await driver.getCurrentUrl();\n  // Critérios de sucesso\n  const isLoginUrl = url.includes('/login');\n  const hasLoginHeader = await driver.findElements(\n    By.xpath(\"//h1[contains(text(), 'Entrar')]\")\n  );\n  const hasLoginEmail = await driver.findElements(By.id('email'));\n  if (isLoginUrl || hasLoginHeader.length > 0 || hasLoginEmail.length > 0) {\n    redirecionado = true;\n    break;\n  }\n  await new Promise(r => setTimeout(r, 1000)); // espera 1s antes de checar de novo\n}\nassert.ok(redirecionado, 'Usuário não foi redirecionado nem a tela de login foi detectada.');\nconsole.log(`✅ Cadastro concluído com sucesso (${email})`);",
+              "err": {},
+              "uuid": "b1272661-7373-4453-a194-041651a2bf8f",
+              "parentUUID": "1cb1caf9-6bcd-45d6-b955-d0d4179e5d89",
+              "isHook": false,
+              "skipped": false
+            }
+          ],
+          "suites": [],
+          "passes": [
+            "b1272661-7373-4453-a194-041651a2bf8f"
+          ],
+          "failures": [],
+          "pending": [],
+          "skipped": [],
+          "duration": 13488,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 45000
+        },
+        {
+          "uuid": "a7dab12e-98b0-4b1a-b1ec-e77b3e38e310",
+          "title": "Teste da Página Home",
+          "fullFile": "C:\\Users\\55119\\Desktop\\mvp\\tests\\e2e\\home.test.cjs",
+          "file": "\\e2e\\home.test.cjs",
+          "beforeHooks": [
+            {
+              "title": "\"before all\" hook in \"Teste da Página Home\"",
+              "fullTitle": "Teste da Página Home \"before all\" hook in \"Teste da Página Home\"",
+              "timedOut": false,
+              "duration": 1611,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "driver = await new Builder().forBrowser('chrome').build();",
+              "err": {},
+              "uuid": "ead8b255-ed9c-41f8-83e4-d9142bd5cff0",
+              "parentUUID": "a7dab12e-98b0-4b1a-b1ec-e77b3e38e310",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "afterHooks": [
+            {
+              "title": "\"after all\" hook in \"Teste da Página Home\"",
+              "fullTitle": "Teste da Página Home \"after all\" hook in \"Teste da Página Home\"",
+              "timedOut": false,
+              "duration": 935,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "await driver.quit();",
+              "err": {},
+              "uuid": "bdb2eb19-4623-4321-95e4-6f9b07bacdd9",
+              "parentUUID": "a7dab12e-98b0-4b1a-b1ec-e77b3e38e310",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "tests": [
+            {
+              "title": "Deve logar com usuário fixo e exibir a página Home corretamente",
+              "fullTitle": "Teste da Página Home Deve logar com usuário fixo e exibir a página Home corretamente",
+              "timedOut": false,
+              "duration": 6665,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "console.log('🚀 Iniciando teste da Home com usuário fixo');\n// 1️⃣ Acessa a tela de login\nawait driver.get('http://localhost:3000/login');\nawait driver.wait(until.elementLocated(By.id('email')), 15000);\nawait driver.wait(until.elementLocated(By.id('password')), 15000);\n// 2️⃣ Faz login com usuário existente\nconst email = 'tcc@teste.com';\nconst senha = '@Aa123456789';\nawait driver.findElement(By.id('email')).clear();\nawait driver.findElement(By.id('email')).sendKeys(email);\nawait driver.findElement(By.id('password')).clear();\nawait driver.findElement(By.id('password')).sendKeys(senha);\nawait driver.findElement(By.css('button[type=\"submit\"]')).click();\n// 3️⃣ Aguarda o redirecionamento para /home\nawait driver.wait(until.urlContains('/home'), 20000);\n// 4️⃣ Espera o título de boas-vindas\nconst titulo = await driver.wait(\n  until.elementLocated(By.xpath(\"//h1[contains(., 'Bem-vindo')]\")),\n  15000\n);\nconst textoTitulo = await titulo.getText();\nconsole.log(`👤 Título encontrado: ${textoTitulo}`);\nassert.ok(textoTitulo.includes('Bem-vindo'), 'Texto de boas-vindas não encontrado.');\n// 5️⃣ Verifica os botões principais conforme HTML real\nconst botoes = [\n  { texto: 'Explorar serviços', href: '/home' },\n  { texto: 'Meu perfil', href: '/perfil' },\n  { texto: 'Catálogo de Serviços', href: '/servicos' },\n];\nfor (const botao of botoes) {\n  const elemento = await driver.wait(\n    until.elementLocated(By.xpath(`//a[@href='${botao.href}']`)),\n    10000\n  );\n  const visivel = await elemento.isDisplayed();\n  assert.ok(visivel, `Botão \"${botao.texto}\" não está visível na Home.`);\n  console.log(`✅ Botão \"${botao.texto}\" encontrado.`);\n}\nconsole.log('✅ Página Home validada com sucesso.');",
+              "err": {},
+              "uuid": "8150545e-af4c-4720-be0d-8eff8c7da26f",
+              "parentUUID": "a7dab12e-98b0-4b1a-b1ec-e77b3e38e310",
+              "isHook": false,
+              "skipped": false
+            }
+          ],
+          "suites": [],
+          "passes": [
+            "8150545e-af4c-4720-be0d-8eff8c7da26f"
+          ],
+          "failures": [],
+          "pending": [],
+          "skipped": [],
+          "duration": 6665,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 60000
+        },
+        {
+          "uuid": "457ebb2f-66d5-487f-a2d5-9d3bd2cbfd1a",
+          "title": "Teste de Login Inválido",
+          "fullFile": "C:\\Users\\55119\\Desktop\\mvp\\tests\\e2e\\login_invalid.test.cjs",
+          "file": "\\e2e\\login_invalid.test.cjs",
+          "beforeHooks": [
+            {
+              "title": "\"before all\" hook in \"Teste de Login Inválido\"",
+              "fullTitle": "Teste de Login Inválido \"before all\" hook in \"Teste de Login Inválido\"",
+              "timedOut": false,
+              "duration": 1979,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "driver = await new Builder().forBrowser('chrome').build();",
+              "err": {},
+              "uuid": "d01f1b3a-60bd-4c24-9e9f-5b28997e749c",
+              "parentUUID": "457ebb2f-66d5-487f-a2d5-9d3bd2cbfd1a",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "afterHooks": [
+            {
+              "title": "\"after all\" hook in \"Teste de Login Inválido\"",
+              "fullTitle": "Teste de Login Inválido \"after all\" hook in \"Teste de Login Inválido\"",
+              "timedOut": false,
+              "duration": 847,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "await driver.quit();",
+              "err": {},
+              "uuid": "6566a110-4e36-4344-9a3d-f9b0e5986d6e",
+              "parentUUID": "457ebb2f-66d5-487f-a2d5-9d3bd2cbfd1a",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "tests": [
+            {
+              "title": "Deve exibir mensagem de erro ao informar credenciais inválidas",
+              "fullTitle": "Teste de Login Inválido Deve exibir mensagem de erro ao informar credenciais inválidas",
+              "timedOut": false,
+              "duration": 4213,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "await driver.get('http://localhost:3000/login');\nawait driver.findElement(By.id('email')).sendKeys('usuarioinvalido@teste.com');\nawait driver.findElement(By.id('password')).sendKeys('senhaerrada');\nawait driver.findElement(By.css('button[type=\"submit\"]')).click();\nconst errorElement = await driver.wait(\n  until.elementLocated(By.css('p.text-red-600')),\n  10000\n);\nconst errorText = await errorElement.getText();\nassert.ok(\n  errorText.includes('Erro ao entrar') ||\n  errorText.includes('Informe e-mail e senha') ||\n  errorText.includes('Usuário não encontrado'),\n  `Mensagem inesperada: ${errorText}`\n);",
+              "err": {},
+              "uuid": "f6f11796-22a2-44e5-a9d2-017115ff11f3",
+              "parentUUID": "457ebb2f-66d5-487f-a2d5-9d3bd2cbfd1a",
+              "isHook": false,
+              "skipped": false
+            }
+          ],
+          "suites": [],
+          "passes": [
+            "f6f11796-22a2-44e5-a9d2-017115ff11f3"
+          ],
+          "failures": [],
+          "pending": [],
+          "skipped": [],
+          "duration": 4213,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 20000
+        },
+        {
+          "uuid": "360ba9d6-609c-4e70-ba0b-6d153367af11",
+          "title": "Teste de Login Válido",
+          "fullFile": "C:\\Users\\55119\\Desktop\\mvp\\tests\\e2e\\login.test.cjs",
+          "file": "\\e2e\\login.test.cjs",
+          "beforeHooks": [
+            {
+              "title": "\"before all\" hook in \"Teste de Login Válido\"",
+              "fullTitle": "Teste de Login Válido \"before all\" hook in \"Teste de Login Válido\"",
+              "timedOut": false,
+              "duration": 1510,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "driver = await new Builder().forBrowser('chrome').build();",
+              "err": {},
+              "uuid": "a8f8eacf-654b-4b2a-9460-93af503f91cf",
+              "parentUUID": "360ba9d6-609c-4e70-ba0b-6d153367af11",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "afterHooks": [
+            {
+              "title": "\"after all\" hook in \"Teste de Login Válido\"",
+              "fullTitle": "Teste de Login Válido \"after all\" hook in \"Teste de Login Válido\"",
+              "timedOut": false,
+              "duration": 903,
+              "state": null,
+              "speed": null,
+              "pass": false,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "await driver.quit();",
+              "err": {},
+              "uuid": "f03b6779-2caf-4cdb-83f1-79a7b46f7861",
+              "parentUUID": "360ba9d6-609c-4e70-ba0b-6d153367af11",
+              "isHook": true,
+              "skipped": false
+            }
+          ],
+          "tests": [
+            {
+              "title": "Deve realizar login e redirecionar para /home",
+              "fullTitle": "Teste de Login Válido Deve realizar login e redirecionar para /home",
+              "timedOut": false,
+              "duration": 5081,
+              "state": "passed",
+              "speed": "slow",
+              "pass": true,
+              "fail": false,
+              "pending": false,
+              "context": null,
+              "code": "await driver.get('http://localhost:3000/login');\nawait driver.findElement(By.id('email')).sendKeys('teste@exemplo.com');\nawait driver.findElement(By.id('password')).sendKeys('@Aa123456789');\nawait driver.findElement(By.css('button[type=\"submit\"]')).click();\nawait driver.wait(until.urlContains('/home'), 10000);\nconst url = await driver.getCurrentUrl();\nassert.ok(url.includes('/home'), 'Usuário não foi redirecionado para /home');",
+              "err": {},
+              "uuid": "1fed8b09-aa70-4ff3-b6c2-95eba737552b",
+              "parentUUID": "360ba9d6-609c-4e70-ba0b-6d153367af11",
+              "isHook": false,
+              "skipped": false
+            }
+          ],
+          "suites": [],
+          "passes": [
+            "1fed8b09-aa70-4ff3-b6c2-95eba737552b"
+          ],
+          "failures": [],
+          "pending": [],
+          "skipped": [],
+          "duration": 5081,
+          "root": false,
+          "rootEmpty": false,
+          "_timeout": 20000
+        }
+      ],
+      "passes": [],
+      "failures": [],
+      "pending": [],
+      "skipped": [],
+      "duration": 0,
+      "root": true,
+      "rootEmpty": true,
+      "_timeout": 30000
+    }
+  ],
+  "meta": {
+    "mocha": {
+      "version": "11.7.4"
+    },
+    "mochawesome": {
+      "options": {
+        "quiet": false,
+        "reportFilename": "mochawesome",
+        "saveHtml": true,
+        "saveJson": true,
+        "consoleReporter": "spec",
+        "useInlineDiffs": false,
+        "code": true
+      },
+      "version": "7.1.4"
+    },
+    "marge": {
+      "options": {
+        "[object Object]": true
+      },
+      "version": "6.3.0"
+    }
+  }
+}

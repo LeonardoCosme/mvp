@@ -1,0 +1,13 @@
+{
+  "reporter": "mochawesome",
+  "reporterOptions": {
+    "reportDir": "tests/reports",
+    "reportFilename": "relatorio-testes",
+    "overwrite": false,
+    "html": true,
+    "json": true,
+    "timestamp": "mmddyyyy_HHMMss"
+  },
+  "timeout": 30000,
+  "color": true
+}

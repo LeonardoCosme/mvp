@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/utils/api';
 
@@ -10,28 +10,41 @@ export default function CadastroPage() {
     nomeUsuario: '',
     email: '',
     password: '',
+    confirmPassword: '',
     tipo: 'contratante',
     cpfUsuario: '',
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  // ✅ regex sem escapes desnecessários
-  const passwordRegex =
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{8,}$/;
+  // regra forte de senha
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{8,}$/;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  const senhaForte = useMemo(() => passwordRegex.test(form.password), [form.password]);
+  const senhasBatendo = useMemo(
+    () => form.confirmPassword.length === 0 || form.password === form.confirmPassword,
+    [form.password, form.confirmPassword]
+  );
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setSuccess('');
 
-    if (!passwordRegex.test(form.password)) {
+    if (!senhaForte) {
       setError('A senha deve ter no mínimo 8 caracteres, incluindo letra maiúscula, minúscula, número e caractere especial.');
+      return;
+    }
+
+    if (form.password !== form.confirmPassword) {
+      setError('As senhas não conferem.');
       return;
     }
 
@@ -39,8 +52,16 @@ export default function CadastroPage() {
     try {
       await apiFetch('auth/register', {
         method: 'POST',
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          nomeUsuario: form.nomeUsuario.trim(),
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
+          confirmPassword: form.confirmPassword, // recomendado validar também no backend
+          tipo: form.tipo,
+          cpfUsuario: form.cpfUsuario?.trim(),
+        }),
       });
+
       setSuccess('Cadastro realizado com sucesso!');
       setTimeout(() => router.push('/login'), 1500);
     } catch (err: any) {
@@ -48,7 +69,7 @@ export default function CadastroPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 flex items-center justify-center p-6">
@@ -70,6 +91,7 @@ export default function CadastroPage() {
               required
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
               placeholder="Ex: João Silva"
+              autoComplete="name"
             />
           </div>
 
@@ -100,26 +122,68 @@ export default function CadastroPage() {
               maxLength={11}
               placeholder="Somente números"
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
+              autoComplete="off"
             />
           </div>
 
           <div>
             <label htmlFor="password" className="block font-medium text-gray-700 mb-1">Senha</label>
-            <input
-              id="password"
-              type="password"
-              name="password"
-              value={form.password}
-              onChange={handleChange}
-              required
-              autoComplete="new-password"
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
-              placeholder="••••••••"
-              aria-describedby="passwordHelp"
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPass ? 'text' : 'password'}
+                name="password"
+                value={form.password}
+                onChange={handleChange}
+                required
+                autoComplete="new-password"
+                className="w-full px-4 py-2 border rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
+                placeholder="••••••••"
+                aria-describedby="passwordHelp"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-600 hover:text-gray-800 px-2 py-1"
+                aria-label={showPass ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {showPass ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
             <p id="passwordHelp" className="text-xs text-gray-500 mt-1">
               8+ caracteres, com letra maiúscula, minúscula, número e símbolo.
             </p>
+            {!senhaForte && form.password.length > 0 && (
+              <p className="text-xs text-red-600 mt-1">A senha não atende aos requisitos mínimos.</p>
+            )}
+          </div>
+
+          <div>
+            <label htmlFor="confirmPassword" className="block font-medium text-gray-700 mb-1">Confirmar senha</label>
+            <div className="relative">
+              <input
+                id="confirmPassword"
+                type={showConfirm ? 'text' : 'password'}
+                name="confirmPassword"
+                value={form.confirmPassword}
+                onChange={handleChange}
+                required
+                autoComplete="new-password"
+                className="w-full px-4 py-2 border rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
+                placeholder="Repita a senha"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-600 hover:text-gray-800 px-2 py-1"
+                aria-label={showConfirm ? 'Ocultar confirmação' : 'Mostrar confirmação'}
+              >
+                {showConfirm ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
+            {!!form.confirmPassword && !senhasBatendo && (
+              <p className="text-xs text-red-600 mt-1">As senhas não conferem.</p>
+            )}
           </div>
 
           <div>
@@ -136,13 +200,13 @@ export default function CadastroPage() {
             </select>
           </div>
 
-          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
+          {error && <p className="text-red-600 text-sm text-center" aria-live="assertive">{error}</p>}
           {success && <p className="text-green-600 text-sm text-center">{success}</p>}
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-[#8F1D14] text-white py-3 rounded-lg font-semibold hover:bg-[#a2261b] transition mt-4 shadow-md"
+            disabled={loading || !senhaForte || !senhasBatendo}
+            className="w-full bg-[#8F1D14] text-white py-3 rounded-lg font-semibold hover:bg-[#a2261b] transition mt-4 shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? 'Cadastrando...' : 'Cadastrar'}
           </button>
