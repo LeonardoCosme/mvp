@@ -20,6 +20,7 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "mysql2": "^3.15.1",
+    "resend": "^6.4.0",
     "sequelize": "^6.37.7"
   },
   "devDependencies": {
