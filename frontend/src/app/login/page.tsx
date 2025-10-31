@@ -41,7 +41,7 @@ function LoginInner() {
 
     setLoading(true);
     try {
-      // 1) autentica
+      // 1️⃣ autentica
       const res = await apiFetch('auth/login', {
         method: 'POST',
         body: JSON.stringify({
@@ -50,10 +50,10 @@ function LoginInner() {
         }),
       });
 
-      // 2) salva token
+      // 2️⃣ salva token
       saveToken(res.token);
 
-      // 3) busca /user/me para pegar nomeUsuario e tipo (para o Header)
+      // 3️⃣ busca dados do usuário logado
       try {
         const me = await apiFetch('user/me');
         if (typeof window !== 'undefined') {
@@ -69,7 +69,7 @@ function LoginInner() {
         }
       }
 
-      // 4) redireciona respeitando ?next=
+      // 4️⃣ redireciona
       router.push(nextPath);
     } catch (err: any) {
       setError(err?.message || 'Erro ao entrar.');
@@ -83,13 +83,16 @@ function LoginInner() {
       <div className="bg-white/90 backdrop-blur-md shadow-2xl rounded-2xl w-full max-w-lg p-8 animate-[fadeIn_0.5s_ease-in]">
         <h1 className="text-3xl font-bold text-center text-[#8F1D14] mb-1">Entrar</h1>
         <p className="text-center text-gray-600 mb-8">
-          Acesse sua conta do <span className="font-semibold text-[#F89D13]">Marido de Aluguel</span>.
+          Acesse sua conta do{' '}
+          <span className="font-semibold text-[#F89D13]">Marido de Aluguel</span>.
         </p>
 
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
           {/* E-MAIL */}
           <div>
-            <label htmlFor="email" className="block font-medium text-gray-700 mb-1">E-mail</label>
+            <label htmlFor="email" className="block font-medium text-gray-700 mb-1">
+              E-mail
+            </label>
             <input
               id="email"
               name="email"
@@ -105,7 +108,9 @@ function LoginInner() {
 
           {/* SENHA */}
           <div>
-            <label htmlFor="password" className="block font-medium text-gray-700 mb-1">Senha</label>
+            <label htmlFor="password" className="block font-medium text-gray-700 mb-1">
+              Senha
+            </label>
             <div className="relative">
               <input
                 id="password"
@@ -132,13 +137,16 @@ function LoginInner() {
             <div className="flex items-center justify-between mt-2">
               <div className="flex items-center gap-2">
                 <input id="remember" type="checkbox" className="h-4 w-4 accent-[#F89D13]" />
-                <label htmlFor="remember" className="text-sm text-gray-600 select-none">Lembrar de mim</label>
+                <label htmlFor="remember" className="text-sm text-gray-600 select-none">
+                  Lembrar de mim
+                </label>
               </div>
 
+              {/* 🔗 Redirecionamento funcional */}
               <button
                 type="button"
                 className="text-sm text-[#8F1D14] hover:underline"
-                onClick={() => alert('A recuperação de senha estará disponível em breve.')}
+                onClick={() => router.push('/forgot-password')}
               >
                 Esqueci minha senha
               </button>
@@ -160,7 +168,9 @@ function LoginInner() {
 
         <p className="text-center text-gray-600 mt-6 text-sm">
           Ainda não tem conta?{' '}
-          <a href="/cadastro" className="text-[#8F1D14] font-medium hover:underline">Cadastre-se</a>
+          <a href="/cadastro" className="text-[#8F1D14] font-medium hover:underline">
+            Cadastre-se
+          </a>
         </p>
       </div>
     </div>

@@ -1,24 +1,38 @@
 // backend/src/models/passwordResetToken.js
-const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+module.exports = (sequelize, DataTypes) => {
+  const PasswordResetToken = sequelize.define('PasswordResetToken', {
+    id: {
+      type: DataTypes.INTEGER.UNSIGNED, // ✅ compatível com usuarios.id
+      autoIncrement: true,
+      primaryKey: true,
+    },
+    token: {
+      type: DataTypes.STRING(255),
+      allowNull: false,
+      unique: true,
+    },
+    userId: {
+      type: DataTypes.INTEGER.UNSIGNED, // ✅ compatível com usuarios.id
+      allowNull: false,
+    },
+    expiresAt: {
+      type: DataTypes.DATE,
+      allowNull: false,
+    },
+  }, {
+    tableName: 'password_reset_tokens',
+    timestamps: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  });
 
-const PasswordResetToken = sequelize.define('PasswordResetToken', {
-  token: {
-    type: DataTypes.STRING,
-    allowNull: false,
-    unique: true,
-  },
-  userId: {
-    type: DataTypes.INTEGER,
-    allowNull: false,
-  },
-  expiresAt: {
-    type: DataTypes.DATE,
-    allowNull: false,
-  },
-}, {
-  tableName: 'password_reset_tokens',
-  timestamps: false,
-});
+  PasswordResetToken.associate = (models) => {
+    PasswordResetToken.belongsTo(models.Usuario, {
+      foreignKey: 'userId',
+      targetKey: 'id',
+      onDelete: 'CASCADE',
+    });
+  };
 
-module.exports = PasswordResetToken;
+  return PasswordResetToken;
+};

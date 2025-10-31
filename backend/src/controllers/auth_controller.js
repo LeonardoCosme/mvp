@@ -18,7 +18,7 @@ async function register(req, res) {
     if (!nomeUsuario) return res.status(400).json({ error: 'O nome é obrigatório.' });
     if (!email) return res.status(400).json({ error: 'O e-mail é obrigatório.' });
     if (!password) return res.status(400).json({ error: 'A senha é obrigatória.' });
-    if (!['master','prestador','contratante'].includes(tipo))
+    if (!['master', 'prestador', 'contratante'].includes(tipo))
       return res.status(400).json({ error: 'Tipo inválido. Use master, prestador ou contratante.' });
     if (cpfUsuario && cpfUsuario.length !== 11)
       return res.status(400).json({ error: 'CPF inválido. Use 11 dígitos numéricos.' });
@@ -78,7 +78,8 @@ async function login(req, res) {
     const user = await Usuario.findOne({ where: { email } });
     if (!user) return res.status(401).json({ error: 'Usuário não encontrado.' });
 
-    const ok = await bcrypt.compare(password, user.senha);
+    // ✅ Compatível com campo 'senha' ou 'password'
+    const ok = await bcrypt.compare(password, user.senha || user.password);
     if (!ok) return res.status(401).json({ error: 'Senha incorreta.' });
 
     const token = jwt.sign(

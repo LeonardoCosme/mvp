@@ -1,4 +1,3 @@
-// backend/src/controllers/password_controller.js
 const { Usuario, PasswordResetToken } = require('../models');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
@@ -16,18 +15,14 @@ async function forgotPassword(req, res) {
       return res.json({ message: 'Se o e-mail estiver cadastrado, um link foi enviado.' });
     }
 
-    // Remove tokens antigos do mesmo usuário
     await PasswordResetToken.destroy({ where: { userId: user.id } });
 
-    // Gera token e salva no banco
     const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
     await PasswordResetToken.create({ token, userId: user.id, expiresAt });
 
-    // Link com redirecionamento para o frontend
     const link = `http://localhost:3000/reset-password?token=${token}`;
 
-    // Envia e-mail estilizado com botão
     await sendStyledEmail(user.email, 'Redefinição de senha - Marido de Aluguel', {
       title: 'Redefinição de senha',
       message: `
@@ -56,7 +51,6 @@ async function resetPassword(req, res) {
       return res.status(400).json({ error: 'Token e nova senha são obrigatórios.' });
     }
 
-    // Busca o token válido e não expirado
     const tokenData = await PasswordResetToken.findOne({
       where: {
         token,
@@ -68,17 +62,15 @@ async function resetPassword(req, res) {
       return res.status(400).json({ error: 'Token inválido ou expirado.' });
     }
 
-    // Atualiza senha
     const user = await Usuario.findByPk(tokenData.userId);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
 
     const hashed = await bcrypt.hash(novaSenha, 10);
-    await user.update({ password: hashed });
+    // ✅ salva no campo correto 'senha'
+    await user.update({ senha: hashed });
 
-    // Exclui token após uso
     await PasswordResetToken.destroy({ where: { token } });
 
-    // Envia e-mail de confirmação estilizado
     await sendStyledEmail(user.email, 'Senha redefinida com sucesso - Marido de Aluguel', {
       title: 'Senha alterada com sucesso!',
       message: `
