@@ -26,6 +26,17 @@ app.use('/api', routes);
 /* -------------------------------------------
    ❤️ Healthcheck / rota padrão
 ------------------------------------------- */
+
+// Healthcheck específico usado pelo Railway (keep-alive)
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    ok: true,
+    message: '💚 Servidor ativo e saudável!',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Página inicial simples (rota raiz)
 app.get('/', (req, res) => {
   res.json({
     ok: true,
@@ -34,7 +45,8 @@ app.get('/', (req, res) => {
       login: '/api/auth/login',
       register: '/api/auth/register',
       forgotPassword: '/api/user/forgot-password',
-      resetPassword: '/api/user/reset-password'
+      resetPassword: '/api/user/reset-password',
+      health: '/health'
     }
   });
 });
