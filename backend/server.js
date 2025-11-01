@@ -1,21 +1,22 @@
 // backend/server.js
 require('dotenv').config();
+const http = require('http');
 const app = require('./src/app');
 const { sequelize, TipoServico } = require('./src/models');
 
-const port = process.env.PORT || 8080;
+const port = Number(process.env.PORT) || 8080;
 
 async function startServer() {
   try {
-    /* 1️⃣ Conexão com o banco */
+    // 1️⃣ Conecta ao banco
     await sequelize.authenticate();
     console.log('✅ Banco conectado com sucesso.');
 
-    /* 2️⃣ Sincronização dos models */
+    // 2️⃣ Sincroniza models
     await sequelize.sync();
     console.log('✅ Models sincronizados.');
 
-    /* 3️⃣ Seeds iniciais */
+    // 3️⃣ Seeds automáticos
     const count = await TipoServico.count();
     if (count === 0) {
       await TipoServico.bulkCreate([
@@ -25,48 +26,35 @@ async function startServer() {
       ]);
       console.log('🌱 Seeds automáticos inseridos no banco.');
     } else {
-      console.log(`🌱 Seeds já existentes (${count} registros). Nenhuma ação necessária.`);
+      console.log(`🌱 Seeds já existentes (${count} registros).`);
     }
 
-    /* 4️⃣ Inicializa o servidor */
-    const server = app.listen(port, () => {
-      console.log(`✅ API rodando na porta ${port}`);
+    // 4️⃣ Cria servidor HTTP manualmente
+    const server = http.createServer(app);
+
+    server.listen(port, '0.0.0.0', () => {
+      console.log(`✅ Servidor ativo e ouvindo na porta ${port}`);
     });
 
-    /* 5️⃣ Keep-alive para Railway */
-    if (process.env.NODE_ENV === 'production') {
-      const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
-      const baseUrl = `https://${process.env.RAILWAY_STATIC_URL || 'mvp-marido-aluguel.up.railway.app'}`;
-      const healthEndpoint = `${baseUrl}/api/health`;
+    // 5️⃣ Log de heartbeat para manter o processo ativo
+    setInterval(() => {
+      console.log('💤 App ativo - aguardando conexões...');
+    }, 120000);
 
-      console.log(`🔄 Keep-alive ativo para ${healthEndpoint}`);
-
-      setInterval(() => {
-        fetch(healthEndpoint)
-          .then((res) => {
-            if (!res.ok) throw new Error(`Status ${res.status}`);
-            console.log('⏱️ Keep-alive enviado com sucesso');
-          })
-          .catch((err) => console.warn('⚠️ Falha no keep-alive:', err.message));
-      }, 14 * 60 * 1000);
-    }
-
-    /* 6️⃣ Log interno para manter o processo ativo */
-    setInterval(() => console.log('💤 Processo ativo... aguardando requisições.'), 2 * 60 * 1000);
-
-    /* 7️⃣ Mantém processo vivo */
-    process.stdin.resume();
-
-    /* 8️⃣ Encerramento limpo */
+    // 6️⃣ Captura encerramento
     process.on('SIGTERM', () => {
-      console.log('⚠️ Encerrando servidor (SIGTERM recebido)...');
+      console.log('⚠️ Encerrando servidor (SIGTERM)...');
       server.close(() => {
         console.log('✅ Servidor encerrado com segurança.');
         process.exit(0);
       });
     });
+
+    // 7️⃣ Garante que o processo não morra
+    process.stdin.resume();
+
   } catch (err) {
-    console.error('⚠️ Erro ao iniciar a API:', err.message);
+    console.error('❌ Erro ao iniciar o servidor:', err.message);
     process.exit(1);
   }
 }
