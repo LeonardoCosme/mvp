@@ -1,54 +1,21 @@
 // backend/src/app.js
 const express = require('express');
-const cors = require('cors');
-const routes = require('./routes');
-
 const app = express();
 
-/* -------------------------------------------
-   🔧 Middlewares globais
-------------------------------------------- */
-app.use(cors({
-  origin: '*', // Em produção, substitua por ['https://mvp-marido-aluguel.vercel.app']
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
-
+// Middleware para JSON
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-/* -------------------------------------------
-   🚀 Rotas principais da API
-------------------------------------------- */
-app.use('/api', routes);
-
-/* -------------------------------------------
-   ❤️ Healthcheck e rota raiz
-------------------------------------------- */
+// ✅ Rota de status para healthcheck
 app.get('/', (req, res) => {
-  res.json({
-    ok: true,
-    message: '🌐 API Marido de Aluguel rodando com sucesso!',
-    endpoints: {
-      login: '/api/auth/login',
-      register: '/api/auth/register',
-      forgotPassword: '/api/user/forgot-password',
-      resetPassword: '/api/user/reset-password',
-      health: '/api/health',
-    },
-  });
+  res.status(200).send('🚀 API está rodando!');
 });
 
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, message: '💚 Servidor ativo e saudável!' });
+// 🔧 Exemplo de rota adicional (remova se não usar)
+app.get('/ping', (req, res) => {
+  res.json({ message: 'pong' });
 });
 
-/* -------------------------------------------
-   ⚠️ Tratamento genérico de erros
-------------------------------------------- */
-app.use((err, _req, res, _next) => {
-  console.error('❌ Erro inesperado:', err);
-  res.status(500).json({ error: 'Erro interno do servidor.' });
-});
+// Aqui você pode adicionar outras rotas da sua API
+// app.use('/api/servicos', require('./routes/servicos'));
 
 module.exports = app;
