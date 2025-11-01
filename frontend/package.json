@@ -1,21 +1,26 @@
 {
-  "name": "frontend",
-  "version": "0.1.0",
-  "private": true,
+  "name": "fullstack-app",
+  "version": "1.0.0",
+  "main": "backend/server.js",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
-    "start": "next start",
+    "start": "node backend/server.js",
+    "frontend": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "@yudiel/react-qr-scanner": "^2.3.1",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
     "framer-motion": "^12.23.24",
     "html5-qrcode": "^2.3.8",
     "next": "15.5.4",
+    "pg": "^8.11.1",
     "qrcode": "^1.5.4",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "sequelize": "^6.32.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
