@@ -3,20 +3,19 @@ require('dotenv').config();
 const app = require('./src/app');
 const { sequelize, TipoServico } = require('./src/models');
 
-// Porta definida automaticamente pelo Railway (ou 8080 localmente)
 const port = process.env.PORT || 8080;
 
 async function startServer() {
   try {
-    // 1️⃣ Conexão com o banco
+    /* 1️⃣ Conexão com o banco */
     await sequelize.authenticate();
     console.log('✅ Banco conectado com sucesso.');
 
-    // 2️⃣ Sincronização dos models
+    /* 2️⃣ Sincronização dos models */
     await sequelize.sync();
     console.log('✅ Models sincronizados.');
 
-    // 3️⃣ Seeds iniciais
+    /* 3️⃣ Seeds iniciais */
     const count = await TipoServico.count();
     if (count === 0) {
       await TipoServico.bulkCreate([
@@ -29,21 +28,19 @@ async function startServer() {
       console.log(`🌱 Seeds já existentes (${count} registros). Nenhuma ação necessária.`);
     }
 
-    // 4️⃣ Inicializa o servidor Express
+    /* 4️⃣ Inicializa o servidor */
     const server = app.listen(port, () => {
       console.log(`✅ API rodando na porta ${port}`);
     });
 
-    // 5️⃣ Keep-alive automático (Railway entra em modo de hibernação sem isso)
+    /* 5️⃣ Keep-alive para Railway */
     if (process.env.NODE_ENV === 'production') {
       const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
-
       const baseUrl = `https://${process.env.RAILWAY_STATIC_URL || 'mvp-marido-aluguel.up.railway.app'}`;
       const healthEndpoint = `${baseUrl}/api/health`;
 
       console.log(`🔄 Keep-alive ativo para ${healthEndpoint}`);
 
-      // A cada 14 minutos, o Railway recebe um “ping” para manter o app ativo
       setInterval(() => {
         fetch(healthEndpoint)
           .then((res) => {
@@ -54,10 +51,13 @@ async function startServer() {
       }, 14 * 60 * 1000);
     }
 
-    // 6️⃣ Mantém processo ativo
+    /* 6️⃣ Log interno para manter o processo ativo */
+    setInterval(() => console.log('💤 Processo ativo... aguardando requisições.'), 2 * 60 * 1000);
+
+    /* 7️⃣ Mantém processo vivo */
     process.stdin.resume();
 
-    // 7️⃣ Encerramento limpo ao receber SIGTERM
+    /* 8️⃣ Encerramento limpo */
     process.on('SIGTERM', () => {
       console.log('⚠️ Encerrando servidor (SIGTERM recebido)...');
       server.close(() => {
@@ -71,5 +71,4 @@ async function startServer() {
   }
 }
 
-// Executa a inicialização
 startServer();

@@ -9,34 +9,22 @@ const app = express();
    🔧 Middlewares globais
 ------------------------------------------- */
 app.use(cors({
-  origin: '*', // Em produção, substitua por: ['https://seusite.com']
+  origin: '*', // Em produção, substitua por ['https://mvp-marido-aluguel.vercel.app']
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-app.use(express.json()); // Para JSON no body das requisições
-app.use(express.urlencoded({ extended: true })); // Para formulários
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 /* -------------------------------------------
    🚀 Rotas principais da API
 ------------------------------------------- */
-// Todas as rotas do sistema passam pelo prefixo /api
 app.use('/api', routes);
 
 /* -------------------------------------------
-   ❤️ Healthcheck / rota padrão
+   ❤️ Healthcheck e rota raiz
 ------------------------------------------- */
-
-// Healthcheck específico usado pelo Railway (keep-alive)
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    ok: true,
-    message: '💚 Servidor ativo e saudável!',
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Página inicial simples (rota raiz)
 app.get('/', (req, res) => {
   res.json({
     ok: true,
@@ -46,15 +34,19 @@ app.get('/', (req, res) => {
       register: '/api/auth/register',
       forgotPassword: '/api/user/forgot-password',
       resetPassword: '/api/user/reset-password',
-      health: '/health'
-    }
+      health: '/api/health',
+    },
   });
+});
+
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, message: '💚 Servidor ativo e saudável!' });
 });
 
 /* -------------------------------------------
    ⚠️ Tratamento genérico de erros
 ------------------------------------------- */
-app.use((err, req, res, next) => {
+app.use((err, _req, res, _next) => {
   console.error('❌ Erro inesperado:', err);
   res.status(500).json({ error: 'Erro interno do servidor.' });
 });
