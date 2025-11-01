@@ -3,10 +3,10 @@ require('dotenv').config();
 const app = require('./src/app');
 const { sequelize, TipoServico } = require('./src/models');
 
-// A Railway define automaticamente a variável PORT
+// Railway define automaticamente a variável PORT
 const port = process.env.PORT || 8080;
 
-(async () => {
+async function startServer() {
   try {
     // 1️⃣ Conexão com o banco
     await sequelize.authenticate();
@@ -16,7 +16,7 @@ const port = process.env.PORT || 8080;
     await sequelize.sync();
     console.log('✅ Models sincronizados.');
 
-    // 3️⃣ Inserção dos seeds iniciais (caso não existam)
+    // 3️⃣ Seeds iniciais
     const count = await TipoServico.count();
     if (count === 0) {
       await TipoServico.bulkCreate([
@@ -30,24 +30,39 @@ const port = process.env.PORT || 8080;
     }
 
     // 4️⃣ Inicia o servidor Express
-    app.listen(port, () => {
+    const server = app.listen(port, () => {
       console.log(`✅ API V2 rodando na porta :${port}`);
     });
 
-    // 5️⃣ Mantém o servidor ativo no Railway (keep-alive)
+    // 5️⃣ Mantém o servidor ativo (keep-alive)
     if (process.env.NODE_ENV === 'production') {
       const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
-      const baseUrl = `https://${process.env.RAILWAY_STATIC_URL || 'SEU_DOMINIO_RAILWAY_AQUI'}`;
+      const baseUrl = `https://${process.env.RAILWAY_STATIC_URL || 'mvp-marido-aluguel.up.railway.app'}`;
       console.log(`🔄 Keep-alive ativo para ${baseUrl}/health`);
 
       setInterval(() => {
         fetch(`${baseUrl}/health`)
-          .then(() => console.log('⏱️ Keep-alive enviado com sucesso'))
+          .then(() => console.log('⏱️ Keep-alive enviado'))
           .catch((err) => console.warn('⚠️ Falha no keep-alive:', err.message));
-      }, 14 * 60 * 1000); // 14 minutos
+      }, 14 * 60 * 1000);
     }
+
+    // 6️⃣ Mantém processo vivo
+    process.stdin.resume();
+
+    // 7️⃣ Trata SIGTERM com encerramento limpo
+    process.on('SIGTERM', () => {
+      console.log('⚠️ Encerrando servidor com SIGTERM...');
+      server.close(() => {
+        console.log('✅ Servidor encerrado com segurança.');
+        process.exit(0);
+      });
+    });
   } catch (err) {
     console.error('⚠️ Erro ao iniciar a API:', err.message);
     process.exit(1);
   }
-})();
+}
+
+// Executa a inicialização
+startServer();
