@@ -26,5 +26,8 @@
     "mocha": "^11.7.4",
     "mochawesome": "^7.1.4",
     "selenium-webdriver": "^4.38.0"
+  },
+  "dependencies": {
+    "pm2": "^6.0.13"
   }
 }
