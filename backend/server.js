@@ -1,22 +1,18 @@
-// backend/server.js
 require('dotenv').config();
 const app = require('./src/app');
 const { sequelize, TipoServico } = require('./src/models');
+const axios = require('axios');
 
-// Railway define automaticamente a variável PORT
 const port = process.env.PORT || 8080;
 
-async function startServer() {
+(async () => {
   try {
-    // 1️⃣ Conexão com o banco
     await sequelize.authenticate();
     console.log('✅ Banco conectado com sucesso.');
 
-    // 2️⃣ Sincronização dos models
     await sequelize.sync();
     console.log('✅ Models sincronizados.');
 
-    // 3️⃣ Seeds iniciais
     const count = await TipoServico.count();
     if (count === 0) {
       await TipoServico.bulkCreate([
@@ -29,40 +25,25 @@ async function startServer() {
       console.log(`🌱 Seeds já existentes (${count} registros). Nenhuma ação necessária.`);
     }
 
-    // 4️⃣ Inicia o servidor Express
-    const server = app.listen(port, () => {
-      console.log(`✅ API V2 rodando na porta :${port}`);
+    app.listen(port, () => {
+      console.log(`✅ API rodando na porta ${port}`);
+
+      // 🔄 Keep-alive interno (Railway Free)
+      const url = process.env.PUBLIC_URL || 'https://mvp-marido-aluguel.up.railway.app/health';
+      setInterval(async () => {
+        try {
+          await axios.get(url);
+          console.log('⏱️ Auto-ping bem-sucedido');
+        } catch (err) {
+          console.warn('⚠️ Falha no auto-ping:', err.message);
+        }
+      }, 1000 * 60 * 4); // a cada 4 minutos
     });
 
-    // 5️⃣ Mantém o servidor ativo (keep-alive)
-    if (process.env.NODE_ENV === 'production') {
-      const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
-      const baseUrl = `https://${process.env.RAILWAY_STATIC_URL || 'mvp-marido-aluguel.up.railway.app'}`;
-      console.log(`🔄 Keep-alive ativo para ${baseUrl}/health`);
-
-      setInterval(() => {
-        fetch(`${baseUrl}/health`)
-          .then(() => console.log('⏱️ Keep-alive enviado'))
-          .catch((err) => console.warn('⚠️ Falha no keep-alive:', err.message));
-      }, 14 * 60 * 1000);
-    }
-
-    // 6️⃣ Mantém processo vivo
+    // Evita encerramento automático
     process.stdin.resume();
-
-    // 7️⃣ Trata SIGTERM com encerramento limpo
-    process.on('SIGTERM', () => {
-      console.log('⚠️ Encerrando servidor com SIGTERM...');
-      server.close(() => {
-        console.log('✅ Servidor encerrado com segurança.');
-        process.exit(0);
-      });
-    });
   } catch (err) {
     console.error('⚠️ Erro ao iniciar a API:', err.message);
     process.exit(1);
   }
-}
-
-// Executa a inicialização
-startServer();
+})();
