@@ -2,7 +2,7 @@ require('dotenv').config();
 const app = require('./src/app');
 const { sequelize, TipoServico } = require('./src/models');
 
-const port = process.env.PORT || 3001;
+const port = process.env.PORT || 8080;
 
 (async () => {
   try {
