@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/utils/api';
 import { saveToken } from '@/utils/auth';
 
-// evita tentativa de pré-render estático dessa página
 export const dynamic = 'force-dynamic';
 
 export default function LoginPage() {
@@ -41,7 +40,7 @@ function LoginInner() {
 
     setLoading(true);
     try {
-      // 1️⃣ autentica
+      // 1️⃣ Login
       const res = await apiFetch('auth/login', {
         method: 'POST',
         body: JSON.stringify({
@@ -50,10 +49,10 @@ function LoginInner() {
         }),
       });
 
-      // 2️⃣ salva token
+      // 2️⃣ Salva token JWT
       saveToken(res.token);
 
-      // 3️⃣ busca dados do usuário logado
+      // 3️⃣ Busca info do usuário logado
       try {
         const me = await apiFetch('user/me');
         if (typeof window !== 'undefined') {
@@ -69,7 +68,7 @@ function LoginInner() {
         }
       }
 
-      // 4️⃣ redireciona
+      // 4️⃣ Redireciona para a Home
       router.push(nextPath);
     } catch (err: any) {
       setError(err?.message || 'Erro ao entrar.');
@@ -83,8 +82,7 @@ function LoginInner() {
       <div className="bg-white/90 backdrop-blur-md shadow-2xl rounded-2xl w-full max-w-lg p-8 animate-[fadeIn_0.5s_ease-in]">
         <h1 className="text-3xl font-bold text-center text-[#8F1D14] mb-1">Entrar</h1>
         <p className="text-center text-gray-600 mb-8">
-          Acesse sua conta do{' '}
-          <span className="font-semibold text-[#F89D13]">Marido de Aluguel</span>.
+          Acesse sua conta do <span className="font-semibold text-[#F89D13]">Marido de Aluguel</span>.
         </p>
 
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
@@ -133,7 +131,7 @@ function LoginInner() {
               </button>
             </div>
 
-            {/* Opções extras */}
+            {/* Opções Extras */}
             <div className="flex items-center justify-between mt-2">
               <div className="flex items-center gap-2">
                 <input id="remember" type="checkbox" className="h-4 w-4 accent-[#F89D13]" />
@@ -142,11 +140,11 @@ function LoginInner() {
                 </label>
               </div>
 
-              {/* 🔗 Redirecionamento funcional */}
+              {/* 🔗 Esqueci minha senha */}
               <button
                 type="button"
-                className="text-sm text-[#8F1D14] hover:underline"
                 onClick={() => router.push('/forgot-password')}
+                className="text-sm text-[#8F1D14] font-medium hover:underline transition-colors"
               >
                 Esqueci minha senha
               </button>
