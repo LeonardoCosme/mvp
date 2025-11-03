@@ -1,7 +1,14 @@
 // backend/server.js
 require('dotenv').config();
+const express = require('express');
 const http = require('http');
 const app = require('./src/app');
+const path = require('path');
+app.use(express.static(path.join(__dirname, '../frontend/out')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/out/index.html'));
+});
 const { sequelize, TipoServico } = require('./src/models');
 
 const port = Number(process.env.PORT) || 8080;

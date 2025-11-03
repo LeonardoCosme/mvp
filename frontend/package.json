@@ -1,12 +1,11 @@
 {
-  "name": "fullstack-app",
+  "name": "marido-de-aluguel",
   "version": "1.0.0",
-  "main": "backend/server.js",
+  "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "dev": "next dev",
+    "build": "next build",
     "start": "node backend/server.js",
-    "frontend": "next start",
     "lint": "eslint"
   },
   "dependencies": {
