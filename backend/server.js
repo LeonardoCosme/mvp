@@ -1,29 +1,23 @@
-// backend/server.js
-require('dotenv').config();
 const express = require('express');
-const http = require('http');
-const app = require('./src/app');
-const path = require('path');
-app.use(express.static(path.join(__dirname, '../frontend/out')));
+const next = require('next');
+require('dotenv').config({ path: './backend/.env' });
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/out/index.html'));
-});
+const dev = process.env.NODE_ENV !== 'production';
+const app = next({ dev, dir: './frontend' });
+const handle = app.getRequestHandler();
+
 const { sequelize, TipoServico } = require('./src/models');
 
-const port = Number(process.env.PORT) || 8080;
+const port = Number(process.env.PORT) || 3000;
 
 async function startServer() {
   try {
-    // 1️⃣ Conecta ao banco
     await sequelize.authenticate();
     console.log('✅ Banco conectado com sucesso.');
 
-    // 2️⃣ Sincroniza models
     await sequelize.sync();
     console.log('✅ Models sincronizados.');
 
-    // 3️⃣ Seeds automáticos
     const count = await TipoServico.count();
     if (count === 0) {
       await TipoServico.bulkCreate([
@@ -31,35 +25,23 @@ async function startServer() {
         { nome: 'Hidráulica básica' },
         { nome: 'Pintura de cômodo' },
       ]);
-      console.log('🌱 Seeds automáticos inseridos no banco.');
+      console.log('🌱 Seeds inseridos.');
     } else {
       console.log(`🌱 Seeds já existentes (${count} registros).`);
     }
 
-    // 4️⃣ Cria servidor HTTP manualmente
-    const server = http.createServer(app);
+    await app.prepare();
+    const server = express();
 
-    server.listen(port, '0.0.0.0', () => {
-      console.log(`✅ Servidor ativo e ouvindo na porta ${port}`);
+    // Suas rotas de API podem vir aqui, se quiser
+
+    server.all('*', (req, res) => {
+      return handle(req, res);
     });
 
-    // 5️⃣ Log de heartbeat para manter o processo ativo
-    setInterval(() => {
-      console.log('💤 App ativo - aguardando conexões...');
-    }, 120000);
-
-    // 6️⃣ Captura encerramento
-    process.on('SIGTERM', () => {
-      console.log('⚠️ Encerrando servidor (SIGTERM)...');
-      server.close(() => {
-        console.log('✅ Servidor encerrado com segurança.');
-        process.exit(0);
-      });
+    server.listen(port, () => {
+      console.log(`🚀 Servidor rodando em http://localhost:${port}`);
     });
-
-    // 7️⃣ Garante que o processo não morra
-    process.stdin.resume();
-
   } catch (err) {
     console.error('❌ Erro ao iniciar o servidor:', err.message);
     process.exit(1);
