@@ -1,4 +1,6 @@
 import 'dotenv/config';
+
+
 import express from 'express';
 import next from 'next';
 import http from 'node:http';
@@ -10,7 +12,7 @@ const { sequelize, TipoServico } = models;
 
 const dev = process.env.NODE_ENV !== 'production';
 // ✅ Corrigido: aponta para o diretório correto onde está a pasta `app`
-const nextApp = next({ dev, dir: '../frontend/src' });
+const nextApp = next({ dev, dir: './frontend/src' });
 const handle = nextApp.getRequestHandler();
 
 const port = Number(process.env.PORT) || 3000;
