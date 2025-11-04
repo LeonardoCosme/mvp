@@ -4,7 +4,8 @@ import { apiFetch } from "@/utils/api";
 
 // Função que verifica periodicamente se o token ainda é válido
 export function startAuthWatcher() {
-  if (typeof window === "undefined") return;
+  if (globalThis.window === undefined) return;
+
 
   const checkToken = async () => {
     const token = getToken();
@@ -17,10 +18,10 @@ export function startAuthWatcher() {
       if (err?.message?.toLowerCase().includes("jwt expired")) {
         console.warn("⚠️ Token expirado. Fazendo logout automático...");
         removeToken();
-        localStorage.removeItem("nomeUsuario");
-        localStorage.removeItem("tipo");
-        window.dispatchEvent(new Event("auth-changed"));
-        window.location.href = "/login";
+        globalThis.window.localStorage.removeItem("nomeUsuario");
+        globalThis.window.localStorage.removeItem("tipo");
+        globalThis.window.dispatchEvent(new Event("auth-changed"));
+        globalThis.window.location.href = "/login";
       }
     }
   };

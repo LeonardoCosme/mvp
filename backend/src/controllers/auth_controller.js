@@ -4,6 +4,20 @@ const { Usuario } = require('../models');
 require('dotenv').config();
 
 /**
+ * 🔧 Valida os campos do registro
+ */
+function validarCampos({ nomeUsuario, email, password, tipo, cpfUsuario }) {
+  if (!nomeUsuario) return 'O nome é obrigatório.';
+  if (!email) return 'O e-mail é obrigatório.';
+  if (!password) return 'A senha é obrigatória.';
+  if (!['master', 'prestador', 'contratante'].includes(tipo))
+    return 'Tipo inválido. Use master, prestador ou contratante.';
+  if (cpfUsuario && cpfUsuario.length !== 11)
+    return 'CPF inválido. Use 11 dígitos numéricos.';
+  return null;
+}
+
+/**
  * POST /api/auth/register
  */
 async function register(req, res) {
@@ -13,15 +27,10 @@ async function register(req, res) {
     email = (email || '').trim().toLowerCase();
     password = (password || '').trim();
     tipo = (tipo || '').trim();
-    cpfUsuario = (cpfUsuario || '').replace(/\D/g, '');
+    cpfUsuario = (cpfUsuario || '').replaceAll(/\D/g, '');
 
-    if (!nomeUsuario) return res.status(400).json({ error: 'O nome é obrigatório.' });
-    if (!email) return res.status(400).json({ error: 'O e-mail é obrigatório.' });
-    if (!password) return res.status(400).json({ error: 'A senha é obrigatória.' });
-    if (!['master', 'prestador', 'contratante'].includes(tipo))
-      return res.status(400).json({ error: 'Tipo inválido. Use master, prestador ou contratante.' });
-    if (cpfUsuario && cpfUsuario.length !== 11)
-      return res.status(400).json({ error: 'CPF inválido. Use 11 dígitos numéricos.' });
+    const erro = validarCampos({ nomeUsuario, email, password, tipo, cpfUsuario });
+    if (erro) return res.status(400).json({ error: erro });
 
     const emailExist = await Usuario.findOne({ where: { email } });
     if (emailExist) return res.status(409).json({ error: 'Este e-mail já está cadastrado.' });
@@ -50,11 +59,13 @@ async function register(req, res) {
   } catch (err) {
     const code = err?.original?.code || err?.parent?.code;
     const msg = (err?.original?.sqlMessage || err?.parent?.sqlMessage || '').toLowerCase();
+
     if (code === 'ER_DUP_ENTRY') {
       if (msg.includes('cpf')) return res.status(409).json({ error: 'Este CPF já está cadastrado.' });
       if (msg.includes('email')) return res.status(409).json({ error: 'Este e-mail já está cadastrado.' });
       return res.status(409).json({ error: 'Registro duplicado.' });
     }
+
     console.error('❌ Erro no register:', err);
     return res.status(500).json({ error: 'Erro interno no registro.' });
   }
@@ -62,8 +73,6 @@ async function register(req, res) {
 
 /**
  * POST /api/auth/login
- * Body: { email, password }
- * Retorna: { token, nomeUsuario, tipo }
  */
 async function login(req, res) {
   try {
@@ -78,7 +87,6 @@ async function login(req, res) {
     const user = await Usuario.findOne({ where: { email } });
     if (!user) return res.status(401).json({ error: 'Usuário não encontrado.' });
 
-    // ✅ Compatível com campo 'senha' ou 'password'
     const ok = await bcrypt.compare(password, user.senha || user.password);
     if (!ok) return res.status(401).json({ error: 'Senha incorreta.' });
 

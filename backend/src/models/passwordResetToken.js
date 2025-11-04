@@ -1,5 +1,5 @@
 // backend/src/models/passwordResetToken.js
-module.exports = (sequelize, DataTypes) => {
+const definePasswordResetToken = (sequelize, DataTypes) => {
   const PasswordResetToken = sequelize.define('PasswordResetToken', {
     id: {
       type: DataTypes.INTEGER.UNSIGNED, // ✅ compatível com usuarios.id
@@ -36,3 +36,5 @@ module.exports = (sequelize, DataTypes) => {
 
   return PasswordResetToken;
 };
+
+module.exports = definePasswordResetToken;

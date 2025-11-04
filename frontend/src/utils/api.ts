@@ -1,4 +1,3 @@
-// src/utils/api.ts
 import { getToken } from '@/utils/auth';
 
 // 🌎 Define automaticamente o endpoint da API conforme o ambiente
@@ -9,12 +8,12 @@ const getBaseApiUrl = (): string => {
   }
 
   // ✅ 2) Detecta se está rodando localmente
-  if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+  if (globalThis?.window?.location?.hostname === 'localhost') {
     return 'http://localhost:3001/api';
   }
 
   // ✅ 3) Detecta se está na Vercel (frontend hospedado)
-  if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+  if (globalThis?.window?.location?.hostname?.includes('vercel.app')) {
     return 'https://mvp-marido-aluguel.up.railway.app/api';
   }
 
@@ -66,7 +65,7 @@ export async function apiFetch(path: string, options: ApiInit = {}): Promise<any
 
   if (!res.ok) {
     const message =
-      (data && (data.error || data.message)) || raw || `HTTP ${res.status}`;
+      (data?.error || data?.message) || raw || `HTTP ${res.status}`;
     throw new Error(message);
   }
 

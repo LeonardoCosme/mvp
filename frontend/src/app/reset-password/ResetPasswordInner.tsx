@@ -88,8 +88,11 @@ export default function ResetPasswordInner() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-left font-medium text-gray-700 mb-1">Nova senha</label>
+            <label htmlFor="novaSenha" className="block text-left font-medium text-gray-700 mb-1">
+              Nova senha
+            </label>
             <input
+              id="novaSenha"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -100,8 +103,11 @@ export default function ResetPasswordInner() {
           </div>
 
           <div>
-            <label className="block text-left font-medium text-gray-700 mb-1">Confirmar nova senha</label>
+            <label htmlFor="confirmarSenha" className="block text-left font-medium text-gray-700 mb-1">
+              Confirmar nova senha
+            </label>
             <input
+              id="confirmarSenha"
               type="password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}

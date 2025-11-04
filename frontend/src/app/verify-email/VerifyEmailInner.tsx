@@ -34,7 +34,7 @@ export default function VerifyEmailInner() {
     }
 
     verify();
-  }, [token]);
+  }, [token, router]); // ✅ router incluído nas dependências
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#F89D13]/20 to-[#8F1D14]/10 p-6">

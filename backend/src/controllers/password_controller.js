@@ -1,5 +1,5 @@
 const { Usuario, PasswordResetToken } = require('../models');
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 const bcrypt = require('bcryptjs');
 const { sendStyledEmail } = require('../services/emailService');
 const { Op } = require('sequelize');

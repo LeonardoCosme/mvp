@@ -55,17 +55,13 @@ function LoginInner() {
       // 3️⃣ Busca info do usuário logado
       try {
         const me = await apiFetch('user/me');
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('nomeUsuario', me?.nomeUsuario || '');
-          localStorage.setItem('tipo', me?.tipo || '');
-          window.dispatchEvent(new Event('auth-changed'));
-        }
+        globalThis.window?.localStorage?.setItem('nomeUsuario', me?.nomeUsuario || '');
+        globalThis.window?.localStorage?.setItem('tipo', me?.tipo || '');
+        globalThis.window?.dispatchEvent?.(new Event('auth-changed'));
       } catch {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('nomeUsuario', res?.nomeUsuario || '');
-          localStorage.setItem('tipo', res?.tipo || '');
-          window.dispatchEvent(new Event('auth-changed'));
-        }
+        globalThis.window?.localStorage?.setItem('nomeUsuario', res?.nomeUsuario || '');
+        globalThis.window?.localStorage?.setItem('tipo', res?.tipo || '');
+        globalThis.window?.dispatchEvent?.(new Event('auth-changed'));
       }
 
       // 4️⃣ Redireciona para a Home

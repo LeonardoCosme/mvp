@@ -1,5 +1,5 @@
 // backend/src/models/EmailVerificationToken.js
-module.exports = (sequelize, DataTypes) => {
+module.exports = function defineEmailVerificationToken(sequelize, DataTypes) {
   const EmailVerificationToken = sequelize.define('EmailVerificationToken', {
     id: {
       type: DataTypes.INTEGER.UNSIGNED, // ✅ compatível com usuarios.id
@@ -26,7 +26,7 @@ module.exports = (sequelize, DataTypes) => {
     updatedAt: 'updated_at',
   });
 
-  EmailVerificationToken.associate = (models) => {
+  EmailVerificationToken.associate = function associateEmailVerificationToken(models) {
     EmailVerificationToken.belongsTo(models.Usuario, {
       foreignKey: 'userId',
       targetKey: 'id',

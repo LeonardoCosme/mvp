@@ -12,7 +12,7 @@ export default function Header() {
 
   const [logged, setLogged] = useState(false);
   const [nome, setNome] = useState<string | null>(null);
-  const [tipo, setTipo] = useState<string | null>(null); // ← NOVO
+  const [tipo, setTipo] = useState<string | null>(null);
 
   const syncAuthState = () => {
     const hasToken = !!getToken();
@@ -22,7 +22,7 @@ export default function Header() {
       setNome(globalThis.localStorage.getItem('nomeUsuario') || null);
       const t =
         globalThis.localStorage.getItem('tipo') ||
-        globalThis.localStorage.getItem('tipoUsuario'); // fallback se existir
+        globalThis.localStorage.getItem('tipoUsuario');
       setTipo(t);
     }
   };
@@ -47,7 +47,7 @@ export default function Header() {
 
     if (typeof globalThis !== 'undefined' && globalThis.localStorage) {
       globalThis.localStorage.removeItem('tipo');
-      globalThis.localStorage.removeItem('tipoUsuario'); // ← limpa fallback também
+      globalThis.localStorage.removeItem('tipoUsuario');
       globalThis.localStorage.removeItem('nomeUsuario');
       globalThis.dispatchEvent(new Event('auth-changed'));
     }
@@ -69,14 +69,18 @@ export default function Header() {
     logged && { href: '/perfil', label: nome ? nome.split(' ')[0] : 'Meu Perfil' },
   ].filter(Boolean) as { href: string; label: string }[];
 
-  // classes de badge conforme tipo
+  // ✅ Correção: extrair ternário aninhado
+  let tipoClass = 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
+
+  if (tipo === 'prestador') {
+    tipoClass = 'bg-blue-50 text-blue-700 ring-blue-600/20';
+  } else if (tipo === 'contratante') {
+    tipoClass = 'bg-emerald-50 text-emerald-700 ring-emerald-600/20';
+  }
+
   const badgeClass =
     'ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ' +
-    (tipo === 'prestador'
-      ? 'bg-blue-50 text-blue-700 ring-blue-600/20'
-      : tipo === 'contratante'
-      ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
-      : 'bg-zinc-100 text-zinc-700 ring-zinc-500/20');
+    tipoClass;
 
   return (
     <header className="sticky top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm shadow-md">
@@ -108,12 +112,10 @@ export default function Header() {
                       active
                         ? 'text-[#8F1D14]'
                         : 'text-gray-700 hover:text-[#8F1D14] hover:bg-[#F89D13]/10',
-                      'flex items-center', // ← para alinhar texto + badge
+                      'flex items-center',
                     ].join(' ')}
                   >
                     {link.label}
-
-                    {/* Badge só no link de Perfil, quando logado e houver tipo */}
                     {logged && isPerfil && tipo && <span className={badgeClass}>{tipo}</span>}
                   </Link>
 
