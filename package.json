@@ -7,7 +7,7 @@
     "dev": "next dev frontend",
     "dev:backend": "nodemon --experimental-specifier-resolution=node backend/server.js",
     "build": "next build frontend",
-    "start": "NODE_ENV=production node backend/server.js",
+    "start": "NODE_ENV=production node server.js",
     "lint": "eslint"
   },
   "dependencies": {
