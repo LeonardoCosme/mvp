@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nodemon server.js",
+    "dev": "nodemon backend/server.js",
     "dev:backend": "nodemon --experimental-specifier-resolution=node backend/server.js",
     "build": "next build frontend",
-    "start": "NODE_ENV=production node server.js",
+    "start": "node backend/server.js",
     "lint": "eslint"
   },
   "dependencies": {
