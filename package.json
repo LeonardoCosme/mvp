@@ -6,9 +6,15 @@
   "scripts": {
     "dev": "nodemon backend/server.js",
     "dev:backend": "nodemon --experimental-specifier-resolution=node backend/server.js",
-    "build": "cd frontend && npm install && npm run build --no-lint",
-    "postinstall": "cd frontend && npm install && npm run build --no-lint",
+
+
+    "build": "cd frontend && npm install && npm run build:ignorelint",
+
+
+    "postinstall": "npm run build",
+
     "start": "node backend/server.js",
+
     "lint": "eslint ."
   },
   "dependencies": {

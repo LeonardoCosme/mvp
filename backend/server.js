@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// ✅ Importa os módulos internos do backend
+// ✅ Importa módulos internos do backend
 import models from './src/models/index.js';
 import authRoutes from './src/routes/authRoutes.js';
 
@@ -18,11 +18,15 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 // 🔍 Log de verificação do .env
+console.log('📁 Caminho .env usado:', path.resolve(__dirname, '../.env'));
 console.log('🔍 DATABASE_URL (server):', process.env.DATABASE_URL);
 
 // ✅ Inicializa o Next.js e o Express
 const dev = process.env.NODE_ENV !== 'production';
-const nextApp = next({ dev, dir: path.resolve(__dirname, '../frontend') });
+const nextApp = next({
+  dev,
+  dir: path.resolve(__dirname, '../frontend'), // garante que o Next veja o frontend
+});
 const handle = nextApp.getRequestHandler();
 const app = express();
 
@@ -31,10 +35,10 @@ app.use(express.json());
 // ✅ Banco de dados
 const { sequelize, TipoServico } = models;
 
-// Função principal assíncrona para inicializar o app
+// ✅ Função principal para inicializar o app
 async function startServer() {
   try {
-    // 🧠 Prepara o Next antes de iniciar o servidor
+    // 🧠 Prepara o Next.js antes de iniciar o servidor
     await nextApp.prepare();
 
     // 🗄️ Conecta ao banco
@@ -57,13 +61,16 @@ async function startServer() {
       console.log(`🌱 Seeds já existentes (${count} registros).`);
     }
 
-    // ✅ ROTAS EXPRESS — devem vir ANTES do Next.js
+    // ✅ Rotas do backend (antes do Next)
     app.use('/api', authRoutes);
 
-    // 🔍 Rota de teste simples
+    // 🔍 Teste simples
     app.get('/api/ping', (req, res) => res.send('✅ API ativa e respondendo!'));
 
-    // ⚠️ O Next.js cuida do restante (rotas de frontend)
+    // ⚙️ Serve o build do Next.js (frontend)
+    app.use(express.static(path.join(__dirname, '../frontend/.next')));
+
+    // ⚠️ Deixa o Next.js cuidar das rotas do frontend
     app.all('*', (req, res) => handle(req, res));
 
     // ✅ Inicia o servidor

@@ -1,15 +1,13 @@
-@import "tailwindcss";
+/* Importa o núcleo do Tailwind */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 🎨 Variáveis de tema e estilos globais opcionais */
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,8 +17,24 @@
   }
 }
 
-body {
-  background: var(--background);
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+}
+
+/* Exemplo de estilização com Tailwind */
+button {
+  @apply px-4 py-2 rounded-md font-semibold transition-colors bg-orange-500 text-white;
+}
+
+button:hover {
+  @apply bg-orange-600;
+}
+
+a {
+  @apply text-orange-600 hover:underline;
 }
