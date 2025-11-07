@@ -20,7 +20,7 @@ function LoginInner() {
   const search = useSearchParams();
   const nextPath = search?.get('next') || '/home';
 
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ email: '', senha: '' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -33,19 +33,20 @@ function LoginInner() {
     e.preventDefault();
     setError('');
 
-    if (!form.email.trim() || !form.password.trim()) {
+    if (!form.email.trim() || !form.senha.trim()) {
       setError('Informe e-mail e senha.');
       return;
     }
 
     setLoading(true);
     try {
-      // 1️⃣ Login
-      const res = await apiFetch('auth/login', {
+      // 1️⃣ Login (rota correta e campo "senha")
+      const res = await apiFetch('login', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: form.email.trim().toLowerCase(),
-          password: form.password,
+          senha: form.senha,
         }),
       });
 
@@ -67,7 +68,8 @@ function LoginInner() {
       // 4️⃣ Redireciona para a Home
       router.push(nextPath);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao entrar.');
+      console.error('Erro no login:', err);
+      setError(err?.message || 'Erro ao entrar. Verifique suas credenciais.');
     } finally {
       setLoading(false);
     }
@@ -102,15 +104,15 @@ function LoginInner() {
 
           {/* SENHA */}
           <div>
-            <label htmlFor="password" className="block font-medium text-gray-700 mb-1">
+            <label htmlFor="senha" className="block font-medium text-gray-700 mb-1">
               Senha
             </label>
             <div className="relative">
               <input
-                id="password"
-                name="password"
+                id="senha"
+                name="senha"
                 type={showPass ? 'text' : 'password'}
-                value={form.password}
+                value={form.senha}
                 onChange={onChange}
                 autoComplete="current-password"
                 required
