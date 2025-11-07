@@ -6,8 +6,15 @@
   "scripts": {
     "dev": "nodemon backend/server.js",
     "dev:backend": "nodemon --experimental-specifier-resolution=node backend/server.js",
-    "build": "cd frontend && npm install && NEXT_DISABLE_ESLINT=1 next build",
-    "start": "node backend/server.js",
+
+
+    "build": "cd frontend && npm install && NEXT_DISABLE_ESLINT=1 npm run build",
+
+
+    "postinstall": "npm run build",
+
+    "start": "cd backend && node server.js",
+
     "lint": "eslint ."
   },
   "dependencies": {
