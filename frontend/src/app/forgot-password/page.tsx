@@ -22,12 +22,18 @@ export default function ForgotPasswordPage() {
 
     setLoading(true);
     try {
+      // 🔧 Ajuste: rota correta e headers explícitos
       await apiFetch('forgot-password', {
         method: 'POST',
-        body: JSON.stringify({ email }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
-      setMessage('Se o e-mail estiver cadastrado, você receberá um link para redefinir sua senha.');
+
+      setMessage(
+        'Se o e-mail estiver cadastrado, você receberá um link para redefinir sua senha.'
+      );
     } catch (err: any) {
+      console.error('Erro ao solicitar redefinição de senha:', err);
       setError(err?.message || 'Erro ao enviar o e-mail de recuperação.');
     } finally {
       setLoading(false);
