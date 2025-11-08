@@ -1,5 +1,5 @@
 // backend/src/models/EmailVerificationToken.js
-module.exports = function defineEmailVerificationToken(sequelize, DataTypes) {
+export default function defineEmailVerificationToken(sequelize, DataTypes) {
   const EmailVerificationToken = sequelize.define('EmailVerificationToken', {
     id: {
       type: DataTypes.INTEGER.UNSIGNED, // ✅ compatível com usuarios.id

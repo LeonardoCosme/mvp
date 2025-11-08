@@ -1,5 +1,5 @@
 // backend/src/models/servico_disponivel.js
-module.exports = (sequelize, DataTypes) => {
+export default (sequelize, DataTypes) => {
   const ServicoDisponivel = sequelize.define(
     'ServicoDisponivel',
     {

@@ -1,5 +1,5 @@
 'use strict';
-module.exports = (sequelize, DataTypes) => {
+export default (sequelize, DataTypes) => {
   const Usuario = sequelize.define('Usuario', {
     id:          { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
     nomeUsuario: { type: DataTypes.STRING(100), allowNull: false, field: 'nomeUsuario' },

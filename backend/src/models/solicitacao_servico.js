@@ -1,5 +1,5 @@
 // backend/src/models/solicitacao_servico.js
-module.exports = (sequelize, DataTypes) => {
+export default (sequelize, DataTypes) => {
   const SolicitacaoServico = sequelize.define(
     'SolicitacaoServico',
     {

@@ -1,5 +1,5 @@
 // src/models/agendamento.js
-module.exports = (sequelize, DataTypes) => {
+export default (sequelize, DataTypes) => {
   const Agendamento = sequelize.define(
     'Agendamento',
     {

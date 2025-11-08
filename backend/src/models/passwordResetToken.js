@@ -37,4 +37,4 @@ const definePasswordResetToken = (sequelize, DataTypes) => {
   return PasswordResetToken;
 };
 
-module.exports = definePasswordResetToken;
+export default  definePasswordResetToken;

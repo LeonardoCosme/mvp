@@ -1,5 +1,5 @@
 // backend/src/models/avaliacao.js
-module.exports = (sequelize, DataTypes) => {
+export default (sequelize, DataTypes) => {
   const Avaliacao = sequelize.define('Avaliacao', {
     id: {
       type: DataTypes.BIGINT.UNSIGNED,

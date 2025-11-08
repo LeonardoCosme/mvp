@@ -3,6 +3,7 @@ import express from "express";
 import http from "node:http";
 import next from "next";
 import dotenv from "dotenv";
+import cors from "cors";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,7 +18,7 @@ const __dirname = path.dirname(__filename);
 // 🔍 Detecta ambiente
 const isProduction = process.env.NODE_ENV === "production";
 const envPath = isProduction
-  ? "/.env" // no Railway, o .env é injetado na raiz do container
+  ? "/.env" // no Railway, o .env é injetado automaticamente
   : path.resolve(__dirname, "../.env");
 
 // ✅ Carrega variáveis de ambiente
@@ -31,11 +32,13 @@ console.log("🔍 DATABASE_URL (server):", process.env.DATABASE_URL);
 const dev = !isProduction;
 const nextApp = next({
   dev,
-  dir: path.resolve(__dirname, "../frontend"),
+  dir: path.resolve(__dirname, "../frontend"), // caminho do app Next.js
 });
 const handle = nextApp.getRequestHandler();
 const app = express();
 
+// ✅ Middlewares globais
+app.use(cors()); // <---- Permite que o frontend acesse a API
 app.use(express.json());
 
 // ✅ Banco de dados
@@ -67,23 +70,26 @@ async function startServer() {
       console.log(`🌱 Seeds já existentes (${count} registros).`);
     }
 
-    // ✅ Rotas do backend
+    // ✅ Rotas da API (backend)
     app.use("/api", authRoutes);
 
     // 🔍 Teste rápido
     app.get("/api/ping", (req, res) => res.send("✅ API ativa e respondendo!"));
 
-    // ⚙️ Integração com Next.js
+    // ⚙️ Todas as outras rotas são tratadas pelo Next.js
     app.all("*", (req, res) => handle(req, res));
 
     // 🚀 Inicia o servidor HTTP
-    const port = process.env.PORT || 3000;
+    const port = process.env.PORT || 5000;
     const server = http.createServer(app);
 
     server.listen(port, "0.0.0.0", () => {
       console.log(`🚀 Servidor rodando em http://localhost:${port}`);
-      if (isProduction) console.log("🌐 Ambiente: Produção (Railway)");
-      else console.log("🧩 Ambiente: Desenvolvimento local");
+      console.log(
+        isProduction
+          ? "🌐 Ambiente: Produção (Railway)"
+          : "🧩 Ambiente: Desenvolvimento local"
+      );
     });
 
     // ✅ Finalização segura

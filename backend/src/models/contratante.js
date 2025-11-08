@@ -1,5 +1,5 @@
 'use strict';
-module.exports = (sequelize, DataTypes) => {
+export default (sequelize, DataTypes) => {
   const Contratante = sequelize.define('Contratante', {
     id:         { type: DataTypes.INTEGER.UNSIGNED, autoIncrement: true, primaryKey: true },
     usuario_id: { type: DataTypes.INTEGER.UNSIGNED, allowNull: false, unique: true, field: 'usuario_id' },

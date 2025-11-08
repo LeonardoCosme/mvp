@@ -22,7 +22,7 @@ export default function ForgotPasswordPage() {
 
     setLoading(true);
     try {
-      await apiFetch('user/forgot-password', {
+      await apiFetch('forgot-password', {
         method: 'POST',
         body: JSON.stringify({ email }),
       });

@@ -1,74 +1,38 @@
-import { getToken } from '@/utils/auth';
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
-// 🌎 Define automaticamente o endpoint da API conforme o ambiente
-const getBaseApiUrl = (): string => {
-  // ✅ 1) Usa variável de ambiente se estiver definida (melhor prática)
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL.replace(/\/+$/, '');
-  }
+export async function apiFetch(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<any> {
+  const url = `${API_BASE_URL}/api/${endpoint}`;
 
-  // ✅ 2) Detecta se está rodando localmente
-  if (globalThis?.window?.location?.hostname === 'localhost') {
-    return 'http://localhost:3001/api';
-  }
+  // 🔍 Log para ver a URL chamada
+  console.log("🌐 Chamando backend:", url);
 
-  // ✅ 3) Detecta se está na Vercel (frontend hospedado)
-  if (globalThis?.window?.location?.hostname?.includes('vercel.app')) {
-    return 'https://mvp-marido-aluguel.up.railway.app/api';
-  }
-
-  // ✅ 4) Fallback padrão
-  return 'https://mvp-marido-aluguel.up.railway.app/api';
-};
-
-export const API_BASE_URL = getBaseApiUrl();
-
-function safeJsonParse(text: string) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-export type ApiInit = Omit<RequestInit, 'headers'> & {
-  auth?: boolean;
-  headers?: HeadersInit;
-};
-
-// 🚀 Função genérica para requisições à API
-export async function apiFetch(path: string, options: ApiInit = {}): Promise<any> {
-  const { auth = true, headers: initHeaders, ...rest } = options;
-
-  const headers = new Headers(initHeaders || undefined);
-  const hasBody = rest.body !== undefined && rest.body !== null;
-
-  if (hasBody && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-
-  if (auth) {
-    const token = getToken();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  const cleanPath = String(path).replace(/^\/+/, '');
-  const url = `${API_BASE_URL}/${cleanPath}`;
-
-  const res = await fetch(url, { ...rest, headers });
-  const contentType = res.headers.get('content-type') || '';
-  const raw = await res.text();
-
-  const data = contentType.includes('application/json')
-    ? safeJsonParse(raw)
-    : null;
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
 
   if (!res.ok) {
-    const message =
-      (data?.error || data?.message) || raw || `HTTP ${res.status}`;
-    throw new Error(message);
+    let msg = "Erro desconhecido.";
+    try {
+      const data = await res.json();
+      msg = data?.error || data?.message || msg;
+    } catch {}
+    console.error("❌ Erro API:", res.status, msg);
+    throw new Error(msg);
   }
 
-  if (res.status === 204 || raw === '') return null;
-  return data ?? raw;
+  try {
+    const json = await res.json();
+    console.log("✅ Resposta API:", json);
+    return json;
+  } catch {
+    return {};
+  }
 }

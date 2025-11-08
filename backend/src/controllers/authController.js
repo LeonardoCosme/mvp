@@ -1,59 +1,66 @@
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import models from '../models/index.js';
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import models from "../models/index.js"; // importa todos os models
 
-const { Usuario } = models;
+const { Usuario } = models; // garante que o model Usuario está acessível
 
 // 🔐 LOGIN
-export const login = async (req, res) => {
+export async function login(req, res) {
   try {
     const { email, senha } = req.body;
 
-    // Verifica se o usuário existe
-    const user = await Usuario.findOne({ where: { email } });
-    if (!user) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (!email || !senha) {
+      return res.status(400).json({ message: "E-mail e senha são obrigatórios." });
     }
 
-    // Verifica se a senha é válida
+    const user = await Usuario.findOne({ where: { email } }); // 👈 aqui dava erro antes
+
+    if (!user) {
+      return res.status(404).json({ message: "Usuário não encontrado." });
+    }
+
     const senhaValida = await bcrypt.compare(senha, user.senha);
     if (!senhaValida) {
-      return res.status(401).json({ error: 'Senha incorreta' });
+      return res.status(401).json({ message: "Senha incorreta." });
     }
 
-    // Gera token JWT
     const token = jwt.sign(
       { id: user.id, email: user.email },
-      process.env.JWT_SECRET || 'chave-secreta-temporaria',
-      { expiresIn: '1h' }
+      process.env.JWT_SECRET || "segredo123",
+      { expiresIn: "1d" }
     );
 
-    return res.json({ message: 'Login realizado com sucesso', token });
+    res.json({
+      message: "Login realizado com sucesso!",
+      token,
+      nomeUsuario: user.nome,
+      tipo: user.tipo,
+    });
   } catch (error) {
-    console.error('Erro no login:', error);
-    res.status(500).json({ error: 'Erro interno ao efetuar login' });
+    console.error("Erro no login:", error);
+    res.status(500).json({ message: "Erro interno ao realizar login." });
   }
-};
+}
 
 // 🔑 ESQUECI MINHA SENHA
-export const forgotPassword = async (req, res) => {
+export async function forgotPassword(req, res) {
   try {
     const { email } = req.body;
 
-    // Verifica se o e-mail existe no banco
-    const user = await Usuario.findOne({ where: { email } });
-    if (!user) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
+    if (!email) {
+      return res.status(400).json({ message: "E-mail é obrigatório." });
     }
 
-    // Aqui você poderia enviar um e-mail real com link de redefinição
-    console.log(`🟡 Recuperação de senha solicitada para: ${email}`);
+    const user = await Usuario.findOne({ where: { email } });
 
-    return res.json({
-      message: `Instruções de recuperação enviadas para ${email}`,
-    });
+    if (!user) {
+      return res.status(404).json({ message: "Usuário não encontrado." });
+    }
+
+    // aqui você pode gerar token e enviar por e-mail
+    res.json({ message: "Instruções de recuperação enviadas por e-mail." });
   } catch (error) {
-    console.error('Erro no esqueci minha senha:', error);
-    res.status(500).json({ error: 'Erro ao processar recuperação de senha' });
+    console.error("Erro ao enviar recuperação de senha:", error);
+    res.status(500).json({ message: "Erro ao enviar recuperação de senha." });
   }
-};
+}
