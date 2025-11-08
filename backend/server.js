@@ -1,63 +1,32 @@
-// ✅ Imports principais
 import express from "express";
 import http from "node:http";
-import next from "next";
 import dotenv from "dotenv";
-import cors from "cors";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-
-// ✅ Importa módulos internos do backend
 import models from "./src/models/index.js";
 import authRoutes from "./src/routes/authRoutes.js";
 
-// ✅ Configurações iniciais
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 🔍 Detecta ambiente
-const isProduction = process.env.NODE_ENV === "production";
-const envPath = isProduction
-  ? "/.env" // no Railway, o .env é injetado automaticamente
-  : path.resolve(__dirname, "../.env");
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
-// ✅ Carrega variáveis de ambiente
-dotenv.config({ path: envPath });
-
-// 🔍 Logs úteis
-console.log("📁 Caminho .env usado:", envPath);
+console.log("📁 Caminho .env usado:", path.resolve(__dirname, "../.env"));
 console.log("🔍 DATABASE_URL (server):", process.env.DATABASE_URL);
 
-// ✅ Inicializa Next.js + Express
-const dev = !isProduction;
-const nextApp = next({
-  dev,
-  dir: path.resolve(__dirname, "../frontend"), // caminho do app Next.js
-});
-const handle = nextApp.getRequestHandler();
 const app = express();
-
-// ✅ Middlewares globais
-app.use(cors()); // <---- Permite que o frontend acesse a API
 app.use(express.json());
 
-// ✅ Banco de dados
 const { sequelize, TipoServico } = models;
 
-// ✅ Função principal
 async function startServer() {
   try {
-    // 🧠 Prepara o Next.js
-    await nextApp.prepare();
-
-    // 🗄️ Conecta ao banco
     await sequelize.authenticate();
     console.log("✅ Banco conectado com sucesso.");
 
     await sequelize.sync();
     console.log("✅ Models sincronizados.");
 
-    // 🌱 Seeds automáticos
     const count = await TipoServico.count();
     if (count === 0) {
       await TipoServico.bulkCreate([
@@ -70,41 +39,23 @@ async function startServer() {
       console.log(`🌱 Seeds já existentes (${count} registros).`);
     }
 
-    // ✅ Rotas da API (backend)
+    // ✅ Rotas do backend
     app.use("/api", authRoutes);
-
-    // 🔍 Teste rápido
     app.get("/api/ping", (req, res) => res.send("✅ API ativa e respondendo!"));
 
-    // ⚙️ Todas as outras rotas são tratadas pelo Next.js
-    app.all("*", (req, res) => handle(req, res));
-
-    // 🚀 Inicia o servidor HTTP
+    // 🚀 Servidor Express puro
     const port = process.env.PORT || 5000;
     const server = http.createServer(app);
 
     server.listen(port, "0.0.0.0", () => {
-      console.log(`🚀 Servidor rodando em http://localhost:${port}`);
-      console.log(
-        isProduction
-          ? "🌐 Ambiente: Produção (Railway)"
-          : "🧩 Ambiente: Desenvolvimento local"
-      );
+      console.log(`🚀 Backend rodando em http://localhost:${port}`);
+      console.log("🧩 Ambiente: Desenvolvimento local");
     });
 
-    // ✅ Finalização segura
-    process.on("SIGTERM", () => {
-      console.log("⚠️ Encerrando servidor...");
-      server.close(() => {
-        console.log("✅ Servidor encerrado com segurança.");
-        process.exit(0);
-      });
-    });
   } catch (error) {
     console.error("❌ Erro ao iniciar servidor:", error);
     process.exit(1);
   }
 }
 
-// 🚀 Inicializa tudo
 startServer();
