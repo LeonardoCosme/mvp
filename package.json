@@ -7,9 +7,7 @@
     "dev": "nodemon backend/server.js",
     "dev:backend": "nodemon --experimental-specifier-resolution=node backend/server.js",
 
-
     "build": "cd frontend && npm install && npm run build:ignorelint",
-
 
     "postinstall": "npm run build",
 
