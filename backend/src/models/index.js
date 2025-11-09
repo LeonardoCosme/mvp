@@ -7,22 +7,21 @@ import { fileURLToPath, pathToFileURL } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 🧩 Força o caminho exato do .env
-const rootEnvPath = path.resolve(process.cwd(), '.env');
+const isProduction = process.env.NODE_ENV === "production";
 
-// ✅ Carrega o .env
-dotenv.config({ path: rootEnvPath });
+// ✅ Carrega .env local apenas fora da produção
+if (!isProduction) {
+  const localEnv = path.resolve(__dirname, "../../.env");
+  dotenv.config({ path: localEnv });
+  console.log("🧩 Ambiente local: .env carregado de", localEnv);
+} else {
+  console.log("🚀 Ambiente de produção: variáveis do Railway");
+}
 
-console.log("🧩 Caminho .env carregado:", rootEnvPath);
-console.log("🔍 DATABASE_URL lida:", process.env.DATABASE_URL);
-
-const db = {};
-const basename = path.basename(__filename);
-
-// 🔍 Lê URL do banco de dados do .env
+// 🔍 Verifica URL do banco
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
-  throw new Error("❌ DATABASE_URL não encontrada no arquivo .env");
+  throw new Error("❌ DATABASE_URL não encontrada!");
 }
 
 // 🔧 Conecta ao banco
@@ -31,7 +30,10 @@ const sequelize = new Sequelize(databaseUrl, {
   logging: false,
 });
 
-// 🧩 Importa todos os models da pasta
+const db = {};
+const basename = path.basename(__filename);
+
+// 🧩 Importa models com compatibilidade Windows/Linux
 for (const file of fs.readdirSync(__dirname)) {
   if (
     file.indexOf(".") !== 0 &&
@@ -47,7 +49,7 @@ for (const file of fs.readdirSync(__dirname)) {
   }
 }
 
-// 🧠 Cria associações (se houver)
+// 🧠 Cria associações
 for (const modelName of Object.keys(db)) {
   if (db[modelName].associate) {
     db[modelName].associate(db);
