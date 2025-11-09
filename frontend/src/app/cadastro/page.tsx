@@ -7,12 +7,12 @@ import { apiFetch } from '@/utils/api';
 export default function CadastroPage() {
   const router = useRouter();
   const [form, setForm] = useState({
-    nomeUsuario: '',
+    nome: '',
     email: '',
-    password: '',
-    confirmPassword: '',
+    cpf: '',
+    senha: '',
+    confirmSenha: '',
     tipo: 'contratante',
-    cpfUsuario: '',
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -20,52 +20,54 @@ export default function CadastroPage() {
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  // regra forte de senha
+  // ✅ Regras de senha forte
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{8,}$/;
-
-  const senhaForte = useMemo(() => passwordRegex.test(form.password), [form.password]);
+  const senhaForte = useMemo(() => passwordRegex.test(form.senha), [form.senha]);
   const senhasBatendo = useMemo(
-    () => form.confirmPassword.length === 0 || form.password === form.confirmPassword,
-    [form.password, form.confirmPassword]
+    () => form.confirmSenha.length === 0 || form.senha === form.confirmSenha,
+    [form.senha, form.confirmSenha]
   );
 
+  // ✅ Atualiza os campos dinamicamente
   function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
   }
 
+  // ✅ Envio do formulário
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setSuccess('');
 
     if (!senhaForte) {
-      setError('A senha deve ter no mínimo 8 caracteres, incluindo letra maiúscula, minúscula, número e caractere especial.');
+      setError('A senha deve ter no mínimo 8 caracteres, incluindo letra maiúscula, minúscula, número e símbolo.');
       return;
     }
 
-    if (form.password !== form.confirmPassword) {
+    if (form.senha !== form.confirmSenha) {
       setError('As senhas não conferem.');
       return;
     }
 
     setLoading(true);
     try {
-      await apiFetch('register', {
+      const res = await apiFetch('register', {
         method: 'POST',
         body: JSON.stringify({
-          nomeUsuario: form.nomeUsuario.trim(),
+          nome: form.nome.trim(),
           email: form.email.trim().toLowerCase(),
-          password: form.password,
-          confirmPassword: form.confirmPassword, // recomendado validar também no backend
+          cpf: form.cpf?.trim(),
+          senha: form.senha,
           tipo: form.tipo,
-          cpfUsuario: form.cpfUsuario?.trim(),
         }),
       });
 
+      console.log('✅ Resposta do cadastro:', res);
       setSuccess('Cadastro realizado com sucesso!');
-      setTimeout(() => router.push('/login'), 1500);
+      setTimeout(() => router.push('/login'), 2000);
     } catch (err: any) {
-      setError(err.message || 'Erro ao cadastrar');
+      console.error('❌ Erro ao cadastrar:', err);
+      setError(err.message || 'Erro ao cadastrar. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -76,27 +78,34 @@ export default function CadastroPage() {
       <div className="bg-white/90 backdrop-blur-md shadow-2xl rounded-2xl w-full max-w-lg p-8">
         <h1 className="text-3xl font-bold text-center text-[#8F1D14] mb-1">Crie sua conta</h1>
         <p className="text-center text-gray-600 mb-8">
-          Preencha seus dados para começar a usar o <span className="font-semibold text-[#F89D13]">Marido de Aluguel</span>.
+          Preencha seus dados para começar a usar o{' '}
+          <span className="font-semibold text-[#F89D13]">Marido de Aluguel</span>.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {/* Nome */}
           <div>
-            <label htmlFor="nomeUsuario" className="block font-medium text-gray-700 mb-1">Nome completo</label>
+            <label htmlFor="nome" className="block font-medium text-gray-700 mb-1">
+              Nome completo
+            </label>
             <input
-              id="nomeUsuario"
+              id="nome"
               type="text"
-              name="nomeUsuario"
-              value={form.nomeUsuario}
+              name="nome"
+              value={form.nome}
               onChange={handleChange}
               required
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
               placeholder="Ex: João Silva"
               autoComplete="name"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13]"
             />
           </div>
 
+          {/* E-mail */}
           <div>
-            <label htmlFor="email" className="block font-medium text-gray-700 mb-1">E-mail</label>
+            <label htmlFor="email" className="block font-medium text-gray-700 mb-1">
+              E-mail
+            </label>
             <input
               id="email"
               type="email"
@@ -104,105 +113,113 @@ export default function CadastroPage() {
               value={form.email}
               onChange={handleChange}
               required
-              autoComplete="email"
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
               placeholder="seuemail@email.com"
+              autoComplete="email"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13]"
             />
           </div>
 
+          {/* CPF */}
           <div>
-            <label htmlFor="cpfUsuario" className="block font-medium text-gray-700 mb-1">CPF</label>
+            <label htmlFor="cpf" className="block font-medium text-gray-700 mb-1">
+              CPF
+            </label>
             <input
-              id="cpfUsuario"
+              id="cpf"
               type="text"
-              name="cpfUsuario"
-              value={form.cpfUsuario}
+              name="cpf"
+              value={form.cpf}
               onChange={handleChange}
               inputMode="numeric"
               maxLength={11}
               placeholder="Somente números"
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
-              autoComplete="off"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13]"
             />
           </div>
 
+          {/* Senha */}
           <div>
-            <label htmlFor="password" className="block font-medium text-gray-700 mb-1">Senha</label>
+            <label htmlFor="senha" className="block font-medium text-gray-700 mb-1">
+              Senha
+            </label>
             <div className="relative">
               <input
-                id="password"
+                id="senha"
                 type={showPass ? 'text' : 'password'}
-                name="password"
-                value={form.password}
+                name="senha"
+                value={form.senha}
                 onChange={handleChange}
                 required
-                autoComplete="new-password"
-                className="w-full px-4 py-2 border rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
                 placeholder="••••••••"
-                aria-describedby="passwordHelp"
+                autoComplete="new-password"
+                className="w-full px-4 py-2 border rounded-lg pr-12 focus:ring-2 focus:ring-[#F89D13]"
               />
               <button
                 type="button"
                 onClick={() => setShowPass((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-600 hover:text-gray-800 px-2 py-1"
-                aria-label={showPass ? 'Ocultar senha' : 'Mostrar senha'}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-600 hover:text-gray-800"
               >
                 {showPass ? 'Ocultar' : 'Mostrar'}
               </button>
             </div>
-            <p id="passwordHelp" className="text-xs text-gray-500 mt-1">
-              8+ caracteres, com letra maiúscula, minúscula, número e símbolo.
-            </p>
-            {!senhaForte && form.password.length > 0 && (
-              <p className="text-xs text-red-600 mt-1">A senha não atende aos requisitos mínimos.</p>
+            {!senhaForte && form.senha && (
+              <p className="text-xs text-red-600 mt-1">
+                A senha deve conter letra maiúscula, minúscula, número e símbolo.
+              </p>
             )}
           </div>
 
+          {/* Confirmar senha */}
           <div>
-            <label htmlFor="confirmPassword" className="block font-medium text-gray-700 mb-1">Confirmar senha</label>
+            <label htmlFor="confirmSenha" className="block font-medium text-gray-700 mb-1">
+              Confirmar senha
+            </label>
             <div className="relative">
               <input
-                id="confirmPassword"
+                id="confirmSenha"
                 type={showConfirm ? 'text' : 'password'}
-                name="confirmPassword"
-                value={form.confirmPassword}
+                name="confirmSenha"
+                value={form.confirmSenha}
                 onChange={handleChange}
                 required
-                autoComplete="new-password"
-                className="w-full px-4 py-2 border rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
                 placeholder="Repita a senha"
+                className="w-full px-4 py-2 border rounded-lg pr-12 focus:ring-2 focus:ring-[#F89D13]"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirm((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-600 hover:text-gray-800 px-2 py-1"
-                aria-label={showConfirm ? 'Ocultar confirmação' : 'Mostrar confirmação'}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-600 hover:text-gray-800"
               >
                 {showConfirm ? 'Ocultar' : 'Mostrar'}
               </button>
             </div>
-            {!!form.confirmPassword && !senhasBatendo && (
+            {!senhasBatendo && (
               <p className="text-xs text-red-600 mt-1">As senhas não conferem.</p>
             )}
           </div>
 
+          {/* Tipo de usuário */}
           <div>
-            <label htmlFor="tipo" className="block font-medium text-gray-700 mb-1">Tipo de usuário</label>
+            <label htmlFor="tipo" className="block font-medium text-gray-700 mb-1">
+              Tipo de usuário
+            </label>
             <select
               id="tipo"
               name="tipo"
               value={form.tipo}
               onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13]"
             >
               <option value="contratante">Cliente</option>
               <option value="prestador">Prestador</option>
             </select>
           </div>
 
-          {error && <p className="text-red-600 text-sm text-center" aria-live="assertive">{error}</p>}
+          {/* Mensagens */}
+          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
           {success && <p className="text-green-600 text-sm text-center">{success}</p>}
 
+          {/* Botão */}
           <button
             type="submit"
             disabled={loading || !senhaForte || !senhasBatendo}
@@ -214,7 +231,9 @@ export default function CadastroPage() {
 
         <p className="text-center text-gray-600 mt-6 text-sm">
           Já tem uma conta?{' '}
-          <a href="/login" className="text-[#8F1D14] font-medium hover:underline">Faça login</a>
+          <a href="/login" className="text-[#8F1D14] font-medium hover:underline">
+            Faça login
+          </a>
         </p>
       </div>
     </div>
