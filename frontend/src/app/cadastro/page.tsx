@@ -50,7 +50,7 @@ export default function CadastroPage() {
 
     setLoading(true);
     try {
-      await apiFetch('auth/register', {
+      await apiFetch('register', {
         method: 'POST',
         body: JSON.stringify({
           nomeUsuario: form.nomeUsuario.trim(),
