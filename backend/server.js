@@ -29,20 +29,18 @@ console.log("🔍 DATABASE_URL (server):", process.env.DATABASE_URL);
 const app = express();
 
 // ✅ Configuração de CORS — libera local + produção (Vercel)
-const FRONTEND_URL =
-  process.env.FRONTEND_URL || "http://localhost:3000";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
 const allowedOrigins = [
   FRONTEND_URL,
   "http://localhost:3000",
-  "https://mvp-marido-aluguel.vercel.app", // sua Vercel
+  "https://mvp-marido-aluguel.vercel.app",
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Permite requests internas (sem origem, tipo Postman)
-      if (!origin) return callback(null, true);
+      if (!origin) return callback(null, true); // Postman, etc.
       if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       } else {
@@ -81,16 +79,26 @@ async function startServer() {
       console.log(`🌱 Seeds já existentes (${count} registros).`);
     }
 
-    // ✅ Rotas do backend
+    // ✅ Rotas principais
     app.use("/api", authRoutes);
 
-    // 🔍 Rota de teste
+    // 🔍 Teste rápido (GET /api/ping)
     app.get("/api/ping", (req, res) => {
       res.json({
         message: "✅ API ativa e respondendo!",
         frontend: FRONTEND_URL,
         environment: isProduction ? "production" : "development",
       });
+    });
+
+    // ✅ Captura rotas inexistentes (evita "Cannot GET /api/register")
+    app.use((req, res, next) => {
+      if (req.path.startsWith("/api")) {
+        return res
+          .status(404)
+          .json({ error: `Rota não encontrada: ${req.method} ${req.path}` });
+      }
+      next();
     });
 
     // 🚀 Inicia servidor
