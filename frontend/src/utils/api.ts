@@ -10,8 +10,11 @@ export async function apiFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> {
-  // 🔒 Remove possíveis barras ou prefixos errados
-  const cleanEndpoint = endpoint.replace(/^\/+/, "").replace(/^user\//, "").replace(/^auth\//, "");
+  // 🔒 Remove possíveis prefixos errados
+  const cleanEndpoint = endpoint
+    .replace(/^\/+/, "")
+    .replace(/^auth\//, "")
+    .replace(/^user\//, "");
 
   const url = `${API_BASE_URL}/api/${cleanEndpoint}`;
   console.log("🌐 Chamando backend:", url);
