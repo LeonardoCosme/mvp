@@ -2,7 +2,7 @@
 const isProd = process.env.NODE_ENV === "production";
 
 // 🔧 Define o backend conforme o ambiente
-export const API_BASE_URL = isProd
+const API_BASE_URL = isProd
   ? process.env.NEXT_PUBLIC_API_URL || "https://mvp-marido-aluguel.up.railway.app"
   : "http://localhost:5000";
 
@@ -10,7 +10,9 @@ export async function apiFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> {
-  const url = `${API_BASE_URL}/api/${endpoint.replace(/^\/+/, "")}`;
+  // remove / iniciais para evitar // na URL
+  const cleanEndpoint = endpoint.replace(/^\/+/, "");
+  const url = `${API_BASE_URL}/api/${cleanEndpoint}`;
 
   console.log("🌐 Chamando backend:", url);
 
@@ -29,7 +31,7 @@ export async function apiFetch(
       msg = data?.error || data?.message || msg;
     } catch {}
     console.error("❌ Erro API:", res.status, msg);
-    throw new Error(msg);
+    throw new Error(`Rota não encontrada: ${res.status} ${url}`);
   }
 
   try {
