@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // 🧩 Força o caminho exato do .env
-const rootEnvPath = path.resolve("C:/Users/55119/Desktop/mvp/.env");
+const rootEnvPath = path.resolve(process.cwd(), '.env');
 
 // ✅ Carrega o .env
 dotenv.config({ path: rootEnvPath });
