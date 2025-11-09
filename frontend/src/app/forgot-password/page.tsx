@@ -23,7 +23,7 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     try {
       // ✅ Chama a rota correta do backend
-      await apiFetch('forgot-password', {
+      await apiFetch('user/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim().toLowerCase() }),
