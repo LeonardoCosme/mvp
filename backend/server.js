@@ -1,3 +1,4 @@
+// ✅ Imports principais
 import express from "express";
 import cors from "cors";
 import http from "node:http";
@@ -7,45 +8,67 @@ import { fileURLToPath } from "node:url";
 import models from "./src/models/index.js";
 import authRoutes from "./src/routes/authRoutes.js";
 
-// 📁 Caminho do arquivo atual
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 🔧 Carrega variáveis de ambiente da raiz do projeto
-dotenv.config({ path: path.resolve(__dirname, "../.env") });
+// ✅ Detecta ambiente
+const isProduction = process.env.NODE_ENV === "production";
 
-console.log("📁 Caminho .env usado:", path.resolve(__dirname, "../.env"));
+// ✅ Carrega .env local (Railway já injeta as variáveis em produção)
+if (!isProduction) {
+  const envPath = path.resolve(__dirname, ".env");
+  dotenv.config({ path: envPath });
+  console.log("🧩 Ambiente local: .env carregado de", envPath);
+} else {
+  console.log("🚀 Ambiente de produção: variáveis do Railway carregadas");
+}
+
+console.log("📁 Caminho .env usado:", path.resolve(__dirname, ".env"));
 console.log("🔍 DATABASE_URL (server):", process.env.DATABASE_URL);
 
-// 🚀 Inicializa o app Express
 const app = express();
 
-// ✅ Configuração CORS — libera o frontend (Next.js) para acessar o backend
+// ✅ Configuração de CORS — libera local + produção (Vercel)
+const FRONTEND_URL =
+  process.env.FRONTEND_URL || "http://localhost:3000";
+
+const allowedOrigins = [
+  FRONTEND_URL,
+  "http://localhost:3000",
+  "https://mvp-marido-aluguel.vercel.app", // sua Vercel
+];
+
 app.use(
   cors({
-    origin: "http://localhost:3000", // frontend local
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: function (origin, callback) {
+      // Permite requests internas (sem origem, tipo Postman)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        console.warn("🚫 Bloqueado por CORS:", origin);
+        return callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
   })
 );
 
-// ✅ Middleware para interpretar JSON
 app.use(express.json());
 
-// 🗄️ Importa models
+// ✅ Banco de dados
 const { sequelize, TipoServico } = models;
 
-// ✅ Função principal do servidor
+// ✅ Inicialização
 async function startServer() {
   try {
-    // 🔌 Conecta ao banco
     await sequelize.authenticate();
     console.log("✅ Banco conectado com sucesso.");
 
     await sequelize.sync();
     console.log("✅ Models sincronizados.");
 
-    // 🌱 Cria seeds iniciais
+    // 🌱 Seeds automáticos
     const count = await TipoServico.count();
     if (count === 0) {
       await TipoServico.bulkCreate([
@@ -58,22 +81,33 @@ async function startServer() {
       console.log(`🌱 Seeds já existentes (${count} registros).`);
     }
 
-    // 🔗 Rotas da API
+    // ✅ Rotas do backend
     app.use("/api", authRoutes);
 
-    // 🔍 Teste simples de status
-    app.get("/api/ping", (req, res) => res.send("✅ API ativa e respondendo!"));
+    // 🔍 Rota de teste
+    app.get("/api/ping", (req, res) => {
+      res.json({
+        message: "✅ API ativa e respondendo!",
+        frontend: FRONTEND_URL,
+        environment: isProduction ? "production" : "development",
+      });
+    });
 
-    // ⚙️ Inicia o servidor HTTP
+    // 🚀 Inicia servidor
     const port = process.env.PORT || 5000;
     const server = http.createServer(app);
 
     server.listen(port, "0.0.0.0", () => {
       console.log(`🚀 Backend rodando em http://localhost:${port}`);
-      console.log("🧩 Ambiente: Desenvolvimento local");
+      console.log(
+        isProduction
+          ? "🌐 Ambiente: Produção (Railway)"
+          : "🧩 Ambiente: Desenvolvimento local"
+      );
+      console.log(`🔗 CORS liberado para: ${allowedOrigins.join(", ")}`);
     });
 
-    // 🛑 Encerramento seguro
+    // ✅ Encerramento seguro
     process.on("SIGTERM", () => {
       console.log("⚠️ Encerrando servidor...");
       server.close(() => {
@@ -87,5 +121,4 @@ async function startServer() {
   }
 }
 
-// 🚀 Executa o servidor
 startServer();
