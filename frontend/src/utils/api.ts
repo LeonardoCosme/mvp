@@ -6,11 +6,12 @@ const API_BASE_URL = isProd
   ? process.env.NEXT_PUBLIC_API_URL || "https://mvp-marido-aluguel.up.railway.app"
   : "http://localhost:5000";
 
+// 🔁 Função padrão para todas as chamadas à API
 export async function apiFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> {
-  // remove / iniciais para evitar // na URL
+  // Garante que não haja barra dupla
   const cleanEndpoint = endpoint.replace(/^\/+/, "");
   const url = `${API_BASE_URL}/api/${cleanEndpoint}`;
 
@@ -25,13 +26,13 @@ export async function apiFetch(
   });
 
   if (!res.ok) {
-    let msg = "Erro desconhecido.";
+    let msg = `Erro ${res.status}`;
     try {
       const data = await res.json();
       msg = data?.error || data?.message || msg;
     } catch {}
     console.error("❌ Erro API:", res.status, msg);
-    throw new Error(`Rota não encontrada: ${res.status} ${url}`);
+    throw new Error(msg);
   }
 
   try {
