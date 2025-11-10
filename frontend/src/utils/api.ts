@@ -6,17 +6,22 @@ const API_BASE_URL = isProd
   ? "https://mvp-marido-aluguel.up.railway.app"
   : "http://localhost:5000";
 
+/**
+ * 🔗 Função para consumir a API do backend.
+ * Garante que o endpoint será corretamente formatado.
+ */
 export async function apiFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> {
-  // 🧹 Corrige prefixos errados como "auth/" ou "user/"
-  const cleanEndpoint = endpoint
-    .replace(/^\/+/, "")
-    .replace(/^auth\//, "")
-    .replace(/^user\//, "");
+  // ✅ Garante que o endpoint começa com "/api/"
+  const normalizedEndpoint = endpoint.startsWith("/api/")
+    ? endpoint
+    : endpoint.startsWith("/")
+    ? `/api${endpoint}`
+    : `/api/${endpoint}`;
 
-  const url = `${API_BASE_URL}/api/${cleanEndpoint}`;
+  const url = `${API_BASE_URL}${normalizedEndpoint}`;
   console.log("🌐 Chamando backend:", url);
 
   const res = await fetch(url, {
