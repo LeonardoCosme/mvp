@@ -7,14 +7,14 @@ const API_BASE_URL = isProd
   : "http://localhost:5000";
 
 /**
- * 🔗 Função para consumir a API do backend.
- * Garante que o endpoint será corretamente formatado.
+ * 🔗 Função genérica para consumir a API do backend.
+ * Garante que o endpoint seja formatado corretamente e o corpo enviado como JSON.
  */
 export async function apiFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> {
-  // ✅ Garante que o endpoint começa com "/api/"
+  // ✅ Monta o endpoint corretamente
   const normalizedEndpoint = endpoint.startsWith("/api/")
     ? endpoint
     : endpoint.startsWith("/")
@@ -24,12 +24,22 @@ export async function apiFetch(
   const url = `${API_BASE_URL}${normalizedEndpoint}`;
   console.log("🌐 Chamando backend:", url);
 
+  // ✅ Garante headers JSON
+  const headers = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+
+  // ✅ Se o corpo for objeto, converte para JSON
+  let body = options.body;
+  if (body && typeof body === "object" && !(body instanceof FormData)) {
+    body = JSON.stringify(body);
+  }
+
   const res = await fetch(url, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    headers,
+    body,
   });
 
   if (!res.ok) {
