@@ -24,23 +24,36 @@ export async function apiFetch(
     body = JSON.stringify(body);
   }
 
-  console.log("🌐 Requisição:", url, options.method || "GET");
-
-  const res = await fetch(url, { ...options, headers, body });
-
-  if (!res.ok) {
-    let msg = `Erro ${res.status}`;
-    try {
-      const data = await res.json();
-      msg = data?.error || data?.message || msg;
-    } catch {}
-    console.error("❌ Erro API:", msg);
-    throw new Error(msg);
-  }
+  // 🧩 LOGS DE DIAGNÓSTICO
+  console.groupCollapsed(`🚀 [apiFetch] ${options.method || "GET"} → ${url}`);
+  console.log("🧠 Ambiente:", isProd ? "Produção" : "Desenvolvimento");
+  console.log("📤 Headers enviados:", headers);
+  console.log("📦 Body enviado:", body);
+  console.groupEnd();
 
   try {
-    return await res.json();
-  } catch {
-    return {};
+    const res = await fetch(url, { ...options, headers, body });
+
+    console.log(`📬 [apiFetch] Resposta recebida (${res.status}) de →`, url);
+
+    if (!res.ok) {
+      let msg = `Erro ${res.status}`;
+      try {
+        const data = await res.json();
+        msg = data?.error || data?.message || msg;
+        console.error("❌ Erro detalhado da API:", data);
+      } catch (e) {
+        console.error("❌ Erro ao interpretar resposta JSON:", e);
+      }
+      throw new Error(msg);
+    }
+
+    // ✅ Tenta converter resposta JSON normalmente
+    const data = await res.json().catch(() => ({}));
+    console.log("📦 Dados retornados pela API:", data);
+    return data;
+  } catch (err: any) {
+    console.error("💥 Falha na comunicação com o backend:", err);
+    throw err;
   }
 }

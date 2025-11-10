@@ -27,15 +27,32 @@ if (!isProduction) {
 console.log("🧩 Remetente configurado:", process.env.RESEND_FROM);
 
 const app = express();
-app.use(express.json());
+
+// ✅ Middleware de parsing reforçado
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true }));
+
+// ✅ Log de diagnóstico (captura corpo e cabeçalhos)
+app.use((req, res, next) => {
+  if (req.path.includes("/api/auth/register")) {
+    console.log("📦 [LOG] Body recebido em /api/auth/register:", req.body);
+    console.log("📦 [LOG] Content-Type:", req.headers["content-type"]);
+    console.log("📦 [LOG] Método:", req.method);
+  }
+  next();
+});
 
 // ✅ Configuração CORS
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 app.use(
   cors({
-    origin: [FRONTEND_URL, "http://localhost:3000", "https://mvp-marido-aluguel.vercel.app"],
- methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
- allowedHeaders: ["Content-Type", "Authorization"],
+    origin: [
+      FRONTEND_URL,
+      "http://localhost:3000",
+      "https://mvp-marido-aluguel.vercel.app",
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
 );
@@ -59,8 +76,12 @@ function autenticarToken(req, res, next) {
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { nomeUsuario, email, senha, tipo, cpfUsuario } = req.body;
+
     if (!nomeUsuario || !email || !senha || !tipo) {
-      return res.status(400).json({ error: "Preencha todos os campos obrigatórios." });
+      console.log("⚠️ Campos recebidos incompletos:", req.body);
+      return res
+        .status(400)
+        .json({ error: "Preencha todos os campos obrigatórios." });
     }
 
     const usuarioExistente = await Usuario.findOne({ where: { email } });
@@ -69,11 +90,22 @@ app.post("/api/auth/register", async (req, res) => {
     }
 
     const hash = await bcrypt.hash(senha, 10);
-    const user = await Usuario.create({ nomeUsuario, email, senha: hash, tipo, cpfUsuario });
+    const user = await Usuario.create({
+      nomeUsuario,
+      email,
+      senha: hash,
+      tipo,
+      cpfUsuario,
+    });
 
     res.json({
       message: "Usuário cadastrado com sucesso!",
-      user: { id: user.id, nomeUsuario: user.nomeUsuario, email: user.email, tipo: user.tipo },
+      user: {
+        id: user.id,
+        nomeUsuario: user.nomeUsuario,
+        email: user.email,
+        tipo: user.tipo,
+      },
     });
   } catch (err) {
     console.error("❌ Erro em /auth/register:", err);
@@ -91,9 +123,11 @@ app.post("/api/login", async (req, res) => {
     const isValid = await bcrypt.compare(senha, user.senha);
     if (!isValid) return res.status(401).json({ error: "Senha incorreta." });
 
-    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET || "segredo", {
-      expiresIn: "1h",
-    });
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET || "segredo",
+      { expiresIn: "1h" }
+    );
     res.json({ message: "Login efetuado com sucesso!", token });
   } catch (err) {
     console.error("❌ Erro em /login:", err);
@@ -105,7 +139,14 @@ app.post("/api/login", async (req, res) => {
 app.get("/api/user/me", autenticarToken, async (req, res) => {
   try {
     const user = await Usuario.findByPk(req.user.id, {
-      attributes: ["id", "nomeUsuario", "cpfUsuario", "email", "tipo", "created_at"],
+      attributes: [
+        "id",
+        "nomeUsuario",
+        "cpfUsuario",
+        "email",
+        "tipo",
+        "created_at",
+      ],
     });
 
     if (!user) return res.status(404).json({ error: "Usuário não encontrado." });
@@ -123,9 +164,11 @@ app.post("/api/user/forgot-password", async (req, res) => {
     const user = await Usuario.findOne({ where: { email } });
     if (!user) return res.status(404).json({ error: "Usuário não encontrado." });
 
-    const resetToken = jwt.sign({ id: user.id }, process.env.JWT_SECRET || "segredo", {
-      expiresIn: "10m",
-    });
+    const resetToken = jwt.sign(
+      { id: user.id },
+      process.env.JWT_SECRET || "segredo",
+      { expiresIn: "10m" }
+    );
 
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
@@ -153,7 +196,9 @@ app.post("/api/user/forgot-password", async (req, res) => {
     res.json({ message: "E-mail de redefinição enviado com sucesso!" });
   } catch (err) {
     console.error("❌ Erro em /user/forgot-password:", err);
-    res.status(500).json({ error: "Erro ao enviar e-mail de redefinição." });
+    res
+      .status(500)
+      .json({ error: "Erro ao enviar e-mail de redefinição." });
   }
 });
 
@@ -177,8 +222,12 @@ app.get("/api/tipos-servico", async (req, res) => {
 });
 
 // ✅ Rotas de teste
-app.get("/api/teste", (req, res) => res.json({ ok: true, message: "Rota /api/teste ativa!" }));
-app.get("/api/ping", (req, res) => res.json({ message: "✅ API ativa e respondendo!" }));
+app.get("/api/teste", (req, res) =>
+  res.json({ ok: true, message: "Rota /api/teste ativa!" })
+);
+app.get("/api/ping", (req, res) =>
+  res.json({ message: "✅ API ativa e respondendo!" })
+);
 
 // ✅ Inicialização
 async function startServer() {
@@ -193,7 +242,9 @@ async function startServer() {
 
     server.listen(port, "0.0.0.0", () => {
       console.log(`🚀 Servidor rodando na porta ${port}`);
-      console.log("🔗 Rotas: /api/auth/register | /api/login | /api/user/me | /api/user/forgot-password | /api/tipos-servico");
+      console.log(
+        "🔗 Rotas: /api/auth/register | /api/login | /api/user/me | /api/user/forgot-password | /api/tipos-servico"
+      );
     });
   } catch (error) {
     console.error("❌ Erro ao iniciar servidor:", error);
