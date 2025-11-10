@@ -34,6 +34,8 @@ const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 app.use(
   cors({
     origin: [FRONTEND_URL, "http://localhost:3000", "https://mvp-marido-aluguel.vercel.app"],
+ methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+ allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
 );
