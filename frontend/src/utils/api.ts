@@ -6,15 +6,16 @@ const API_BASE_URL = isProd
   ? process.env.NEXT_PUBLIC_API_URL || "https://mvp-marido-aluguel.up.railway.app"
   : "http://localhost:5000";
 
+// 🔁 Função genérica para chamadas à API
 export async function apiFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> {
-  // 🔒 Remove possíveis prefixos errados
+  // 🔒 Corrige prefixos errados de rota
   const cleanEndpoint = endpoint
-    .replace(/^\/+/, "")
-    .replace(/^auth\//, "")
-    .replace(/^user\//, "");
+    .replace(/^\/+/, "") // remove barra inicial
+    .replace(/^auth\//, "") // remove "auth/"
+    .replace(/^user\//, ""); // remove "user/"
 
   const url = `${API_BASE_URL}/api/${cleanEndpoint}`;
   console.log("🌐 Chamando backend:", url);
