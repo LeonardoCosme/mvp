@@ -8,7 +8,9 @@ import { fileURLToPath } from "node:url";
 import models from "./src/models/index.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,6 +23,8 @@ if (!isProduction) {
 } else {
   console.log("🚀 Ambiente de produção (Railway).");
 }
+
+console.log("🧩 Remetente configurado:", process.env.RESEND_FROM);
 
 const app = express();
 app.use(express.json());
@@ -110,7 +114,7 @@ app.get("/api/user/me", autenticarToken, async (req, res) => {
   }
 });
 
-// ✅ /api/user/forgot-password
+// ✅ /api/user/forgot-password (usando Resend)
 app.post("/api/user/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
@@ -120,19 +124,29 @@ app.post("/api/user/forgot-password", async (req, res) => {
     const resetToken = jwt.sign({ id: user.id }, process.env.JWT_SECRET || "segredo", {
       expiresIn: "10m",
     });
-    const resetLink = `https://mvp-marido-aluguel.vercel.app/reset-password?token=${resetToken}`;
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-    });
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+    const { error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM,
       to: email,
       subject: "Redefinição de senha - Marido de Aluguel",
-      html: `<p>Clique no link abaixo para redefinir sua senha:</p><a href="${resetLink}">${resetLink}</a>`,
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+          <h2>Olá, ${user.nomeUsuario}</h2>
+          <p>Você solicitou redefinição de senha. Clique no link abaixo para continuar:</p>
+          <p><a href="${resetLink}" target="_blank" style="color: #F89D13; font-weight: bold;">Redefinir minha senha</a></p>
+          <p><small>O link expira em 10 minutos.</small></p>
+          <hr>
+          <p>Se você não solicitou essa alteração, ignore este e-mail.</p>
+        </div>
+      `,
     });
+
+    if (error) {
+      console.error("❌ Erro ao enviar e-mail via Resend:", error);
+      return res.status(500).json({ error: "Falha no envio de e-mail." });
+    }
 
     res.json({ message: "E-mail de redefinição enviado com sucesso!" });
   } catch (err) {

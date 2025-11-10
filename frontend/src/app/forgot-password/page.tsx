@@ -16,10 +16,11 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      await apiFetch('forgot-password', {
+      const res = await apiFetch('/user/forgot-password', {
         method: 'POST',
         body: JSON.stringify({ email }),
       });
+      if (res.error) throw new Error(res.error);
       setMessage('Link de redefinição enviado com sucesso!');
     } catch (err: any) {
       setError(err.message || 'Erro ao enviar link.');
@@ -31,7 +32,9 @@ export default function ForgotPasswordPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 p-6">
       <div className="bg-white/90 backdrop-blur-md shadow-2xl rounded-2xl w-full max-w-md p-8">
-        <h1 className="text-2xl font-bold text-center text-[#8F1D14] mb-4">Esqueceu sua senha?</h1>
+        <h1 className="text-2xl font-bold text-center text-[#8F1D14] mb-4">
+          Esqueceu sua senha?
+        </h1>
         <p className="text-center text-gray-600 mb-6">
           Informe seu e-mail cadastrado e enviaremos um link para redefinir sua senha.
         </p>
@@ -50,7 +53,11 @@ export default function ForgotPasswordPage() {
           {error && <p className="text-red-600 text-sm text-center">{error}</p>}
           {message && <p className="text-green-600 text-sm text-center">{message}</p>}
 
-          <button type="submit" disabled={loading} className="w-full bg-[#8F1D14] text-white py-3 rounded-lg font-semibold hover:bg-[#a2261b] transition">
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-[#8F1D14] text-white py-3 rounded-lg font-semibold hover:bg-[#a2261b] transition"
+          >
             {loading ? 'Enviando...' : 'Enviar link de redefinição'}
           </button>
         </form>
