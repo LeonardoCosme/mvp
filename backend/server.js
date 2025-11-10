@@ -79,6 +79,11 @@ async function startServer() {
       console.log(`🌱 Seeds já existentes (${count} registros).`);
     }
 
+
+    //teste de rota
+    app.get("/api/teste", (req, res) => {
+  res.json({ ok: true, message: "Rota teste funcionando!" });
+});
     // ✅ Rotas principais
     app.use("/api", authRoutes);
 
