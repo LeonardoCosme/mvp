@@ -1,6 +1,9 @@
 // utils/api.ts
+
+// Detecta ambiente automaticamente
 const isProd = process.env.NODE_ENV === "production";
 
+// Define o backend conforme o ambiente
 const API_BASE_URL = isProd
   ? "https://mvp-marido-aluguel.up.railway.app/api" // 👈 já inclui /api
   : "http://localhost:5000/api";
@@ -32,7 +35,12 @@ export async function apiFetch(
   console.groupEnd();
 
   try {
-    const res = await fetch(url, { ...options, headers, body });
+    const res = await fetch(url, {
+      method: options.method || "GET",
+      headers,
+      body: typeof body === "string" ? body : undefined, // ✅ garante body string
+      mode: "cors", // ✅ força o uso de CORS explícito
+    });
 
     console.log(`📬 [apiFetch] Resposta recebida (${res.status}) de →`, url);
 

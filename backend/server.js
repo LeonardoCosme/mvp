@@ -43,19 +43,22 @@ app.use((req, res, next) => {
 });
 
 // ✅ Configuração CORS
+// ✅ Configuração CORS
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 app.use(
   cors({
     origin: [
       FRONTEND_URL,
       "http://localhost:3000",
-      "https://mvp-marido-aluguel.vercel.app",
+      "https://mvp-marido-aluguel.vercel.app", // dominio principal
+      "https://mvp-marido-aluguel.vercel.app/", // fallback com barra
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
   })
 );
+
 
 const { sequelize, TipoServico, Usuario } = models;
 
