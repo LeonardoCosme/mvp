@@ -37,7 +37,6 @@ export default function CadastroPage() {
     setError('');
     setSuccess('');
 
-    // ✅ Validações antes do envio
     if (!senhaForte) {
       setError('A senha deve ter no mínimo 8 caracteres, com maiúscula, minúscula, número e símbolo.');
       return;
@@ -49,16 +48,17 @@ export default function CadastroPage() {
 
     setLoading(true);
     try {
-      // ✅ Envio padronizado (sem JSON.stringify — o apiFetch já faz isso)
+      // ✅ Força a serialização manual do corpo
       const response = await apiFetch('/auth/register', {
         method: 'POST',
-        body: {
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           nomeUsuario: form.nomeUsuario.trim(),
           email: form.email.trim().toLowerCase(),
           senha: form.senha,
           tipo: form.tipo,
           cpfUsuario: form.cpfUsuario.trim(),
-        },
+        }),
       });
 
       console.log('✅ Resposta API:', response);
