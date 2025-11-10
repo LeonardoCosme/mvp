@@ -8,19 +8,19 @@ export default function CadastroPage() {
   const router = useRouter();
 
   const [form, setForm] = useState({
-    nome: '',
+    nomeUsuario: '',
     email: '',
     senha: '',
     confirmSenha: '',
     tipo: 'contratante',
-    cpf: '',
+    cpfUsuario: '',
   });
 
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Validação de senha forte
+  // 🔒 Validação de senha forte
   const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{8,}$/;
   const senhaForte = useMemo(() => passwordRegex.test(form.senha), [form.senha]);
   const senhasBatendo = useMemo(
@@ -48,16 +48,16 @@ export default function CadastroPage() {
 
     setLoading(true);
     try {
-      // ✅ Alinhado com o backend (usa os mesmos nomes)
-      const response = await apiFetch('register', {
+      // ✅ Envio com nomes idênticos ao backend
+      const response = await apiFetch('/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nome: form.nome.trim(),
+          nomeUsuario: form.nomeUsuario.trim(),
           email: form.email.trim().toLowerCase(),
           senha: form.senha,
           tipo: form.tipo,
-          cpf: form.cpf.trim(),
+          cpfUsuario: form.cpfUsuario.trim(),
         }),
       });
 
@@ -77,18 +77,19 @@ export default function CadastroPage() {
       <div className="bg-white/90 backdrop-blur-md shadow-2xl rounded-2xl w-full max-w-lg p-8">
         <h1 className="text-3xl font-bold text-center text-[#8F1D14] mb-1">Crie sua conta</h1>
         <p className="text-center text-gray-600 mb-8">
-          Preencha seus dados para começar a usar o <span className="text-[#F89D13] font-semibold">Marido de Aluguel</span>.
+          Preencha seus dados para começar a usar o{' '}
+          <span className="text-[#F89D13] font-semibold">Marido de Aluguel</span>.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div>
-            <label htmlFor="nome" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="nomeUsuario" className="block text-sm font-medium text-gray-700 mb-1">
               Nome completo
             </label>
             <input
-              id="nome"
-              name="nome"
-              value={form.nome}
+              id="nomeUsuario"
+              name="nomeUsuario"
+              value={form.nomeUsuario}
               onChange={handleChange}
               required
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13]"
@@ -113,14 +114,14 @@ export default function CadastroPage() {
           </div>
 
           <div>
-            <label htmlFor="cpf" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="cpfUsuario" className="block text-sm font-medium text-gray-700 mb-1">
               CPF
             </label>
             <input
-              id="cpf"
-              name="cpf"
+              id="cpfUsuario"
+              name="cpfUsuario"
               type="text"
-              value={form.cpf}
+              value={form.cpfUsuario}
               onChange={handleChange}
               maxLength={11}
               inputMode="numeric"
