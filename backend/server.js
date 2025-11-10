@@ -5,28 +5,32 @@ import http from "node:http";
 import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+// ✅ Imports locais
 import models from "./src/models/index.js";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
+import authRoutes from "./src/routes/authRoutes.js";
+import { login, register, forgotPassword } from "./src/controllers/authController.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ✅ Detecta ambiente
 const isProduction = process.env.NODE_ENV === "production";
 
+// ✅ Carrega variáveis locais apenas fora do Railway
 if (!isProduction) {
-  dotenv.config({ path: path.resolve(__dirname, ".env") });
-  console.log("🧩 Ambiente local carregado.");
+  const envPath = path.resolve(__dirname, ".env");
+  dotenv.config({ path: envPath });
+  console.log("🧩 Ambiente local: .env carregado de", envPath);
 } else {
-  console.log("🚀 Ambiente de produção (Railway).");
+  console.log("🚀 Ambiente de produção: variáveis do Railway carregadas");
 }
 
 const app = express();
-app.use(express.json());
 
-// ✅ Configuração CORS
+// ✅ Configuração de CORS
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+
 app.use(
   cors({
     origin: [FRONTEND_URL, "http://localhost:3000", "https://mvp-marido-aluguel.vercel.app"],
@@ -34,72 +38,32 @@ app.use(
   })
 );
 
-const { sequelize, TipoServico, Usuario } = models;
+app.use(express.json());
 
-// ✅ Funções internas (antes eram controllers)
-app.post("/api/register", async (req, res) => {
-  try {
-    const { nome, email, senha, tipo } = req.body;
-    const hash = await bcrypt.hash(senha, 10);
-    const user = await Usuario.create({ nome, email, senha: hash, tipo });
-    res.json({ message: "Usuário cadastrado com sucesso!", user });
-  } catch (err) {
-    console.error("❌ Erro em /register:", err);
-    res.status(500).json({ error: "Erro ao cadastrar usuário." });
-  }
+// ✅ Banco de dados
+const { sequelize, TipoServico } = models;
+
+// ✅ Rotas diretas (backup e diagnóstico)
+app.post("/api/login", login);
+app.post("/api/register", register);
+app.post("/api/forgot-password", forgotPassword);
+
+// ✅ Rota de teste simples
+app.get("/api/teste", (req, res) => {
+  console.log("✅ /api/teste acessada");
+  res.json({ ok: true, message: "Rota /api/teste funcionando!" });
 });
 
-app.post("/api/login", async (req, res) => {
-  try {
-    const { email, senha } = req.body;
-    const user = await Usuario.findOne({ where: { email } });
-    if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
+// ✅ Rotas importadas
+app.use("/api", authRoutes);
 
-    const isValid = await bcrypt.compare(senha, user.senha);
-    if (!isValid) return res.status(401).json({ error: "Senha incorreta" });
-
-    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET || "segredo", {
-      expiresIn: "1h",
-    });
-    res.json({ message: "Login efetuado com sucesso!", token });
-  } catch (err) {
-    console.error("❌ Erro em /login:", err);
-    res.status(500).json({ error: "Erro ao realizar login." });
-  }
+// ✅ Rota ping para health check
+app.get("/api/ping", (req, res) => {
+  res.json({
+    message: "✅ API ativa e respondendo!",
+    environment: isProduction ? "production" : "development",
+  });
 });
-
-app.post("/api/forgot-password", async (req, res) => {
-  try {
-    const { email } = req.body;
-    const user = await Usuario.findOne({ where: { email } });
-    if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
-
-    const resetToken = jwt.sign({ id: user.id }, process.env.JWT_SECRET || "segredo", { expiresIn: "10m" });
-    const resetLink = `https://mvp-marido-aluguel.vercel.app/reset-password?token=${resetToken}`;
-
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
-    });
-
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: email,
-      subject: "Redefinição de senha - Marido de Aluguel",
-      html: `<p>Clique no link abaixo para redefinir sua senha:</p>
-             <a href="${resetLink}">${resetLink}</a>`,
-    });
-
-    res.json({ message: "E-mail de redefinição enviado com sucesso!" });
-  } catch (err) {
-    console.error("❌ Erro em /forgot-password:", err);
-    res.status(500).json({ error: "Erro ao enviar e-mail de redefinição." });
-  }
-});
-
-// ✅ Rotas de teste
-app.get("/api/teste", (req, res) => res.json({ ok: true, message: "Rota /api/teste ativa!" }));
-app.get("/api/ping", (req, res) => res.json({ message: "✅ API ativa e respondendo!" }));
 
 // ✅ Inicialização
 async function startServer() {
@@ -109,15 +73,37 @@ async function startServer() {
     await sequelize.sync();
     console.log("✅ Models sincronizados.");
 
+    const count = await TipoServico.count();
+    if (count === 0) {
+      await TipoServico.bulkCreate([
+        { nome: "Elétrica básica" },
+        { nome: "Hidráulica básica" },
+        { nome: "Pintura de cômodo" },
+      ]);
+      console.log("🌱 Seeds criados automaticamente.");
+    } else {
+      console.log(`🌱 Seeds já existentes (${count} registros).`);
+    }
+
     const port = process.env.PORT || 8080;
     const server = http.createServer(app);
 
     server.listen(port, "0.0.0.0", () => {
-      console.log(`🚀 Servidor rodando na porta ${port}`);
-      console.log("🔗 Rotas: /api/register | /api/login | /api/forgot-password | /api/teste | /api/ping");
+      console.log(`🚀 Servidor rodando em http://localhost:${port}`);
+      console.log(`🔗 CORS liberado para: ${FRONTEND_URL}`);
+      console.log(isProduction ? "🌐 Ambiente: Produção (Railway)" : "🧩 Ambiente: Desenvolvimento local");
+    });
+
+    process.on("SIGTERM", () => {
+      console.log("⚠️ Encerrando servidor...");
+      server.close(() => {
+        console.log("✅ Servidor encerrado com segurança.");
+        process.exit(0);
+      });
     });
   } catch (error) {
     console.error("❌ Erro ao iniciar servidor:", error);
+    process.exit(1);
   }
 }
 
