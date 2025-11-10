@@ -3,19 +3,18 @@ const isProd = process.env.NODE_ENV === "production";
 
 // 🔧 Define o backend conforme o ambiente
 const API_BASE_URL = isProd
-  ? process.env.NEXT_PUBLIC_API_URL || "https://mvp-marido-aluguel.up.railway.app"
+  ? "https://mvp-marido-aluguel.up.railway.app"
   : "http://localhost:5000";
 
-// 🔁 Função genérica para chamadas à API
 export async function apiFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> {
-  // 🔒 Corrige prefixos errados de rota
+  // 🧹 Corrige prefixos errados como "auth/" ou "user/"
   const cleanEndpoint = endpoint
-    .replace(/^\/+/, "") // remove barra inicial
-    .replace(/^auth\//, "") // remove "auth/"
-    .replace(/^user\//, ""); // remove "user/"
+    .replace(/^\/+/, "")
+    .replace(/^auth\//, "")
+    .replace(/^user\//, "");
 
   const url = `${API_BASE_URL}/api/${cleanEndpoint}`;
   console.log("🌐 Chamando backend:", url);
