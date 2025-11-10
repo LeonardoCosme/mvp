@@ -1,24 +1,24 @@
 import express from "express";
-import {
-  login,
-  register,
-  forgotPassword,
-} from "../controllers/authController.js";
+import { login, register, forgotPassword } from "../controllers/authController.js";
 
 const router = express.Router();
 
 // 🔐 Login
-router.post("/login", login);
+router.post("/login", (req, res, next) => {
+  console.log("📩 Rota /api/login acessada");
+  return login(req, res, next);
+});
 
 // 🧾 Cadastro
-router.post("/register", register);
+router.post("/register", (req, res, next) => {
+  console.log("📩 Rota /api/register acessada");
+  return register(req, res, next);
+});
 
 // 🔑 Esqueci minha senha
-router.post("/forgot-password", forgotPassword);
-
-// ✅ Teste rápido
-router.get("/", (req, res) => {
-  res.json({ message: "🔗 Rotas de autenticação ativas!" });
+router.post("/forgot-password", (req, res, next) => {
+  console.log("📩 Rota /api/forgot-password acessada");
+  return forgotPassword(req, res, next);
 });
 
 export default router;
