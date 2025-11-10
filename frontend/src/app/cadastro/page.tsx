@@ -50,7 +50,7 @@ export default function CadastroPage() {
         body: JSON.stringify({
           nomeUsuario: form.nomeUsuario.trim(),
           email: form.email.trim().toLowerCase(),
-          password: form.password,
+          senha: form.password,
           tipo: form.tipo,
           cpfUsuario: form.cpfUsuario.trim(),
         }),
