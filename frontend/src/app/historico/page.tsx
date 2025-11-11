@@ -4,9 +4,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { apiFetch } from '@/utils/api';
-import { getToken, removeToken } from '@/utils/auth';
-import AvaliacaoModal from '@/app/components/avaliacaomodal';
+import { apiFetch } from '../../utils/api';
+import { getToken, removeToken } from '../../utils/auth';
+import AvaliacaoModal from '../../app/components/avaliacaomodal';
 
 type ItemHistorico = {
   id: number;
