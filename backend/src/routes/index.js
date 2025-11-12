@@ -2,7 +2,7 @@ import express from "express";
 import authenticate from "../middleware/authenticate.js";
 
 // Controllers (usando import * para capturar todas as exports nomeadas)
-import * as Auth from "../controllers/auth_controller.js";
+import * as Auth from "../controllers/auth_Controller.js";
 import * as User from "../controllers/user_controller.js";
 import * as Password from "../controllers/password_controller.js";
 import * as Prest from "../controllers/prestador_controller.js";
