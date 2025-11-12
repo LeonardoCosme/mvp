@@ -11,6 +11,7 @@ import jwt from "jsonwebtoken";
 import { Resend } from "resend";
 import routes from "./src/routes/index.js"; // 👈 Importa todas as rotas antigas
 
+// ✅ Configura Resend (envio de e-mail)
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const __filename = fileURLToPath(import.meta.url);
@@ -50,8 +51,8 @@ app.use(
     origin: [
       FRONTEND_URL,
       "http://localhost:3000",
-      "https://mvp-marido-aluguel.vercel.app", // dominio principal
-      "https://mvp-marido-aluguel.vercel.app/", // fallback com barra
+      "https://mvp-marido-aluguel.vercel.app",
+      "https://mvp-marido-aluguel.vercel.app/",
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -80,9 +81,7 @@ app.post("/api/auth/register", async (req, res) => {
     const { nomeUsuario, email, senha, tipo, cpfUsuario } = req.body;
     if (!nomeUsuario || !email || !senha || !tipo) {
       console.log("⚠️ Campos recebidos incompletos:", req.body);
-      return res
-        .status(400)
-        .json({ error: "Preencha todos os campos obrigatórios." });
+      return res.status(400).json({ error: "Preencha todos os campos obrigatórios." });
     }
 
     const usuarioExistente = await Usuario.findOne({ where: { email } });
@@ -140,14 +139,7 @@ app.post("/api/login", async (req, res) => {
 app.get("/api/user/me", autenticarToken, async (req, res) => {
   try {
     const user = await Usuario.findByPk(req.user.id, {
-      attributes: [
-        "id",
-        "nomeUsuario",
-        "cpfUsuario",
-        "email",
-        "tipo",
-        "created_at",
-      ],
+      attributes: ["id", "nomeUsuario", "cpfUsuario", "email", "tipo", "created_at"],
     });
 
     if (!user) return res.status(404).json({ error: "Usuário não encontrado." });
@@ -165,16 +157,14 @@ app.post("/api/user/forgot-password", async (req, res) => {
     const user = await Usuario.findOne({ where: { email } });
     if (!user) return res.status(404).json({ error: "Usuário não encontrado." });
 
-    const resetToken = jwt.sign(
-      { id: user.id },
-      process.env.JWT_SECRET || "segredo",
-      { expiresIn: "10m" }
-    );
+    const resetToken = jwt.sign({ id: user.id }, process.env.JWT_SECRET || "segredo", {
+      expiresIn: "10m",
+    });
 
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
     const { error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM,
+      from: process.env.EMAIL_FROM || "Marido de Aluguel <no-reply@maridodealuguel.app.br>",
       to: email,
       subject: "Redefinição de senha - Marido de Aluguel",
       html: `
@@ -197,9 +187,7 @@ app.post("/api/user/forgot-password", async (req, res) => {
     res.json({ message: "E-mail de redefinição enviado com sucesso!" });
   } catch (err) {
     console.error("❌ Erro em /user/forgot-password:", err);
-    res
-      .status(500)
-      .json({ error: "Erro ao enviar e-mail de redefinição." });
+    res.status(500).json({ error: "Erro ao enviar e-mail de redefinição." });
   }
 });
 
@@ -223,17 +211,13 @@ app.get("/api/tipos-servico", async (req, res) => {
 });
 
 // ✅ --- ROTAS ANTIGAS RESTAURADAS ---
-app.use("/api", routes); // 👈 Adiciona todas as rotas do antigo routes/index.js
+app.use("/api", routes); // 👈 Rotas do antigo routes/index.js
 
 // ✅ Rotas de teste
-app.get("/api/teste", (req, res) =>
-  res.json({ ok: true, message: "Rota /api/teste ativa!" })
-);
-app.get("/api/ping", (req, res) =>
-  res.json({ message: "✅ API ativa e respondendo!" })
-);
+app.get("/api/teste", (_req, res) => res.json({ ok: true, message: "Rota /api/teste ativa!" }));
+app.get("/api/health", (_req, res) => res.json({ ok: true, message: "✅ API rodando com sucesso 🚀" }));
 
-// ✅ Inicialização
+// ✅ Inicialização ajustada para Railway
 async function startServer() {
   try {
     await sequelize.authenticate();
@@ -241,16 +225,24 @@ async function startServer() {
     await sequelize.sync();
     console.log("✅ Models sincronizados.");
 
-    const port = process.env.PORT || 5000;
-    const server = http.createServer(app);
+    const port = Number(process.env.PORT) || 5000;
+    const host = "0.0.0.0";
 
-    server.listen(port, "0.0.0.0", () => {
-      console.log(`🚀 Servidor rodando na porta ${port}`);
+    const server = http.createServer(app);
+    server.listen(port, host, () => {
+      console.log(`🚀 Servidor rodando em http://${host}:${port}`);
       console.log("🔗 Rotas completas disponíveis em /api/*");
+    });
+
+    server.on("error", (err) => {
+      console.error("❌ Erro no servidor HTTP:", err);
+      process.exit(1);
     });
   } catch (error) {
     console.error("❌ Erro ao iniciar servidor:", error);
+    process.exit(1);
   }
 }
 
+// 🚀 Inicia servidor
 startServer();
