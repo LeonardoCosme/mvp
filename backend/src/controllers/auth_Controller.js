@@ -1,3 +1,4 @@
+// src/controllers/auth_controller.js
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { Resend } from "resend";
@@ -26,7 +27,7 @@ export async function login(req, res) {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, tipo: user.tipo },
       process.env.JWT_SECRET || "segredo123",
       { expiresIn: "1d" }
     );
@@ -34,7 +35,7 @@ export async function login(req, res) {
     res.json({
       message: "Login realizado com sucesso!",
       token,
-      nomeUsuario: user.nome,
+      nomeUsuario: user.nomeUsuario,
       tipo: user.tipo,
     });
   } catch (error) {
@@ -46,9 +47,9 @@ export async function login(req, res) {
 // 🧾 CADASTRO
 export async function register(req, res) {
   try {
-    const { nome, email, cpf, senha, tipo } = req.body;
+    const { nomeUsuario, email, cpfUsuario, senha, tipo } = req.body;
 
-    if (!nome || !email || !senha || !tipo) {
+    if (!nomeUsuario || !email || !senha || !tipo) {
       return res.status(400).json({ message: "Preencha todos os campos obrigatórios." });
     }
 
@@ -57,26 +58,25 @@ export async function register(req, res) {
       return res.status(400).json({ message: "E-mail já cadastrado." });
     }
 
-    // ✅ Corrigido: bcrypt.hash agora sempre recebe uma string
     const hashSenha = await bcrypt.hash(String(senha), 10);
 
     const novoUsuario = await Usuario.create({
-      nome,
+      nomeUsuario,
       email,
-      cpf,
+      cpfUsuario,
       senha: hashSenha,
       tipo,
     });
 
-    // ✅ Envia e-mail de boas-vindas
+    // ✅ Envia e-mail de boas-vindas via Resend
     if (process.env.RESEND_API_KEY) {
       try {
         await resend.emails.send({
-          from: "Marido de Aluguel <no-reply@maridodealuguel.app.br>",
+          from: process.env.EMAIL_FROM || "Marido de Aluguel <no-reply@maridodealuguel.app.br>",
           to: email,
           subject: "Cadastro realizado com sucesso!",
           html: `
-            <h2>Olá, ${nome}!</h2>
+            <h2>Olá, ${nomeUsuario}!</h2>
             <p>Seu cadastro foi realizado com sucesso no portal <b>Marido de Aluguel</b>.</p>
             <p>Agora você pode fazer login e utilizar todos os nossos serviços.</p>
             <p>💡 <a href="${process.env.FRONTEND_URL || "https://mvp-marido-aluguel.vercel.app"}/login">Acesse sua conta</a></p>
@@ -88,7 +88,15 @@ export async function register(req, res) {
       }
     }
 
-    res.status(201).json({ message: "Usuário cadastrado com sucesso!", user: novoUsuario });
+    res.status(201).json({
+      message: "Usuário cadastrado com sucesso!",
+      user: {
+        id: novoUsuario.id,
+        nomeUsuario: novoUsuario.nomeUsuario,
+        email: novoUsuario.email,
+        tipo: novoUsuario.tipo,
+      },
+    });
   } catch (error) {
     console.error("❌ Erro em /register:", error);
     res.status(500).json({ message: "Erro ao cadastrar usuário.", detail: error.message });
@@ -123,11 +131,11 @@ export async function forgotPassword(req, res) {
     if (process.env.RESEND_API_KEY) {
       try {
         await resend.emails.send({
-          from: "Marido de Aluguel <no-reply@maridodealuguel.app.br>",
+          from: process.env.EMAIL_FROM || "Marido de Aluguel <no-reply@maridodealuguel.app.br>",
           to: email,
-          subject: "Redefinição de senha",
+          subject: "Redefinição de senha - Marido de Aluguel",
           html: `
-            <h2>Olá!</h2>
+            <h2>Olá, ${user.nomeUsuario}!</h2>
             <p>Você solicitou a redefinição de senha para sua conta.</p>
             <p>Clique abaixo para redefinir sua senha:</p>
             <a href="${resetLink}" style="background:#8F1D14;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;">Redefinir Senha</a>

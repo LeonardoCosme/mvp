@@ -1,21 +1,21 @@
 // src/controllers/contratante_controller.js
-const { Op } = require('sequelize');
-const { Usuario, Contratante } = require('../models');
+import { Op } from "sequelize";
+import { Usuario, Contratante } from "../models/index.js";
 
 /* ---------- Helpers ---------- */
 
 function normalize(body = {}) {
   const out = { ...body };
-  if (typeof out.nomeUsuario === 'string') out.nomeUsuario = out.nomeUsuario.trim();
-  if (typeof out.emailUsuario === 'string') out.emailUsuario = out.emailUsuario.trim().toLowerCase();
-  if (typeof out.cpfUsuario === 'string') out.cpfUsuario = out.cpfUsuario.replace(/\D/g, '');
+  if (typeof out.nomeUsuario === "string") out.nomeUsuario = out.nomeUsuario.trim();
+  if (typeof out.emailUsuario === "string") out.emailUsuario = out.emailUsuario.trim().toLowerCase();
+  if (typeof out.cpfUsuario === "string") out.cpfUsuario = out.cpfUsuario.replace(/\D/g, "");
   return out;
 }
 
 async function findUserOr404(id, res) {
   const user = await Usuario.findByPk(id);
   if (!user) {
-    res.status(404).json({ error: 'Usuário não encontrado.' });
+    res.status(404).json({ error: "Usuário não encontrado." });
     return null;
   }
   return user;
@@ -25,25 +25,25 @@ async function ensureUniqueEmailCpf({ emailUsuario, cpfUsuario, userId, current 
   if (emailUsuario && emailUsuario !== current.email) {
     const dupeEmail = await Usuario.findOne({
       where: { email: emailUsuario, id: { [Op.ne]: userId } },
-      attributes: ['id'],
+      attributes: ["id"],
     });
     if (dupeEmail) {
-      res.status(409).json({ error: 'Este e-mail já está cadastrado.' });
+      res.status(409).json({ error: "Este e-mail já está cadastrado." });
       return false;
     }
   }
 
   if (cpfUsuario && cpfUsuario !== current.cpfUsuario) {
     if (cpfUsuario.length !== 11) {
-      res.status(400).json({ error: 'CPF inválido. Use 11 dígitos.' });
+      res.status(400).json({ error: "CPF inválido. Use 11 dígitos." });
       return false;
     }
     const dupeCpf = await Usuario.findOne({
       where: { cpfUsuario, id: { [Op.ne]: userId } },
-      attributes: ['id'],
+      attributes: ["id"],
     });
     if (dupeCpf) {
-      res.status(409).json({ error: 'Este CPF já está cadastrado.' });
+      res.status(409).json({ error: "Este CPF já está cadastrado." });
       return false;
     }
   }
@@ -70,37 +70,37 @@ async function upsertContratante(userId, { endereco, telefone }) {
 
   if (!created) {
     const changes = {};
-    if (typeof endereco === 'string') changes.endereco = endereco;
-    if (typeof telefone === 'string') changes.telefone = telefone;
+    if (typeof endereco === "string") changes.endereco = endereco;
+    if (typeof telefone === "string") changes.telefone = telefone;
     if (Object.keys(changes).length > 0) await c.update(changes);
   }
 
   const fresh = await Contratante.findOne({
     where: { usuario_id: userId },
-    attributes: ['id', 'usuario_id', 'endereco', 'telefone', 'created_at', 'updated_at'],
+    attributes: ["id", "usuario_id", "endereco", "telefone", "created_at", "updated_at"],
   });
 
   return { fresh, created };
 }
 
 function mapDuplicateError(err, res) {
-  if (err?.original?.code !== 'ER_DUP_ENTRY') return false;
-  const m = String(err?.original?.sqlMessage || '').toLowerCase();
-  if (m.includes('cpf')) {
-    res.status(409).json({ error: 'Este CPF já está cadastrado.' });
+  if (err?.original?.code !== "ER_DUP_ENTRY") return false;
+  const m = String(err?.original?.sqlMessage || "").toLowerCase();
+  if (m.includes("cpf")) {
+    res.status(409).json({ error: "Este CPF já está cadastrado." });
     return true;
   }
-  if (m.includes('email')) {
-    res.status(409).json({ error: 'Este e-mail já está cadastrado.' });
+  if (m.includes("email")) {
+    res.status(409).json({ error: "Este e-mail já está cadastrado." });
     return true;
   }
-  res.status(409).json({ error: 'Registro duplicado.' });
+  res.status(409).json({ error: "Registro duplicado." });
   return true;
 }
 
 /* ---------- Controller ---------- */
 
-exports.save = async (req, res) => {
+export async function save(req, res) {
   try {
     const userId = req.user.id;
     const payload = normalize(req.body);
@@ -132,7 +132,7 @@ exports.save = async (req, res) => {
     });
   } catch (err) {
     if (mapDuplicateError(err, res)) return;
-    console.error('❌ Contratante.save:', err);
-    res.status(500).json({ error: 'Erro ao salvar dados do contratante.' });
+    console.error("❌ Contratante.save:", err);
+    res.status(500).json({ error: "Erro ao salvar dados do contratante." });
   }
-};
+}

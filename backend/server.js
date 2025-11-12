@@ -9,6 +9,7 @@ import models from "./src/models/index.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { Resend } from "resend";
+import routes from "./src/routes/index.js"; // 👈 Importa todas as rotas antigas
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -43,7 +44,6 @@ app.use((req, res, next) => {
 });
 
 // ✅ Configuração CORS
-// ✅ Configuração CORS
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 app.use(
   cors({
@@ -58,7 +58,6 @@ app.use(
     credentials: true,
   })
 );
-
 
 const { sequelize, TipoServico, Usuario } = models;
 
@@ -75,11 +74,10 @@ function autenticarToken(req, res, next) {
   });
 }
 
-// ✅ /api/auth/register
+// ✅ --- ROTAS EXISTENTES ---
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { nomeUsuario, email, senha, tipo, cpfUsuario } = req.body;
-
     if (!nomeUsuario || !email || !senha || !tipo) {
       console.log("⚠️ Campos recebidos incompletos:", req.body);
       return res
@@ -160,7 +158,7 @@ app.get("/api/user/me", autenticarToken, async (req, res) => {
   }
 });
 
-// ✅ /api/user/forgot-password (usando Resend)
+// ✅ /api/user/forgot-password
 app.post("/api/user/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
@@ -224,6 +222,9 @@ app.get("/api/tipos-servico", async (req, res) => {
   }
 });
 
+// ✅ --- ROTAS ANTIGAS RESTAURADAS ---
+app.use("/api", routes); // 👈 Adiciona todas as rotas do antigo routes/index.js
+
 // ✅ Rotas de teste
 app.get("/api/teste", (req, res) =>
   res.json({ ok: true, message: "Rota /api/teste ativa!" })
@@ -245,9 +246,7 @@ async function startServer() {
 
     server.listen(port, "0.0.0.0", () => {
       console.log(`🚀 Servidor rodando na porta ${port}`);
-      console.log(
-        "🔗 Rotas: /api/auth/register | /api/login | /api/user/me | /api/user/forgot-password | /api/tipos-servico"
-      );
+      console.log("🔗 Rotas completas disponíveis em /api/*");
     });
   } catch (error) {
     console.error("❌ Erro ao iniciar servidor:", error);

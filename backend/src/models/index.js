@@ -1,8 +1,9 @@
+// src/models/index.js
 import Sequelize from "sequelize";
 import dotenv from "dotenv";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath, pathToFileURL } from "url";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,7 +25,7 @@ if (!databaseUrl) {
   throw new Error("❌ DATABASE_URL não encontrada!");
 }
 
-// 🔧 Conecta ao banco
+// 🔧 Conecta ao banco de dados
 const sequelize = new Sequelize(databaseUrl, {
   dialect: "mysql",
   logging: false,
@@ -33,7 +34,7 @@ const sequelize = new Sequelize(databaseUrl, {
 const db = {};
 const basename = path.basename(__filename);
 
-// 🧩 Importa models com compatibilidade Windows/Linux
+// 🧩 Importa todos os models (compatível com Windows/Linux)
 for (const file of fs.readdirSync(__dirname)) {
   if (
     file.indexOf(".") !== 0 &&
@@ -49,15 +50,43 @@ for (const file of fs.readdirSync(__dirname)) {
   }
 }
 
-// 🧠 Cria associações
+// 🧠 Cria associações, se existirem
 for (const modelName of Object.keys(db)) {
   if (db[modelName].associate) {
     db[modelName].associate(db);
   }
 }
 
-// ✅ Exporta
+// ✅ Adiciona exportações nomeadas para facilitar import nos controllers
+const {
+  Usuario,
+  Prestador,
+  Contratante,
+  TipoServico,
+  Agendamento,
+  Avaliacao,
+  Historico,
+  PasswordResetToken, // 👈 ADICIONADO AQUI
+} = db;
+
+// ✅ Exportações nomeadas
+export {
+  sequelize,
+  Sequelize,
+  Usuario,
+  Prestador,
+  Contratante,
+  TipoServico,
+  Agendamento,
+  Avaliacao,
+  Historico,
+  PasswordResetToken, // 👈 ADICIONADO AQUI
+};
+
+// ✅ Exportação default usada em imports dinâmicos
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
+
+console.log("📦 Models carregados:", Object.keys(db).join(", "));
 
 export default db;
