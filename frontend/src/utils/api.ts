@@ -1,18 +1,20 @@
 // utils/api.ts
 
-// Detecta ambiente automaticamente
-const isProd = process.env.NODE_ENV === "production";
+// Detecta ambiente automaticamente (compatível com Vercel)
+const isProd =
+  typeof window !== "undefined"
+    ? !window.location.hostname.includes("localhost")
+    : process.env.NODE_ENV === "production";
 
 // Define o backend conforme o ambiente
 const API_BASE_URL = isProd
-  ? "https://mvp-marido-aluguel.up.railway.app/api" // 👈 já inclui /api
+  ? "https://mvp-marido-aluguel.up.railway.app/api"
   : "http://localhost:5000/api";
 
 export async function apiFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> {
-  // ✅ Remove /api duplicado e garante / no início
   const clean = endpoint.replace(/^\/+/, "");
   const url = `${API_BASE_URL}/${clean}`;
 
@@ -21,47 +23,31 @@ export async function apiFetch(
     ...(options.headers || {}),
   };
 
-  // ✅ Se o body for objeto, transforma em JSON string
   let body = options.body;
   if (body && typeof body === "object" && !(body instanceof FormData)) {
     body = JSON.stringify(body);
   }
 
-  // 🧩 LOGS DE DIAGNÓSTICO
-  console.groupCollapsed(`🚀 [apiFetch] ${options.method || "GET"} → ${url}`);
-  console.log("🧠 Ambiente:", isProd ? "Produção" : "Desenvolvimento");
-  console.log("📤 Headers enviados:", headers);
-  console.log("📦 Body enviado:", body);
-  console.groupEnd();
-
   try {
     const res = await fetch(url, {
       method: options.method || "GET",
       headers,
-      body: typeof body === "string" ? body : undefined, // ✅ garante body string
-      mode: "cors", // ✅ força o uso de CORS explícito
+      body: typeof body === "string" ? body : undefined,
+      mode: "cors",
     });
-
-    console.log(`📬 [apiFetch] Resposta recebida (${res.status}) de →`, url);
 
     if (!res.ok) {
       let msg = `Erro ${res.status}`;
       try {
         const data = await res.json();
         msg = data?.error || data?.message || msg;
-        console.error("❌ Erro detalhado da API:", data);
-      } catch (e) {
-        console.error("❌ Erro ao interpretar resposta JSON:", e);
-      }
+      } catch {}
       throw new Error(msg);
     }
 
-    // ✅ Tenta converter resposta JSON normalmente
-    const data = await res.json().catch(() => ({}));
-    console.log("📦 Dados retornados pela API:", data);
-    return data;
+    return await res.json();
   } catch (err: any) {
-    console.error("💥 Falha na comunicação com o backend:", err);
+    console.error("💥 Falha ao conectar com a API:", err.message);
     throw err;
   }
 }

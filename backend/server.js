@@ -17,40 +17,22 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ⚙️ Carrega variáveis do .env
+dotenv.config({ path: path.resolve(__dirname, ".env") });
+
+// ✅ Verifica ambiente
 const isProduction = process.env.NODE_ENV === "production";
-
-if (isProduction) {
-  dotenv.config({ path: path.resolve(__dirname, ".env") });
-  console.log("🧩 Ambiente local carregado.");
-} else {
-  console.log("🚀 Ambiente de produção (Railway).");
-}
-
+console.log(isProduction ? "🚀 Ambiente: Produção" : "🧩 Ambiente: Desenvolvimento");
 console.log("🧩 Remetente configurado:", process.env.RESEND_FROM);
 
 const app = express();
 
-// ✅ Middleware de parsing reforçado
-app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: true }));
-
-// ✅ Log de diagnóstico para debug de registro
-app.use((req, res, next) => {
-  if (req.path.includes("/api/auth/register")) {
-    console.log("📦 [LOG] Body recebido em /api/auth/register:", req.body);
-  }
-  next();
-});
-
-// ✅ Configuração CORS
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+// ✅ Configuração de CORS (para Railway + Vercel)
 app.use(
   cors({
     origin: [
-      FRONTEND_URL,
       "http://localhost:3000",
       "https://mvp-marido-aluguel.vercel.app",
-      "https://mvp-marido-aluguel.vercel.app/",
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -58,9 +40,21 @@ app.use(
   })
 );
 
+// ✅ Middleware de parsing
+app.use(express.json({ limit: "1mb" }));
+app.use(express.urlencoded({ extended: true }));
+
+// ✅ Log simples de diagnóstico
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api")) {
+    console.log(`➡️ [${req.method}] ${req.path}`);
+  }
+  next();
+});
+
 const { sequelize, TipoServico, Usuario } = models;
 
-// ✅ Middleware JWT
+// ✅ Middleware de autenticação
 function autenticarToken(req, res, next) {
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(" ")[1];
@@ -73,14 +67,13 @@ function autenticarToken(req, res, next) {
   });
 }
 
-// ✅ /api/auth/register — aceita senha OU password
+// ✅ Rotas principais (auth, login, tipos de serviço)
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { nomeUsuario, email, senha, password, tipo, cpfUsuario } = req.body;
-    const senhaFinal = senha || password; // ✅ aceita ambos
+    const senhaFinal = senha || password;
 
     if (!nomeUsuario || !email || !senhaFinal || !tipo) {
-      console.log("⚠️ Campos recebidos incompletos:", req.body);
       return res.status(400).json({ error: "Preencha todos os campos obrigatórios." });
     }
 
@@ -100,12 +93,7 @@ app.post("/api/auth/register", async (req, res) => {
 
     res.json({
       message: "Usuário cadastrado com sucesso!",
-      user: {
-        id: user.id,
-        nomeUsuario: user.nomeUsuario,
-        email: user.email,
-        tipo: user.tipo,
-      },
+      user: { id: user.id, nomeUsuario: user.nomeUsuario, email: user.email, tipo: user.tipo },
     });
   } catch (err) {
     console.error("❌ Erro em /auth/register:", err);
@@ -113,7 +101,6 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
-// ✅ /api/login
 app.post("/api/login", async (req, res) => {
   try {
     const { email, senha, password } = req.body;
@@ -130,6 +117,7 @@ app.post("/api/login", async (req, res) => {
       process.env.JWT_SECRET || "segredo",
       { expiresIn: "1h" }
     );
+
     res.json({ message: "Login efetuado com sucesso!", token });
   } catch (err) {
     console.error("❌ Erro em /login:", err);
@@ -137,83 +125,24 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-// ✅ /api/user/me
-app.get("/api/user/me", autenticarToken, async (req, res) => {
-  try {
-    const user = await Usuario.findByPk(req.user.id, {
-      attributes: ["id", "nomeUsuario", "cpfUsuario", "email", "tipo", "created_at"],
-    });
-
-    if (!user) return res.status(404).json({ error: "Usuário não encontrado." });
-    res.json(user);
-  } catch (err) {
-    console.error("❌ Erro em /user/me:", err);
-    res.status(500).json({ error: "Erro ao buscar usuário." });
-  }
-});
-
-// ✅ /api/user/forgot-password
-app.post("/api/user/forgot-password", async (req, res) => {
-  try {
-    const { email } = req.body;
-    const user = await Usuario.findOne({ where: { email } });
-    if (!user) return res.status(404).json({ error: "Usuário não encontrado." });
-
-    const resetToken = jwt.sign({ id: user.id }, process.env.JWT_SECRET || "segredo", {
-      expiresIn: "10m",
-    });
-
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-
-    const { error } = await resend.emails.send({
-      from: process.env.EMAIL_FROM || "Marido de Aluguel <no-reply@maridodealuguel.app.br>",
-      to: email,
-      subject: "Redefinição de senha - Marido de Aluguel",
-      html: `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
-          <h2>Olá, ${user.nomeUsuario}</h2>
-          <p>Você solicitou redefinição de senha. Clique no link abaixo para continuar:</p>
-          <p><a href="${resetLink}" target="_blank" style="color: #F89D13; font-weight: bold;">Redefinir minha senha</a></p>
-          <p><small>O link expira em 10 minutos.</small></p>
-          <hr>
-          <p>Se você não solicitou essa alteração, ignore este e-mail.</p>
-        </div>
-      `,
-    });
-
-    if (error) {
-      console.error("❌ Erro ao enviar e-mail via Resend:", error);
-      return res.status(500).json({ error: "Falha no envio de e-mail." });
-    }
-
-    res.json({ message: "E-mail de redefinição enviado com sucesso!" });
-  } catch (err) {
-    console.error("❌ Erro em /user/forgot-password:", err);
-    res.status(500).json({ error: "Erro ao enviar e-mail de redefinição." });
-  }
-});
-
 // ✅ /api/tipos-servico
-app.get("/api/tipos-servico", async (req, res) => {
+app.get("/api/tipos-servico", async (_req, res) => {
   try {
-    if (TipoServico) {
-      const tipos = await TipoServico.findAll();
-      return res.json(tipos);
-    }
-    res.json([
-      { id: 1, nome: "Elétrica" },
-      { id: 2, nome: "Hidráulica" },
-      { id: 3, nome: "Pintura" },
-      { id: 4, nome: "Montagem de móveis" },
-    ]);
+    const tipos = await TipoServico.findAll({
+      attributes: ["id", "nome"],
+      order: [["id", "ASC"]],
+    });
+    res.json(tipos);
   } catch (err) {
     console.error("❌ Erro em /tipos-servico:", err);
     res.status(500).json({ error: "Erro ao buscar tipos de serviço." });
   }
 });
 
-// ✅ Rotas adicionais
+// ✅ Usa as rotas adicionais centralizadas
 app.use("/api", routes);
+
+// ✅ Rotas de teste
 app.get("/api/teste", (_req, res) => res.json({ ok: true, message: "Rota /api/teste ativa!" }));
 app.get("/api/health", (_req, res) => res.json({ ok: true, message: "✅ API rodando com sucesso 🚀" }));
 
@@ -231,7 +160,6 @@ async function startServer() {
     const server = http.createServer(app);
     server.listen(port, host, () => {
       console.log(`🚀 Servidor rodando em http://${host}:${port}`);
-      console.log("🔗 Rotas completas disponíveis em /api/*");
     });
 
     server.on("error", (err) => {
@@ -244,5 +172,4 @@ async function startServer() {
   }
 }
 
-// 🚀 Inicia servidor
 startServer();
