@@ -9,7 +9,7 @@ import models from "./src/models/index.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { Resend } from "resend";
-import routes from "./src/routes/index.js"; // 👈 Importa todas as rotas antigas
+import routes from "./src/routes/index.js"; // 👈 Importa rotas antigas
 
 // ✅ Configura Resend (envio de e-mail)
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -34,12 +34,10 @@ const app = express();
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Log de diagnóstico (captura corpo e cabeçalhos)
+// ✅ Log de diagnóstico para debug de registro
 app.use((req, res, next) => {
   if (req.path.includes("/api/auth/register")) {
     console.log("📦 [LOG] Body recebido em /api/auth/register:", req.body);
-    console.log("📦 [LOG] Content-Type:", req.headers["content-type"]);
-    console.log("📦 [LOG] Método:", req.method);
   }
   next();
 });
@@ -62,7 +60,7 @@ app.use(
 
 const { sequelize, TipoServico, Usuario } = models;
 
-// ✅ Função auxiliar: autenticação via JWT
+// ✅ Middleware JWT
 function autenticarToken(req, res, next) {
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(" ")[1];
@@ -75,11 +73,13 @@ function autenticarToken(req, res, next) {
   });
 }
 
-// ✅ --- ROTAS EXISTENTES ---
+// ✅ /api/auth/register — aceita senha OU password
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { nomeUsuario, email, senha, tipo, cpfUsuario } = req.body;
-    if (!nomeUsuario || !email || !senha || !tipo) {
+    const { nomeUsuario, email, senha, password, tipo, cpfUsuario } = req.body;
+    const senhaFinal = senha || password; // ✅ aceita ambos
+
+    if (!nomeUsuario || !email || !senhaFinal || !tipo) {
       console.log("⚠️ Campos recebidos incompletos:", req.body);
       return res.status(400).json({ error: "Preencha todos os campos obrigatórios." });
     }
@@ -89,7 +89,7 @@ app.post("/api/auth/register", async (req, res) => {
       return res.status(400).json({ error: "E-mail já cadastrado." });
     }
 
-    const hash = await bcrypt.hash(senha, 10);
+    const hash = await bcrypt.hash(senhaFinal, 10);
     const user = await Usuario.create({
       nomeUsuario,
       email,
@@ -116,15 +116,17 @@ app.post("/api/auth/register", async (req, res) => {
 // ✅ /api/login
 app.post("/api/login", async (req, res) => {
   try {
-    const { email, senha } = req.body;
+    const { email, senha, password } = req.body;
+    const senhaLogin = senha || password;
+
     const user = await Usuario.findOne({ where: { email } });
     if (!user) return res.status(404).json({ error: "Usuário não encontrado." });
 
-    const isValid = await bcrypt.compare(senha, user.senha);
+    const isValid = await bcrypt.compare(senhaLogin, user.senha);
     if (!isValid) return res.status(401).json({ error: "Senha incorreta." });
 
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, tipo: user.tipo },
       process.env.JWT_SECRET || "segredo",
       { expiresIn: "1h" }
     );
@@ -210,14 +212,12 @@ app.get("/api/tipos-servico", async (req, res) => {
   }
 });
 
-// ✅ --- ROTAS ANTIGAS RESTAURADAS ---
-app.use("/api", routes); // 👈 Rotas do antigo routes/index.js
-
-// ✅ Rotas de teste
+// ✅ Rotas adicionais
+app.use("/api", routes);
 app.get("/api/teste", (_req, res) => res.json({ ok: true, message: "Rota /api/teste ativa!" }));
 app.get("/api/health", (_req, res) => res.json({ ok: true, message: "✅ API rodando com sucesso 🚀" }));
 
-// ✅ Inicialização ajustada para Railway
+// ✅ Inicialização
 async function startServer() {
   try {
     await sequelize.authenticate();
