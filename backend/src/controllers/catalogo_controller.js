@@ -7,12 +7,14 @@ import { TipoServico } from "../models/index.js";
  */
 export async function listTipos(req, res) {
   try {
+    // ✅ Retorna os campos originais: id e nome
     const itens = await TipoServico.findAll({
-      attributes: ["id", ["nome", "nomeServico"]],
+      attributes: ["id", "nome"],
       order: [["nome", "ASC"]],
       raw: true,
     });
 
+    // ✅ Resposta direta e simples
     return res.json(itens);
   } catch (err) {
     console.error("❌ listTipos:", err);
