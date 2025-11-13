@@ -7,7 +7,8 @@ import { getToken } from '../../utils/auth';
 
 type TipoServico = {
   id: number;
-  nome: string; // ✅ corrigido (antes era nomeServico)
+  nomeServico?: string; // compatível com backend antigo
+  nome?: string;        // compatível com backend atual
 };
 
 type FormAgendamento = {
@@ -32,10 +33,9 @@ export default function ServicosPage() {
   const [loading, setLoading] = useState(false);
   const [loadingServicos, setLoadingServicos] = useState(true);
 
-  // ids estáveis para skeletons (evita usar índice como key)
   const skeletonIds = useMemo(() => ['sk-1', 'sk-2', 'sk-3', 'sk-4', 'sk-5', 'sk-6'], []);
 
-  // Carrega tipos de serviço do backend
+  // 🔄 Carrega tipos de serviço do backend
   useEffect(() => {
     (async () => {
       try {
@@ -43,21 +43,23 @@ export default function ServicosPage() {
         const itens = Array.isArray(r) ? r : r?.itens || [];
         setServicos(itens);
       } catch (err) {
-        console.error('Erro ao carregar serviços:', err);
+        console.error('❌ Erro ao carregar serviços:', err);
       } finally {
         setLoadingServicos(false);
       }
     })();
   }, []);
 
-  // Catálogo filtrado
+  // 🔍 Filtro de busca
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return servicos;
-    return servicos.filter((s) => s.nome.toLowerCase().includes(q)); // ✅ corrigido
+    return servicos.filter((s) =>
+      (s.nomeServico || s.nome || '').toLowerCase().includes(q)
+    );
   }, [servicos, busca]);
 
-  // Submit do agendamento
+  // 📅 Envio do formulário de agendamento
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg('');
@@ -86,7 +88,7 @@ export default function ServicosPage() {
     }
   }
 
-  // ---- evita ternário aninhado: escolhe o bloco do catálogo em variáveis separadas ----
+  // 📦 Catálogo
   let catalogoContent: JSX.Element;
   if (loadingServicos) {
     catalogoContent = (
@@ -112,9 +114,13 @@ export default function ServicosPage() {
           >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-[#F89D13]/20 flex items-center justify-center">
-                <span className="text-[#8F1D14]" aria-hidden>🔧</span>
+                <span className="text-[#8F1D14]" aria-hidden>
+                  🔧
+                </span>
               </div>
-              <h3 className="font-semibold text-gray-900">{s.nomeServico || s.nome}</h3> {/* ✅ corrigido */}
+              <h3 className="font-semibold text-gray-900">
+                {s.nomeServico || s.nome}
+              </h3>
             </div>
 
             <div className="mt-3 flex gap-2">
@@ -138,7 +144,6 @@ export default function ServicosPage() {
     );
   }
 
-  // Também evita ternário aninhado para a cor da mensagem
   const isMsgOk = msg.startsWith('✅');
   const msgClass = isMsgOk ? 'text-green-700' : 'text-red-700';
 
@@ -166,7 +171,9 @@ export default function ServicosPage() {
 
             {/* Busca */}
             <div className="mt-6">
-              <label htmlFor="busca" className="sr-only">Buscar serviço</label>
+              <label htmlFor="busca" className="sr-only">
+                Buscar serviço
+              </label>
               <input
                 id="busca"
                 value={busca}
@@ -181,9 +188,7 @@ export default function ServicosPage() {
 
       {/* Catálogo */}
       <section className="mt-8">
-        <div className="max-w-6xl mx-auto px-4">
-          {catalogoContent}
-        </div>
+        <div className="max-w-6xl mx-auto px-4">{catalogoContent}</div>
       </section>
 
       {/* Formulário de agendamento */}
@@ -195,7 +200,6 @@ export default function ServicosPage() {
             </h2>
 
             <form onSubmit={handleSubmit} className="grid gap-4">
-              {/* Tipo */}
               <div>
                 <label htmlFor="tipo_servico_id" className="block text-sm text-gray-700 mb-1">
                   Tipo de serviço
@@ -210,13 +214,12 @@ export default function ServicosPage() {
                   <option value="">Selecione</option>
                   {servicos.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.nomeServico || s.nome} {/* ✅ corrigido */}
+                      {s.nomeServico || s.nome}
                     </option>
                   ))}
                 </select>
               </div>
 
-              {/* Data/Hora */}
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="data" className="block text-sm text-gray-700 mb-1">
@@ -246,7 +249,6 @@ export default function ServicosPage() {
                 </div>
               </div>
 
-              {/* Endereço */}
               <div>
                 <label htmlFor="endereco" className="block text-sm text-gray-700 mb-1">
                   Endereço
@@ -261,7 +263,6 @@ export default function ServicosPage() {
                 />
               </div>
 
-              {/* Descrição */}
               <div>
                 <label htmlFor="descricao" className="block text-sm text-gray-700 mb-1">
                   Descrição (opcional)
@@ -276,7 +277,6 @@ export default function ServicosPage() {
                 />
               </div>
 
-              {/* Ações */}
               <div className="flex items-center gap-3">
                 <button
                   type="submit"
@@ -296,7 +296,6 @@ export default function ServicosPage() {
                 )}
               </div>
 
-              {/* Mensagens */}
               {msg && <p className={`text-sm mt-1 ${msgClass}`}>{msg}</p>}
             </form>
           </div>
