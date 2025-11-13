@@ -1,7 +1,8 @@
+// src/routes/index.js
 import express from "express";
 import authenticate from "../middleware/authenticate.js";
 
-// Controllers (usando import * para capturar todas as exports nomeadas)
+// Controllers (todos em formato ESM)
 import * as Auth from "../controllers/auth_Controller.js";
 import * as User from "../controllers/user_controller.js";
 import * as Password from "../controllers/password_controller.js";
@@ -14,58 +15,116 @@ import * as Historico from "../controllers/historico_controller.js";
 
 const router = express.Router();
 
-/* -------------------- 🔍 Logs -------------------- */
+/* ==========================================================
+   🔹 LOG DE ROTAS — apenas em ambiente de desenvolvimento
+========================================================== */
 if (process.env.NODE_ENV !== "production") {
-  const controllers = { Auth, User, Password, Prest, Contr, Cat, Ag, Aval, Historico };
   console.log("🔹 Rotas carregadas:");
-  for (const [nome, ctrl] of Object.entries(controllers)) {
-    console.log(`   ${nome}:`, Object.keys(ctrl || {}));
-  }
+  console.log("   Auth:", Object.keys(Auth || {}));
+  console.log("   User:", Object.keys(User || {}));
+  console.log("   Password:", Object.keys(Password || {}));
+  console.log("   Prest:", Object.keys(Prest || {}));
+  console.log("   Contr:", Object.keys(Contr || {}));
+  console.log("   Cat:", Object.keys(Cat || {}));
+  console.log("   Ag:", Object.keys(Ag || {}));
+  console.log("   Aval:", Object.keys(Aval || {}));
+  console.log("   Historico:", Object.keys(Historico || {}));
 }
 
-/* -------------------- 🔐 Autenticação -------------------- */
-router.post("/auth/register", Auth.register || ((_, res) => res.status(501).json({ error: "register() não implementado" })));
-router.post("/auth/login", Auth.login || ((_, res) => res.status(501).json({ error: "login() não implementado" })));
+/* ==========================================================
+   🔐 AUTENTICAÇÃO
+========================================================== */
+router.post("/auth/register", Auth.register);
+router.post("/auth/login", Auth.login);
+router.post("/auth/forgot-password", Auth.forgotPassword);
 
-/* -------------------- 👤 Usuário -------------------- */
-router.get("/user/me", authenticate, User.me || ((_, res) => res.status(501).json({ error: "me() não implementado" })));
+/* ==========================================================
+   👤 USUÁRIO
+========================================================== */
+router.get("/user/me", authenticate, User.me);
 
-/* -------------------- ✉️ Recuperação e redefinição de senha -------------------- */
-router.post("/user/forgot-password", Password.forgotPassword || ((_, res) => res.status(501).json({ error: "forgotPassword() não implementado" })));
-router.post("/user/reset-password", Password.resetPassword || ((_, res) => res.status(501).json({ error: "resetPassword() não implementado" })));
+/* ==========================================================
+   🔑 RECUPERAÇÃO DE SENHA
+========================================================== */
+if (Password?.forgotPassword && Password?.resetPassword) {
+  router.post("/user/forgot-password", Password.forgotPassword);
+  router.post("/user/reset-password", Password.resetPassword);
+} else {
+  console.error("⚠️ Controlador de senha inválido ou ausente.");
+}
 
-/* -------------------- 🧰 Prestador -------------------- */
-router.get("/prestador/me", authenticate, Prest.me || ((_, res) => res.status(501).json({ error: "Prest.me() não implementado" })));
-router.post("/prestador", authenticate, Prest.save || ((_, res) => res.status(501).json({ error: "Prest.save() não implementado" })));
+/* ==========================================================
+   🧰 PRESTADOR
+========================================================== */
+router.get("/prestador/me", authenticate, Prest.me);
+router.post("/prestador", authenticate, Prest.save);
 
-/* -------------------- 🧾 Contratante -------------------- */
-router.post("/contratante", authenticate, Contr.save || ((_, res) => res.status(501).json({ error: "Contr.save() não implementado" })));
+/* ==========================================================
+   🧾 CONTRATANTE
+========================================================== */
+router.post("/contratante", authenticate, Contr.save);
 
-/* -------------------- 📚 Catálogo -------------------- */
-router.get("/tipos-servico", Cat.listTipos || ((_, res) => res.status(501).json({ error: "listTipos() não implementado" })));
+/* ==========================================================
+   📚 CATÁLOGO DE SERVIÇOS
+========================================================== */
+router.get("/tipos-servico", Cat.listTipos);
 
-/* -------------------- 📅 Agendamentos -------------------- */
-router.post("/agendamentos", authenticate, Ag.create || ((_, res) => res.status(501).json({ error: "Ag.create() não implementado" })));
-router.get("/agendamentos/cliente", authenticate, Ag.listCliente || ((_, res) => res.status(501).json({ error: "Ag.listCliente() não implementado" })));
-router.get("/agendamentos/pendentes", authenticate, Ag.listPrestadorPendentes || ((_, res) => res.status(501).json({ error: "Ag.listPrestadorPendentes() não implementado" })));
-router.get("/agendamentos/prestador", authenticate, Ag.listPrestador || ((_, res) => res.status(501).json({ error: "Ag.listPrestador() não implementado" })));
-router.post("/agendamentos/:id/aceitar", authenticate, Ag.accept || ((_, res) => res.status(501).json({ error: "Ag.accept() não implementado" })));
-router.get("/agendamentos/:id/status", authenticate, Ag.status || ((_, res) => res.status(501).json({ error: "Ag.status() não implementado" })));
-router.get("/agendamentos/:id/qrcode", authenticate, Ag.qrcode || ((_, res) => res.status(501).json({ error: "Ag.qrcode() não implementado" })));
-router.post("/agendamentos/:id/scan", authenticate, Ag.scan || ((_, res) => res.status(501).json({ error: "Ag.scan() não implementado" })));
+/* ==========================================================
+   📅 AGENDAMENTOS
+========================================================== */
+router.post("/agendamentos", authenticate, Ag.create);
+router.get("/agendamentos/cliente", authenticate, Ag.listCliente);
+router.get("/agendamentos/pendentes", authenticate, Ag.listPrestadorPendentes);
 
-/* -------------------- ⭐ Avaliações -------------------- */
-router.post("/avaliacoes", authenticate, Aval.create || ((_, res) => res.status(501).json({ error: "Aval.create() não implementado" })));
-router.get("/avaliacoes/resumo/:prestadorId", authenticate, Aval.resumoPrestador || ((_, res) => res.status(501).json({ error: "Aval.resumoPrestador() não implementado" })));
+if (typeof Ag.listPrestador === "function") {
+  router.get("/agendamentos/prestador", authenticate, Ag.listPrestador);
+}
 
-/* -------------------- 🕓 Histórico -------------------- */
-router.get("/historico/cliente", authenticate, Historico.historicoCliente || ((_, res) => res.status(501).json({ error: "Historico.historicoCliente() não implementado" })));
-router.get("/historico/status/:id", authenticate, Historico.statusCliente || ((_, res) => res.status(501).json({ error: "Historico.statusCliente() não implementado" })));
+router.post("/agendamentos/:id/aceitar", authenticate, Ag.accept);
 
-/* -------------------- 🩺 Healthcheck -------------------- */
+/* ✅ QR Code Rotas Corrigidas */
+if (typeof Ag.qrcode === "function") {
+  router.get("/agendamentos/:id/qrcode", authenticate, Ag.qrcode);
+} else {
+  console.warn("⚠️ Rota Ag.qrcode não encontrada.");
+}
+
+if (typeof Ag.scan === "function") {
+  router.post("/agendamentos/:id/scan", authenticate, Ag.scan);
+} else {
+  console.warn("⚠️ Rota Ag.scan não encontrada.");
+}
+
+/* ==========================================================
+   ⭐ AVALIAÇÕES
+========================================================== */
+router.post("/avaliacoes", authenticate, Aval.create);
+if (typeof Aval.resumoPrestador === "function") {
+  router.get("/avaliacoes/resumo/:prestadorId", authenticate, Aval.resumoPrestador);
+}
+
+/* ==========================================================
+   🕓 HISTÓRICO
+========================================================== */
+if (typeof Historico.historicoCliente === "function") {
+  router.get("/historico/cliente", authenticate, Historico.historicoCliente);
+}
+if (typeof Historico.statusCliente === "function") {
+  router.get("/historico/status/:id", authenticate, Historico.statusCliente);
+}
+
+/* ==========================================================
+   🩺 HEALTHCHECK (para Railway e monitoramento)
+========================================================== */
 router.get("/health", (_req, res) =>
-  res.json({ ok: true, message: "✅ API rodando com sucesso 🚀" })
+  res.json({
+    ok: true,
+    message: "✅ API rodando com sucesso 🚀",
+    timestamp: new Date().toISOString(),
+  })
 );
 
-/* -------------------- ✅ Export padrão -------------------- */
+/* ==========================================================
+   ✅ EXPORT PADRÃO
+========================================================== */
 export default router;

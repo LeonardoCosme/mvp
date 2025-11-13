@@ -10,12 +10,12 @@ import {
   Usuario,
 } from "../models/index.js";
 
-/** Util: token randômico para QR */
+/** 🔹 Gera token randômico para QR */
 function genToken() {
   return crypto.randomBytes(16).toString("hex");
 }
 
-/** Normaliza payload do POST /agendamentos */
+/** 🔹 Normaliza payload do POST /agendamentos */
 function normalizeCreate(body = {}) {
   const out = {
     tipo_servico_id: Number(body.tipo_servico_id),
@@ -31,6 +31,7 @@ function normalizeCreate(body = {}) {
   if (out.hora && out.hora.length === 5) out.hora = `${out.hora}:00`;
   return out;
 }
+
 function isISODate(d) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(d || ""));
 }
@@ -38,7 +39,7 @@ function isTime(h) {
   return /^\d{2}:\d{2}(:\d{2})?$/.test(String(h || ""));
 }
 
-/** POST /api/agendamentos — cria agendamento (status: pendente) */
+/** ✅ POST /api/agendamentos — cria novo agendamento (status: pendente) */
 export async function create(req, res) {
   try {
     const userId = req.user.id;
@@ -101,7 +102,7 @@ export async function create(req, res) {
   }
 }
 
-/** GET /api/agendamentos/cliente — lista do contratante logado */
+/** ✅ GET /api/agendamentos/cliente — lista agendamentos do contratante logado */
 export async function listCliente(req, res) {
   try {
     const userId = req.user.id;
@@ -110,11 +111,10 @@ export async function listCliente(req, res) {
       where: { usuario_id: userId },
       attributes: ["id"],
     });
-    if (!contr) {
+    if (!contr)
       return res
         .status(403)
         .json({ error: "Perfil de contratante não encontrado." });
-    }
 
     const itens = await Agendamento.findAll({
       where: { contratanteId: contr.id },
@@ -123,7 +123,6 @@ export async function listCliente(req, res) {
           model: TipoServico,
           as: "tipo",
           attributes: ["id", "nome"],
-          required: false,
         },
       ],
       order: [
@@ -162,12 +161,11 @@ export async function listCliente(req, res) {
   }
 }
 
-/** GET /api/agendamentos/pendentes — lista para prestador (ainda não aceitos) */
+/** ✅ GET /api/agendamentos/pendentes — lista pendentes para prestador */
 export async function listPrestadorPendentes(req, res) {
   try {
-    if (req.user?.tipo !== "prestador") {
+    if (req.user?.tipo !== "prestador")
       return res.status(403).json({ error: "Apenas prestadores." });
-    }
 
     const itens = await Agendamento.findAll({
       where: { status: "pendente" },
@@ -176,7 +174,6 @@ export async function listPrestadorPendentes(req, res) {
           model: TipoServico,
           as: "tipo",
           attributes: ["id", "nome"],
-          required: false,
         },
       ],
       order: [
@@ -203,42 +200,31 @@ export async function listPrestadorPendentes(req, res) {
     return res.json(out);
   } catch (err) {
     console.error("❌ Agendamento.listPrestadorPendentes:", err);
-    return res
-      .status(500)
-      .json({ error: "Erro ao listar agendamentos pendentes." });
+    return res.status(500).json({ error: "Erro ao listar agendamentos." });
   }
 }
 
-/** GET /api/agendamentos/prestador — lista aceita/concluída do prestador logado */
+/** ✅ GET /api/agendamentos/prestador — lista aceitos/concluídos */
 export async function listPrestador(req, res) {
   try {
-    if (req.user?.tipo !== "prestador") {
+    if (req.user?.tipo !== "prestador")
       return res.status(403).json({ error: "Apenas prestadores." });
-    }
 
     const prest = await Prestador.findOne({
       where: { usuario_id: req.user.id },
       attributes: ["id"],
     });
-    if (!prest) {
+    if (!prest)
       return res
         .status(403)
         .json({ error: "Perfil de prestador não encontrado." });
-    }
 
     const itens = await Agendamento.findAll({
       where: {
         prestadorId: prest.id,
         status: { [Op.in]: ["aceita", "concluida"] },
       },
-      include: [
-        {
-          model: TipoServico,
-          as: "tipo",
-          attributes: ["id", "nome"],
-          required: false,
-        },
-      ],
+      include: [{ model: TipoServico, as: "tipo", attributes: ["id", "nome"] }],
       order: [
         [Sequelize.col("Agendamento.data_servico"), "ASC"],
         [Sequelize.col("Agendamento.hora_servico"), "ASC"],
@@ -261,9 +247,6 @@ export async function listPrestador(req, res) {
       checkin_at: a.checkinAt ?? null,
       start_at: a.startAt ?? null,
       end_at: a.endAt ?? null,
-      checkin_used: a.checkinUsed ?? 0,
-      start_used: a.startUsed ?? 0,
-      end_used: a.endUsed ?? 0,
     }));
 
     return res.json(out);
@@ -275,12 +258,11 @@ export async function listPrestador(req, res) {
   }
 }
 
-/** POST /api/agendamentos/:id/aceitar — prestador aceita um pendente */
+/** ✅ POST /api/agendamentos/:id/aceitar — prestador aceita um pendente */
 export async function accept(req, res) {
   try {
-    if (req.user?.tipo !== "prestador") {
-      return res.status(403).json({ error: "Apenas prestadores podem aceitar." });
-    }
+    if (req.user?.tipo !== "prestador")
+      return res.status(403).json({ error: "Apenas prestadores." });
 
     const usuarioId = req.user.id;
     const agId = Number(req.params.id);
@@ -290,45 +272,118 @@ export async function accept(req, res) {
       where: { usuario_id: usuarioId },
       attributes: ["id", "usuario_id"],
     });
-    if (!prest) {
-      return res.status(409).json({
-        error:
-          "Perfil de prestador não encontrado. Complete seu cadastro de prestador antes de aceitar.",
-      });
-    }
+    if (!prest)
+      return res
+        .status(409)
+        .json({ error: "Complete seu cadastro de prestador antes de aceitar." });
 
     const ag = await Agendamento.findByPk(agId);
     if (!ag) return res.status(404).json({ error: "Agendamento não encontrado." });
-    if (ag.status !== "pendente") {
+    if (ag.status !== "pendente")
       return res
         .status(400)
         .json({ error: "Somente agendamentos pendentes podem ser aceitos." });
-    }
-
-    const conflito = await Agendamento.findOne({
-      where: {
-        prestadorId: prest.id,
-        dataServico: ag.dataServico,
-        horaServico: ag.horaServico,
-        status: { [Op.in]: ["aceita", "concluida"] },
-      },
-    });
-    if (conflito) {
-      return res
-        .status(409)
-        .json({ error: "Conflito de horário para este prestador." });
-    }
 
     await ag.update({ status: "aceita", prestadorId: prest.id });
+    return res.json({ ok: true, id: ag.id, status: ag.status });
+  } catch (err) {
+    console.error("❌ Agendamento.accept:", err);
+    return res.status(500).json({ error: "Erro ao aceitar agendamento." });
+  }
+}
+
+/** ✅ GET /api/agendamentos/:id/qrcode?phase=checkin|start|end */
+export async function qrcode(req, res) {
+  try {
+    const userId = req.user.id;
+    const phase = String(req.query.phase || "").toLowerCase();
+    const validPhases = ["checkin", "start", "end"];
+    if (!validPhases.includes(phase))
+      return res.status(400).json({ error: "phase inválida." });
+
+    const ag = await Agendamento.findByPk(req.params.id);
+    if (!ag) return res.status(404).json({ error: "Agendamento não encontrado." });
+
+    const contr = await Contratante.findOne({
+      where: { usuario_id: userId },
+      attributes: ["id"],
+    });
+    if (!contr || contr.id !== ag.contratanteId)
+      return res.status(403).json({ error: "Acesso negado." });
+
+    const tokenField = `${phase}Qr`;
+    if (!ag[tokenField]) {
+      ag[tokenField] = genToken();
+      await ag.save({ fields: [tokenField] });
+    }
+
+    const baseUrl =
+      process.env.FRONTEND_URL ||
+      process.env.APP_URL ||
+      `${req.protocol}://${req.get("host")}`;
+    const url = `${baseUrl}/scanner/${ag.id}?phase=${phase}&token=${ag[tokenField]}`;
+
+    return res.json({ id: ag.id, phase, token: ag[tokenField], url });
+  } catch (err) {
+    console.error("❌ Agendamento.qrcode:", err);
+    return res.status(500).json({ error: "Erro ao gerar QR." });
+  }
+}
+
+/** ✅ POST /api/agendamentos/:id/scan { token, phase } */
+export async function scan(req, res) {
+  try {
+    if (req.user?.tipo !== "prestador")
+      return res.status(403).json({ error: "Apenas prestadores." });
+
+    const userId = req.user.id;
+    const { token, phase } = req.body;
+    const valid = ["checkin", "start", "end"];
+    if (!token || !valid.includes(phase))
+      return res.status(400).json({ error: "Dados inválidos." });
+
+    const ag = await Agendamento.findByPk(req.params.id);
+    if (!ag) return res.status(404).json({ error: "Agendamento não encontrado." });
+
+    const prest = await Prestador.findOne({
+      where: { usuario_id: userId },
+      attributes: ["id"],
+    });
+    if (!prest)
+      return res.status(403).json({ error: "Perfil de prestador não encontrado." });
+    if (!ag.prestadorId || ag.prestadorId !== prest.id)
+      return res.status(403).json({ error: "Este agendamento não pertence a você." });
+
+    const tokenField = `${phase}Qr`;
+    const usedField = `${phase}Used`;
+    const timeField = `${phase}At`;
+
+    if (!ag[tokenField]) return res.status(400).json({ error: "QR não gerado." });
+    if (ag[usedField]) return res.status(409).json({ error: "QR já utilizado." });
+    if (ag[tokenField] !== token)
+      return res.status(400).json({ error: "Token inválido." });
+
+    if (phase === "start" && !ag.checkinAt)
+      return res.status(400).json({ error: "Faça check-in antes de iniciar." });
+    if (phase === "end" && !ag.startAt)
+      return res.status(400).json({ error: "Inicie antes de encerrar." });
+
+    ag[usedField] = true;
+    ag[timeField] = new Date();
+    if (phase === "end" && ["aceita", "pendente"].includes(ag.status))
+      ag.status = "concluida";
+
+    await ag.save();
 
     return res.json({
       ok: true,
       id: ag.id,
+      phase,
       status: ag.status,
-      prestador_id: ag.prestadorId,
+      time: ag[timeField],
     });
   } catch (err) {
-    console.error("❌ Agendamento.accept:", err);
-    return res.status(500).json({ error: "Erro ao aceitar agendamento." });
+    console.error("❌ Agendamento.scan:", err);
+    return res.status(500).json({ error: "Erro ao validar QR." });
   }
 }
