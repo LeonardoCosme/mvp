@@ -7,19 +7,20 @@ import { TipoServico } from "../models/index.js";
  */
 export async function listTipos(req, res) {
   try {
-    // ✅ Retorna os campos originais: id e nome
+    // ✅ Retorna o campo 'nome' renomeado para 'nomeServico' — compatível com o frontend
     const itens = await TipoServico.findAll({
-      attributes: ["id", "nome"],
+      attributes: ["id", ["nome", "nomeServico"]],
       order: [["nome", "ASC"]],
       raw: true,
     });
 
-    // ✅ Resposta direta e simples
+    // 🧩 Log opcional para depuração
+    console.log("📦 Tipos de serviço retornados:", itens);
+
+    // ✅ Resposta direta e compatível
     return res.json(itens);
   } catch (err) {
     console.error("❌ listTipos:", err);
-    return res
-      .status(500)
-      .json({ error: "Erro ao listar tipos de serviço." });
+    return res.status(500).json({ error: "Erro ao listar tipos de serviço." });
   }
 }
