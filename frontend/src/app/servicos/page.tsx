@@ -2,12 +2,12 @@
 
 import { JSX, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { apiFetch } from '@/utils/api';
-import { getToken } from '@/utils/auth';
+import { apiFetch } from '../../utils/api';
+import { getToken } from '../../utils/auth';
 
 type TipoServico = {
   id: number;
-  nomeServico: string;
+  nome: string; // ✅ corrigido (antes era nomeServico)
 };
 
 type FormAgendamento = {
@@ -54,7 +54,7 @@ export default function ServicosPage() {
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return servicos;
-    return servicos.filter((s) => s.nomeServico.toLowerCase().includes(q));
+    return servicos.filter((s) => s.nome.toLowerCase().includes(q)); // ✅ corrigido
   }, [servicos, busca]);
 
   // Submit do agendamento
@@ -114,7 +114,7 @@ export default function ServicosPage() {
               <div className="w-10 h-10 rounded-full bg-[#F89D13]/20 flex items-center justify-center">
                 <span className="text-[#8F1D14]" aria-hidden>🔧</span>
               </div>
-              <h3 className="font-semibold text-gray-900">{s.nomeServico}</h3>
+              <h3 className="font-semibold text-gray-900">{s.nome}</h3> {/* ✅ corrigido */}
             </div>
 
             <div className="mt-3 flex gap-2">
@@ -210,7 +210,7 @@ export default function ServicosPage() {
                   <option value="">Selecione</option>
                   {servicos.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.nomeServico}
+                      {s.nome} {/* ✅ corrigido */}
                     </option>
                   ))}
                 </select>
