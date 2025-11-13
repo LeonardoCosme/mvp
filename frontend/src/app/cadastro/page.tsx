@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiFetch } from '@/utils/api';
+import { apiFetch } from '../../utils/api';
 
 export default function CadastroPage() {
   const router = useRouter();
@@ -55,7 +55,7 @@ export default function CadastroPage() {
         body: JSON.stringify({
           nomeUsuario: form.nomeUsuario.trim(),
           email: form.email.trim().toLowerCase(),
-          senha: form.senha,
+          password: form.senha,
           tipo: form.tipo,
           cpfUsuario: form.cpfUsuario.trim(),
         }),

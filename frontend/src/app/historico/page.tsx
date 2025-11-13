@@ -81,7 +81,7 @@ export default function HistoricoClientePage() {
   async function carregar() {
     setMsg('');
     try {
-      const data = (await apiFetch('/historico/cliente', { auth: true })) as ItemHistorico[];
+      const data = (await apiFetch('/historico/cliente')) as ItemHistorico[];
 
       // ordena do mais recente para o mais antigo
       const itensOrdenados = [...(Array.isArray(data) ? data : [])].sort((a, b) => {
