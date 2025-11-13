@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 const isProduction = process.env.NODE_ENV === "production";
 
 // ✅ Carrega .env local apenas fora da produção
-if (!isProduction) {
+if (isProduction) {
   const localEnv = path.resolve(__dirname, "../../.env");
   dotenv.config({ path: localEnv });
   console.log("🧩 Ambiente local: .env carregado de", localEnv);
