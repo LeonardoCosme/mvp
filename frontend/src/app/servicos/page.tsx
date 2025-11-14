@@ -1,9 +1,11 @@
 'use client';
 
-import { JSX, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { apiFetch } from '../../utils/api';
 import { getToken } from '../../utils/auth';
+
+// 🔗 URL fixa da API Railway (para testes diretos)
+const API_URL = 'https://mvp-marido-aluguel.up.railway.app/api/tipos-servico';
 
 type TipoServico = {
   id: number;
@@ -32,24 +34,22 @@ export default function ServicosPage() {
   const [loading, setLoading] = useState(false);
   const [loadingServicos, setLoadingServicos] = useState(true);
 
-  // ✅ Carrega tipos de serviço
+  // 🚀 Carrega os serviços direto da API Railway
   useEffect(() => {
     (async () => {
       try {
-        console.log('🚀 Buscando lista de serviços no backend...');
-        const r = await apiFetch('/tipos-servico');
-        console.log('📦 Retorno bruto da API /tipos-servico:', r);
+        console.log('🟠 Buscando serviços em:', API_URL);
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
+        const data = await res.json();
+        console.log('🟢 Dados recebidos:', data);
 
-        // ✅ Garante formato consistente
-        const itens = Array.isArray(r)
-          ? r.map((i: any) => ({
-              id: i.id,
-              nome: i.nome || i.nomeServico || '(sem nome)',
-            }))
-          : [];
-
-        console.log('✅ Lista final tratada:', itens);
-        setServicos(itens);
+        if (Array.isArray(data)) {
+          setServicos(data);
+        } else {
+          console.warn('⚠️ Formato inesperado:', data);
+          setServicos([]);
+        }
       } catch (err) {
         console.error('❌ Erro ao carregar serviços:', err);
       } finally {
@@ -58,14 +58,14 @@ export default function ServicosPage() {
     })();
   }, []);
 
-  // ✅ Filtro de busca
+  // 🔍 Filtro de busca
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return servicos;
-    return servicos.filter((s) => s.nome.toLowerCase().includes(q));
+    return servicos.filter((s) => s.nome?.toLowerCase().includes(q));
   }, [servicos, busca]);
 
-  // ✅ Envio de agendamento
+  // 🧾 Envio de agendamento (mantido igual)
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg('');
@@ -81,79 +81,27 @@ export default function ServicosPage() {
 
     setLoading(true);
     try {
-      await apiFetch('/agendamentos', {
+      const resp = await fetch('https://mvp-marido-aluguel.up.railway.app/api/agendamentos', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
+      const result = await resp.json();
+      console.log('📦 Resposta do agendamento:', result);
       setMsg('✅ Agendamento criado com sucesso!');
       setForm({ tipo_servico_id: '', data: '', hora: '', endereco: '', descricao: '' });
     } catch (err: any) {
-      console.error('❌ Erro no agendamento:', err);
       setMsg(`❌ Erro: ${err.message}`);
     } finally {
       setLoading(false);
     }
   }
 
-  // ✅ Renderização condicional do catálogo
-  let catalogoContent: JSX.Element;
-  if (loadingServicos) {
-    catalogoContent = (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="bg-white/80 rounded-xl h-24 animate-pulse" />
-        ))}
-      </div>
-    );
-  } else if (filtrados.length === 0) {
-    catalogoContent = (
-      <div className="bg-white/90 rounded-xl p-6 text-gray-600 shadow">
-        Nenhum serviço encontrado.
-      </div>
-    );
-  } else {
-    catalogoContent = (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtrados.map((s) => (
-          <article
-            key={s.id}
-            className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition border border-gray-100"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#F89D13]/20 flex items-center justify-center">
-                <span className="text-[#8F1D14]" aria-hidden>
-                  🔧
-                </span>
-              </div>
-              <h3 className="font-semibold text-gray-900">{s.nome}</h3>
-            </div>
-
-            <div className="mt-3 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setForm((p) => ({ ...p, tipo_servico_id: String(s.id) }))}
-                className="text-sm bg-[#F89D13] text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition"
-              >
-                Agendar
-              </button>
-              <Link
-                href={`/servicos?tipo=${s.id}`}
-                className="text-sm bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition"
-              >
-                Ver detalhes
-              </Link>
-            </div>
-          </article>
-        ))}
-      </div>
-    );
-  }
-
   const msgClass = msg.startsWith('✅') ? 'text-green-700' : 'text-red-700';
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 pb-20">
-      {/* Cabeçalho */}
+      {/* Hero */}
       <section className="pt-24 md:pt-28">
         <div className="max-w-6xl mx-auto px-4">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 md:p-10">
@@ -163,8 +111,7 @@ export default function ServicosPage() {
                   Catálogo de Serviços
                 </h1>
                 <p className="mt-3 text-gray-700">
-                  Encontre o serviço ideal e agende em poucos cliques — rápido, seguro e sem
-                  complicação.
+                  Encontre o serviço ideal e agende em poucos cliques — rápido, seguro e sem complicação.
                 </p>
               </div>
               <div className="w-full md:w-80">
@@ -174,7 +121,7 @@ export default function ServicosPage() {
               </div>
             </div>
 
-            {/* Busca */}
+            {/* Campo de busca */}
             <div className="mt-6">
               <label htmlFor="busca" className="sr-only">
                 Buscar serviço
@@ -193,10 +140,56 @@ export default function ServicosPage() {
 
       {/* Catálogo */}
       <section className="mt-8">
-        <div className="max-w-6xl mx-auto px-4">{catalogoContent}</div>
+        <div className="max-w-6xl mx-auto px-4">
+          {loadingServicos ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="bg-white/80 rounded-xl h-24 animate-pulse" />
+              ))}
+            </div>
+          ) : filtrados.length === 0 ? (
+            <div className="bg-white/90 rounded-xl p-6 text-gray-600 shadow">
+              Nenhum serviço encontrado.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filtrados.map((s) => (
+                <article
+                  key={s.id}
+                  className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition border border-gray-100"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[#F89D13]/20 flex items-center justify-center">
+                      <span className="text-[#8F1D14]" aria-hidden>
+                        🔧
+                      </span>
+                    </div>
+                    <h3 className="font-semibold text-gray-900">{s.nome || 'Serviço sem nome'}</h3>
+                  </div>
+
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setForm((p) => ({ ...p, tipo_servico_id: String(s.id) }))}
+                      className="text-sm bg-[#F89D13] text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition"
+                    >
+                      Agendar
+                    </button>
+                    <Link
+                      href={`/servicos?tipo=${s.id}`}
+                      className="text-sm bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition"
+                    >
+                      Ver detalhes
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
 
-      {/* Formulário */}
+      {/* Formulário de agendamento */}
       <section className="mt-10">
         <div className="max-w-6xl mx-auto px-4">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 md:p-8">
@@ -205,7 +198,6 @@ export default function ServicosPage() {
             </h2>
 
             <form onSubmit={handleSubmit} className="grid gap-4">
-              {/* Select tipo */}
               <div>
                 <label htmlFor="tipo_servico_id" className="block text-sm text-gray-700 mb-1">
                   Tipo de serviço
@@ -226,7 +218,6 @@ export default function ServicosPage() {
                 </select>
               </div>
 
-              {/* Data e hora */}
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="data" className="block text-sm text-gray-700 mb-1">
@@ -256,7 +247,6 @@ export default function ServicosPage() {
                 </div>
               </div>
 
-              {/* Endereço */}
               <div>
                 <label htmlFor="endereco" className="block text-sm text-gray-700 mb-1">
                   Endereço
@@ -271,7 +261,6 @@ export default function ServicosPage() {
                 />
               </div>
 
-              {/* Descrição */}
               <div>
                 <label htmlFor="descricao" className="block text-sm text-gray-700 mb-1">
                   Descrição (opcional)
@@ -286,7 +275,6 @@ export default function ServicosPage() {
                 />
               </div>
 
-              {/* Botões */}
               <div className="flex items-center gap-3">
                 <button
                   type="submit"
