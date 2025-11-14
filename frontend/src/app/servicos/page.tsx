@@ -32,13 +32,15 @@ export default function ServicosPage() {
   const [loading, setLoading] = useState(false);
   const [loadingServicos, setLoadingServicos] = useState(true);
 
+  // ✅ Carrega tipos de serviço
   useEffect(() => {
     (async () => {
       try {
+        console.log('🚀 Buscando lista de serviços no backend...');
         const r = await apiFetch('/tipos-servico');
-        console.log('📦 Retorno da API /tipos-servico:', r);
+        console.log('📦 Retorno bruto da API /tipos-servico:', r);
 
-        // ✅ Garante que `r` é array e tem o campo "nome"
+        // ✅ Garante formato consistente
         const itens = Array.isArray(r)
           ? r.map((i: any) => ({
               id: i.id,
@@ -46,6 +48,7 @@ export default function ServicosPage() {
             }))
           : [];
 
+        console.log('✅ Lista final tratada:', itens);
         setServicos(itens);
       } catch (err) {
         console.error('❌ Erro ao carregar serviços:', err);
@@ -55,12 +58,14 @@ export default function ServicosPage() {
     })();
   }, []);
 
+  // ✅ Filtro de busca
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return servicos;
     return servicos.filter((s) => s.nome.toLowerCase().includes(q));
   }, [servicos, busca]);
 
+  // ✅ Envio de agendamento
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg('');
@@ -83,12 +88,14 @@ export default function ServicosPage() {
       setMsg('✅ Agendamento criado com sucesso!');
       setForm({ tipo_servico_id: '', data: '', hora: '', endereco: '', descricao: '' });
     } catch (err: any) {
+      console.error('❌ Erro no agendamento:', err);
       setMsg(`❌ Erro: ${err.message}`);
     } finally {
       setLoading(false);
     }
   }
 
+  // ✅ Renderização condicional do catálogo
   let catalogoContent: JSX.Element;
   if (loadingServicos) {
     catalogoContent = (
@@ -118,7 +125,6 @@ export default function ServicosPage() {
                   🔧
                 </span>
               </div>
-              {/* ✅ agora renderiza o campo nome corretamente */}
               <h3 className="font-semibold text-gray-900">{s.nome}</h3>
             </div>
 
@@ -147,6 +153,7 @@ export default function ServicosPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 pb-20">
+      {/* Cabeçalho */}
       <section className="pt-24 md:pt-28">
         <div className="max-w-6xl mx-auto px-4">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 md:p-10">
@@ -167,6 +174,7 @@ export default function ServicosPage() {
               </div>
             </div>
 
+            {/* Busca */}
             <div className="mt-6">
               <label htmlFor="busca" className="sr-only">
                 Buscar serviço
@@ -183,10 +191,12 @@ export default function ServicosPage() {
         </div>
       </section>
 
+      {/* Catálogo */}
       <section className="mt-8">
         <div className="max-w-6xl mx-auto px-4">{catalogoContent}</div>
       </section>
 
+      {/* Formulário */}
       <section className="mt-10">
         <div className="max-w-6xl mx-auto px-4">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 md:p-8">
@@ -195,6 +205,7 @@ export default function ServicosPage() {
             </h2>
 
             <form onSubmit={handleSubmit} className="grid gap-4">
+              {/* Select tipo */}
               <div>
                 <label htmlFor="tipo_servico_id" className="block text-sm text-gray-700 mb-1">
                   Tipo de serviço
@@ -215,6 +226,7 @@ export default function ServicosPage() {
                 </select>
               </div>
 
+              {/* Data e hora */}
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="data" className="block text-sm text-gray-700 mb-1">
@@ -244,6 +256,7 @@ export default function ServicosPage() {
                 </div>
               </div>
 
+              {/* Endereço */}
               <div>
                 <label htmlFor="endereco" className="block text-sm text-gray-700 mb-1">
                   Endereço
@@ -258,6 +271,7 @@ export default function ServicosPage() {
                 />
               </div>
 
+              {/* Descrição */}
               <div>
                 <label htmlFor="descricao" className="block text-sm text-gray-700 mb-1">
                   Descrição (opcional)
@@ -272,6 +286,7 @@ export default function ServicosPage() {
                 />
               </div>
 
+              {/* Botões */}
               <div className="flex items-center gap-3">
                 <button
                   type="submit"
