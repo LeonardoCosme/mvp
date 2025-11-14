@@ -1,20 +1,13 @@
 // utils/api.ts
 
-// Detecta ambiente automaticamente (compatível com Vercel)
-const isProd =
-  typeof window !== "undefined"
-    ? !window.location.hostname.includes("localhost")
-    : process.env.NODE_ENV === "production";
-
-// Define o backend conforme o ambiente
-const API_BASE_URL = isProd
-  ? "https://mvp-marido-aluguel.up.railway.app/api"
-  : "http://localhost:5000/api";
+// 🔧 Sempre usar o backend hospedado na Railway
+const API_BASE_URL = "https://mvp-marido-aluguel.up.railway.app/api";
 
 export async function apiFetch(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<any> {
+  // 🔒 Garante que o endpoint não venha duplicado
   const clean = endpoint.replace(/^\/+/, "");
   const url = `${API_BASE_URL}/${clean}`;
 
@@ -28,6 +21,8 @@ export async function apiFetch(
     body = JSON.stringify(body);
   }
 
+  console.log("🌐 [apiFetch] Requisição →", url);
+
   try {
     const res = await fetch(url, {
       method: options.method || "GET",
@@ -36,18 +31,19 @@ export async function apiFetch(
       mode: "cors",
     });
 
+    console.log("📥 [apiFetch] Status:", res.status);
+
     if (!res.ok) {
-      let msg = `Erro ${res.status}`;
-      try {
-        const data = await res.json();
-        msg = data?.error || data?.message || msg;
-      } catch {}
+      const data = await res.json().catch(() => ({}));
+      const msg = data?.error || data?.message || `Erro ${res.status}`;
       throw new Error(msg);
     }
 
-    return await res.json();
+    const data = await res.json();
+    console.log("📦 [apiFetch] Dados retornados:", data);
+    return data;
   } catch (err: any) {
-    console.error("💥 Falha ao conectar com a API:", err.message);
+    console.error("💥 Erro na comunicação com a API:", err);
     throw err;
   }
 }
