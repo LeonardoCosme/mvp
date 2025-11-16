@@ -58,6 +58,13 @@ type QRPhase = 'checkin' | 'start' | 'end';
 const TIPOS_API_URL =
   'https://mvp-marido-aluguel.up.railway.app/api/tipos-servico';
 
+// 🔁 Fallback local – usado só se a API não devolver nada
+const FALLBACK_TIPOS: TTipoServico[] = [
+  { id: 1, nome: 'Elétrica básica' },
+  { id: 2, nome: 'Hidráulica básica' },
+  { id: 3, nome: 'Pintura de cômodo' },
+];
+
 /* ===== Helpers ===== */
 function fmtData(d?: string | null) {
   if (!d || typeof d !== 'string') return '--';
@@ -147,15 +154,19 @@ export default function AgendamentosPage() {
         const me = (await apiFetch('/user/me')) as TUser;
         setUser(me);
 
-        // 2) tipos de serviço – via fetch direto (igual na página Serviços)
+        // 2) tipos de serviço – tenta API, cai no fallback se vier vazio
         let itens: TTipoServico[] = [];
+
         try {
           const respTipos = await fetch(TIPOS_API_URL, { cache: 'no-store' });
           console.log(
             '[AGENDAMENTO] /tipos-servico status =',
             respTipos.status,
           );
-          const raw = await respTipos.json();
+          const raw = await respTipos.json().catch((e) => {
+            console.error('[AGENDAMENTO] erro no json() de tipos-servico', e);
+            return null;
+          });
           console.log('[AGENDAMENTO] /tipos-servico body =', raw);
 
           if (Array.isArray(raw)) itens = raw as TTipoServico[];
@@ -166,6 +177,15 @@ export default function AgendamentosPage() {
         } catch (e) {
           console.error('[AGENDAMENTO] erro ao buscar tipos-servico', e);
         }
+
+        // ➜ Se a API não devolver nada, usamos o fallback
+        if (!itens || itens.length === 0) {
+          console.warn(
+            '[AGENDAMENTO] Nenhum tipo vindo da API. Usando fallback local.',
+          );
+          itens = FALLBACK_TIPOS;
+        }
+
         setTipos(itens);
 
         if (itens.length === 0) {
@@ -477,6 +497,11 @@ export default function AgendamentosPage() {
                     </option>
                   ))}
                 </select>
+
+                {/* Mini debug visual: quantidade de tipos carregados */}
+                <p className="mt-1 text-xs text-gray-400">
+                  Tipos carregados: {tipos.length}
+                </p>
               </div>
 
               <div className="grid md:grid-cols-3 gap-3">
