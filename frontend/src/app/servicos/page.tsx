@@ -1,10 +1,11 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { getToken } from '../../utils/auth';
 
-// 🔗 URL fixa da API Railway (para testes diretos)
+// 🔗 URL fixa da API Railway
 const API_URL = 'https://mvp-marido-aluguel.up.railway.app/api/tipos-servico';
 
 type TipoServico = {
@@ -36,10 +37,12 @@ export default function ServicosPage() {
 
   // 🚀 Carrega os serviços direto da API Railway
   useEffect(() => {
+    console.log('🧩 useEffect executou no cliente');
     (async () => {
       try {
         console.log('🟠 Buscando serviços em:', API_URL);
-        const res = await fetch(API_URL);
+        const res = await fetch(API_URL, { cache: 'no-store' });
+        console.log('📬 Status da resposta:', res.status);
         if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
         const data = await res.json();
         console.log('🟢 Dados recebidos:', data);
@@ -65,7 +68,7 @@ export default function ServicosPage() {
     return servicos.filter((s) => s.nome?.toLowerCase().includes(q));
   }, [servicos, busca]);
 
-  // 🧾 Envio de agendamento (mantido igual)
+  // 🧾 Envio de agendamento
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg('');

@@ -9,7 +9,7 @@ import { getToken, removeToken } from '@/utils/auth';
 
 import Modal from '@/app/components/modal';
 import QrDisplay from '@/app/components/QrDisplay';
-import AvaliacaoModal from '@/app/components/avaliacaomodal'; 
+import AvaliacaoModal from '@/app/components/avaliacaomodal';
 
 type TUser = {
   id: number;
@@ -106,7 +106,7 @@ export default function AgendamentosPage() {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrFor, setQrFor] = useState<{ id: number; phase: QRPhase; token: string } | null>(null);
 
-  // ✅ controle do modal de avaliação + contexto (prestador/serviço)
+  // controle do modal de avaliação
   const [evalOpen, setEvalOpen] = useState(false);
   const [evalCtx, setEvalCtx] = useState<{
     agendamentoId: number;
@@ -126,6 +126,7 @@ export default function AgendamentosPage() {
     }
   }, [token, router]);
 
+  // CARREGAMENTO INICIAL (usuário + tipos + listas)
   useEffect(() => {
     if (!token) return; // já vai redirecionar
 
@@ -135,10 +136,44 @@ export default function AgendamentosPage() {
         const me = (await apiFetch('/user/me')) as TUser;
         setUser(me);
 
-        // 2) tipos de serviço (array puro ou {itens:[]})
-        const resTipos = (await apiFetch('/tipos-servico')) as { itens?: TTipoServico[] } | TTipoServico[];
-        const itens = Array.isArray(resTipos) ? resTipos : resTipos?.itens || [];
-        setTipos(itens);
+        // 2) tipos de serviço (aceita vários formatos)
+        const resTipos: any = await apiFetch('/tipos-servico');
+        console.log('DEBUG [/tipos-servico] resposta bruta =>', resTipos);
+
+        let lista: any[] = [];
+
+        if (Array.isArray(resTipos)) {
+          lista = resTipos;
+        } else if (Array.isArray(resTipos?.itens)) {
+          lista = resTipos.itens;
+        } else if (Array.isArray(resTipos?.tipos)) {
+          lista = resTipos.tipos;
+        } else if (Array.isArray(resTipos?.data)) {
+          lista = resTipos.data;
+        }
+
+        const normalizados: TTipoServico[] = lista
+          .map((item) => ({
+            id: Number(item.id),
+            nomeServico:
+              item.nomeServico ??
+              item.nome_servico ??
+              item.nome ??
+              item.descricao ??
+              '',
+          }))
+          .filter((t) => t.id && t.nomeServico);
+
+        console.log('DEBUG [/tipos-servico] normalizados =>', normalizados);
+
+        setTipos(normalizados);
+
+        if (normalizados.length === 0) {
+          setMsg((prev) =>
+            prev ||
+            '⚠ Nenhum tipo de serviço cadastrado. Cadastre um tipo em "Serviços" antes de criar agendamentos.'
+          );
+        }
 
         // 3) listas conforme perfil
         if (me.tipo === 'prestador') {
@@ -176,7 +211,7 @@ export default function AgendamentosPage() {
     })();
   }, [token, router]);
 
-  // ✅ polling de status para o CONTRATANTE (abre modal com nomes)
+  // polling de status para o CONTRATANTE (modal de avaliação automático)
   useEffect(() => {
     if (!isContratante) return;
     if (!meusAceitos || meusAceitos.length === 0) return;
@@ -205,8 +240,8 @@ export default function AgendamentosPage() {
         if (alvo && !evalOpen) {
           setEvalCtx({
             agendamentoId: alvo.r.id,
-            prestadorNome: alvo.r.prestador_nome, // vindo do backend
-            servicoNome: alvo.r.tipo_nome, // vindo do backend
+            prestadorNome: alvo.r.prestador_nome,
+            servicoNome: alvo.r.tipo_nome,
           });
           setEvalOpen(true);
         }
@@ -217,7 +252,7 @@ export default function AgendamentosPage() {
       if (!stop) setTimeout(tick, 5000);
     }
 
-    tick(); // primeira chamada
+    tick();
     return () => {
       stop = true;
     };
@@ -299,7 +334,6 @@ export default function AgendamentosPage() {
     }
   }
 
-  // (opcional) abrir avaliação manualmente
   async function abrirAvaliacao(agId: number) {
     try {
       const st = await apiFetch(`/agendamentos/${agId}/status`);
@@ -349,7 +383,6 @@ export default function AgendamentosPage() {
               ← Voltar para a home
             </Link>
 
-            {/* ✅ Botão no header só para contratante */}
             {isContratante && (
               <Link
                 href="/historico-avaliacoes"
@@ -373,7 +406,6 @@ export default function AgendamentosPage() {
           </div>
         )}
 
-        {/* Dica se logou como prestador mas não tem perfil em `prestadores` */}
         {isPrestador && hintPrestador && (
           <div className="rounded-xl p-3 text-sm bg-yellow-50 text-yellow-800 border border-yellow-200">
             Seu usuário é do tipo <b>prestador</b>, mas não encontramos seu perfil na tabela de prestadores.
@@ -381,7 +413,7 @@ export default function AgendamentosPage() {
           </div>
         )}
 
-        {/* CONTRATANTE */}
+        {/* CONTRATANTE - NOVO AGENDAMENTO */}
         {isContratante && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
             <h2 className="text-lg font-semibold text-[#8F1D14] mb-4">Novo agendamento</h2>
@@ -586,7 +618,6 @@ export default function AgendamentosPage() {
         {/* CONTRATANTE: lista */}
         {isContratante && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            {/* ✅ Barra de título com o atalho para histórico */}
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-lg font-semibold text-[#8F1D14]">Meus agendamentos</h2>
               <Link
@@ -659,7 +690,6 @@ export default function AgendamentosPage() {
                             QR Término
                           </button>
 
-                          {/* Botão manual de avaliação após término */}
                           {stepEnd && (
                             <button
                               type="button"
@@ -705,13 +735,12 @@ export default function AgendamentosPage() {
         )}
       </Modal>
 
-      {/* ✅ Modal de Avaliação (cliente) */}
+      {/* Modal de Avaliação (cliente) */}
       <AvaliacaoModal
         agendamentoId={evalCtx?.agendamentoId ?? 0}
         open={evalOpen && !!evalCtx}
         onClose={() => setEvalOpen(false)}
         onSuccess={async () => {
-          // marca como avaliado e recarrega lista do cliente
           if (evalCtx?.agendamentoId) {
             setAvaliados((prev) => new Set(prev).add(evalCtx.agendamentoId));
           }

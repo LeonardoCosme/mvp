@@ -1,33 +1,41 @@
-// ✅ Imports principais
-import express from "express";
-import cors from "cors";
-import http from "node:http";
+// ✅ Carrega variáveis de ambiente logo no início (antes de qualquer import)
 import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, ".env") });
+
+// -------------------------------------------
+// Agora os demais imports podem vir tranquilos
+// -------------------------------------------
+
+import express from "express";
+import cors from "cors";
+import http from "node:http";
 import models from "./src/models/index.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { Resend } from "resend";
-import routes from "./src/routes/index.js"; // 👈 Importa rotas antigas
+import routes from "./src/routes/index.js";
+
+// ✅ Verifica se DATABASE_URL foi carregada
+if (!process.env.DATABASE_URL) {
+  console.error("❌ DATABASE_URL não encontrada! Verifique seu arquivo .env");
+  process.exit(1);
+}
+
+console.log(`🌎 Ambiente: ${process.env.NODE_ENV || "desconhecido"}`);
+console.log("📁 .env carregado com sucesso");
+console.log("🧩 Remetente configurado:", process.env.RESEND_FROM || "(nenhum)");
+console.log("🗄️ Banco:", process.env.DATABASE_URL.split("@").pop());
 
 // ✅ Configura Resend (envio de e-mail)
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// ⚙️ Carrega variáveis do .env
-dotenv.config({ path: path.resolve(__dirname, ".env") });
-
-// ✅ Verifica ambiente
-const isProduction = process.env.NODE_ENV === "production";
-console.log(isProduction ? "🚀 Ambiente: Produção" : "🧩 Ambiente: Desenvolvimento");
-console.log("🧩 Remetente configurado:", process.env.RESEND_FROM);
-
 const app = express();
 
-// ✅ Configuração de CORS (para Railway + Vercel)
+// ✅ Configuração de CORS
 app.use(
   cors({
     origin: [
@@ -44,7 +52,7 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ Log simples de diagnóstico
+// ✅ Log de requisições
 app.use((req, res, next) => {
   if (req.path.startsWith("/api")) {
     console.log(`➡️ [${req.method}] ${req.path}`);
@@ -67,7 +75,7 @@ function autenticarToken(req, res, next) {
   });
 }
 
-// ✅ Rotas principais (auth, login, tipos de serviço)
+// ✅ /api/auth/register
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { nomeUsuario, email, senha, password, tipo, cpfUsuario } = req.body;
@@ -101,6 +109,7 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
+// ✅ /api/login
 app.post("/api/login", async (req, res) => {
   try {
     const { email, senha, password } = req.body;
@@ -139,7 +148,7 @@ app.get("/api/tipos-servico", async (_req, res) => {
   }
 });
 
-// ✅ Usa as rotas adicionais centralizadas
+// ✅ Rotas adicionais
 app.use("/api", routes);
 
 // ✅ Rotas de teste
