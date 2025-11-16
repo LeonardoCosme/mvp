@@ -18,7 +18,11 @@ type TUser = {
   tipo: 'master' | 'prestador' | 'contratante';
 };
 
-type TTipoServico = { id: number; nomeServico: string };
+// deixamos só a garantia de que existe um id, o resto é flexível
+type TTipoServico = {
+  id: number;
+  [key: string]: any;
+};
 
 type TAgendamento = {
   id: number;
@@ -75,6 +79,21 @@ function fmtDateTime(dt?: string | null) {
   const dia = d.toLocaleDateString('pt-BR');
   const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   return `${dia} ${hora}`;
+}
+
+// Pega o nome do serviço, independente de qual seja o campo usado no backend
+function nomeTipoServico(raw?: TTipoServico | null): string {
+  if (!raw) return 'Serviço';
+  return (
+    raw.nomeServico ??
+    raw.nome_servico ??
+    raw.tipoServico ??
+    raw.tipo_servico ??
+    raw.nome ??
+    raw.descricao ??
+    raw.titulo ??
+    'Serviço'
+  );
 }
 
 export default function AgendamentosPage() {
@@ -140,35 +159,22 @@ export default function AgendamentosPage() {
         const resTipos: any = await apiFetch('/tipos-servico');
         console.log('DEBUG [/tipos-servico] resposta bruta =>', resTipos);
 
-        let lista: any[] = [];
+        let itens: TTipoServico[] = [];
 
         if (Array.isArray(resTipos)) {
-          lista = resTipos;
+          itens = resTipos as TTipoServico[];
         } else if (Array.isArray(resTipos?.itens)) {
-          lista = resTipos.itens;
+          itens = resTipos.itens as TTipoServico[];
         } else if (Array.isArray(resTipos?.tipos)) {
-          lista = resTipos.tipos;
+          itens = resTipos.tipos as TTipoServico[];
         } else if (Array.isArray(resTipos?.data)) {
-          lista = resTipos.data;
+          itens = resTipos.data as TTipoServico[];
         }
 
-        const normalizados: TTipoServico[] = lista
-          .map((item) => ({
-            id: Number(item.id),
-            nomeServico:
-              item.nomeServico ??
-              item.nome_servico ??
-              item.nome ??
-              item.descricao ??
-              '',
-          }))
-          .filter((t) => t.id && t.nomeServico);
+        console.log('DEBUG [/tipos-servico] itens usados no front =>', itens);
+        setTipos(itens);
 
-        console.log('DEBUG [/tipos-servico] normalizados =>', normalizados);
-
-        setTipos(normalizados);
-
-        if (normalizados.length === 0) {
+        if (itens.length === 0) {
           setMsg((prev) =>
             prev ||
             '⚠ Nenhum tipo de serviço cadastrado. Cadastre um tipo em "Serviços" antes de criar agendamentos.'
@@ -432,7 +438,7 @@ export default function AgendamentosPage() {
                   <option value="">Selecione</option>
                   {tipos.map((t) => (
                     <option key={t.id} value={t.id}>
-                      {t.nomeServico}
+                      {nomeTipoServico(t)}
                     </option>
                   ))}
                 </select>
@@ -534,7 +540,7 @@ export default function AgendamentosPage() {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="font-semibold">
-                          {tipos.find((t) => t.id === ag.tipo_servico_id)?.nomeServico || 'Serviço'} —{' '}
+                          {nomeTipoServico(tipos.find((t) => t.id === ag.tipo_servico_id))} —{' '}
                           <span className="text-gray-600">{labelStatus(ag.status)}</span>
                         </p>
                         <p className="text-gray-700">
@@ -576,7 +582,7 @@ export default function AgendamentosPage() {
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div>
                           <p className="font-semibold">
-                            {tipos.find((t) => t.id === ag.tipo_servico_id)?.nomeServico || 'Serviço'} —{' '}
+                            {nomeTipoServico(tipos.find((t) => t.id === ag.tipo_servico_id))} —{' '}
                             <span className="text-gray-600">{labelStatus(ag.status)}</span>
                           </p>
                           <p className="text-gray-700">
@@ -618,7 +624,7 @@ export default function AgendamentosPage() {
         {/* CONTRATANTE: lista */}
         {isContratante && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="mb-3 flex items-center justify_between gap-3">
               <h2 className="text-lg font-semibold text-[#8F1D14]">Meus agendamentos</h2>
               <Link
                 href="/historico-avaliacoes"
@@ -642,7 +648,7 @@ export default function AgendamentosPage() {
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div>
                           <p className="font-semibold">
-                            {tipos.find((t) => t.id === ag.tipo_servico_id)?.nomeServico || 'Serviço'} —{' '}
+                            {nomeTipoServico(tipos.find((t) => t.id === ag.tipo_servico_id))} —{' '}
                             <span className="text-gray-600">{labelStatus(ag.status)}</span>
                           </p>
                           <p className="text-gray-700">
