@@ -18,7 +18,7 @@ type TUser = {
   tipo: 'master' | 'prestador' | 'contratante';
 };
 
-// deixamos só a garantia de que existe um id, o resto é flexível
+// Tipo flexível: sabemos só que tem um id
 type TTipoServico = {
   id: number;
   [key: string]: any;
@@ -56,13 +56,6 @@ type FormNovo = {
 
 type QRPhase = 'checkin' | 'start' | 'end';
 
-/** Fallback local: se a API não devolver tipos, usamos esses */
-const FALLBACK_TIPOS: TTipoServico[] = [
-  { id: 1, nome: 'Elétrica básica' },
-  { id: 2, nome: 'Hidráulica básica' },
-  { id: 3, nome: 'Pintura de cômodo' },
-];
-
 /* ===== Helpers ===== */
 function fmtData(d?: string | null) {
   if (!d || typeof d !== 'string') return '--';
@@ -88,15 +81,15 @@ function fmtDateTime(dt?: string | null) {
   return `${dia} ${hora}`;
 }
 
-// Pega o nome do serviço, independente de qual seja o campo usado no backend
+// Pega o nome do serviço, independente do campo no backend
 function nomeTipoServico(raw?: TTipoServico | null): string {
   if (!raw) return 'Serviço';
   return (
-    raw.nome ??
     raw.nomeServico ??
     raw.nome_servico ??
     raw.tipoServico ??
     raw.tipo_servico ??
+    raw.nome ??
     raw.descricao ??
     raw.titulo ??
     'Serviço'
@@ -106,7 +99,6 @@ function nomeTipoServico(raw?: TTipoServico | null): string {
 export default function AgendamentosPage() {
   const router = useRouter();
 
-  // guard: se não tiver token, nem tenta carregar
   const token = useMemo(() => getToken(), []);
   const [redirecting, setRedirecting] = useState(false);
 
@@ -132,7 +124,7 @@ export default function AgendamentosPage() {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrFor, setQrFor] = useState<{ id: number; phase: QRPhase; token: string } | null>(null);
 
-  // controle do modal de avaliação
+  // Modal de avaliação
   const [evalOpen, setEvalOpen] = useState(false);
   const [evalCtx, setEvalCtx] = useState<{
     agendamentoId: number;
@@ -144,8 +136,23 @@ export default function AgendamentosPage() {
   const isPrestador = useMemo(() => user?.tipo === 'prestador', [user]);
   const isContratante = useMemo(() => user?.tipo === 'contratante', [user]);
 
-  // se não veio nada da API, usamos o fallback
-  const tiposParaSelect = tipos.length ? tipos : FALLBACK_TIPOS;
+  // Fallback para quando a API não devolver nada
+  const tiposParaSelect = useMemo<TTipoServico[]>(() => {
+    if (tipos && tipos.length > 0) return tipos;
+
+    const fallback = [
+      { id: 1, nome: 'Elétrica básica' },
+      { id: 2, nome: 'Hidráulica básica' },
+      { id: 3, nome: 'Pintura de cômodo' },
+    ];
+
+    console.log(
+      '⚠ tipos vazio, usando fallback local =>',
+      fallback.map((f) => ({ id: f.id, nome: f.nome }))
+    );
+
+    return fallback;
+  }, [tipos]);
 
   // redireciona para login se não houver token
   useEffect(() => {
@@ -157,7 +164,7 @@ export default function AgendamentosPage() {
 
   // CARREGAMENTO INICIAL (usuário + tipos + listas)
   useEffect(() => {
-    if (!token) return; // já vai redirecionar
+    if (!token) return;
 
     (async () => {
       try {
@@ -432,7 +439,7 @@ export default function AgendamentosPage() {
         {/* CONTRATANTE - NOVO AGENDAMENTO */}
         {isContratante && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold text-[#8F1D14] mb-4">Novo agendamento</h2>
+            <h2 className="text-lg font-semibold text-[#8F1D14] mb-4">Novo agendamento (VERSÃO NOVA)</h2>
             <form onSubmit={criarAgendamento} className="grid gap-3">
               <div>
                 <label htmlFor="tipo_servico_id" className="block text-sm text-gray-700 mb-1">
@@ -446,6 +453,10 @@ export default function AgendamentosPage() {
                   onChange={(e) => setForm((p) => ({ ...p, tipo_servico_id: e.target.value }))}
                 >
                   <option value="">Selecione</option>
+
+                  {/* OPTION FIXA DE TESTE - pode remover depois que tudo estiver OK */}
+                  <option value="teste-fixo">🔧 Serviço de teste FIXO</option>
+
                   {tiposParaSelect.map((t) => (
                     <option key={t.id} value={t.id}>
                       {nomeTipoServico(t)}
@@ -453,6 +464,7 @@ export default function AgendamentosPage() {
                   ))}
                 </select>
 
+                {/* Debug de contagem no front */}
                 <p className="mt-1 text-xs text-gray-400">
                   Tipos (state): {tipos.length} / Exibidos: {tiposParaSelect.length}
                 </p>
@@ -554,7 +566,7 @@ export default function AgendamentosPage() {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="font-semibold">
-                          {nomeTipoServico(tipos.find((t) => t.id === ag.tipo_servico_id))} —{' '}
+                          {nomeTipoServico(tiposParaSelect.find((t) => t.id === ag.tipo_servico_id))} —{' '}
                           <span className="text-gray-600">{labelStatus(ag.status)}</span>
                         </p>
                         <p className="text-gray-700">
@@ -596,7 +608,7 @@ export default function AgendamentosPage() {
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div>
                           <p className="font-semibold">
-                            {nomeTipoServico(tipos.find((t) => t.id === ag.tipo_servico_id))} —{' '}
+                            {nomeTipoServico(tiposParaSelect.find((t) => t.id === ag.tipo_servico_id))} —{' '}
                             <span className="text-gray-600">{labelStatus(ag.status)}</span>
                           </p>
                           <p className="text-gray-700">
@@ -662,7 +674,7 @@ export default function AgendamentosPage() {
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div>
                           <p className="font-semibold">
-                            {nomeTipoServico(tipos.find((t) => t.id === ag.tipo_servico_id))} —{' '}
+                            {nomeTipoServico(tiposParaSelect.find((t) => t.id === ag.tipo_servico_id))} —{' '}
                             <span className="text-gray-600">{labelStatus(ag.status)}</span>
                           </p>
                           <p className="text-gray-700">
