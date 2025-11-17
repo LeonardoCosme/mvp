@@ -1,4 +1,3 @@
-// página de Agendamentos
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -18,6 +17,7 @@ type TUser = {
   tipo: 'master' | 'prestador' | 'contratante';
 };
 
+// Tipos de serviço: garantimos só o id, o resto é flexível
 type TTipoServico = {
   id: number;
   [key: string]: any;
@@ -76,10 +76,14 @@ function fmtDateTime(dt?: string | null) {
   const d = new Date(dt);
   if (Number.isNaN(d.getTime())) return dt;
   const dia = d.toLocaleDateString('pt-BR');
-  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const hora = d.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
   return `${dia} ${hora}`;
 }
 
+// Pega o nome do serviço independente do campo que o backend enviar
 function nomeTipoServico(raw?: TTipoServico | null): string {
   if (!raw) return 'Serviço';
   return (
@@ -97,6 +101,7 @@ function nomeTipoServico(raw?: TTipoServico | null): string {
 export default function AgendamentosPage() {
   const router = useRouter();
 
+  // Captura o token apenas uma vez
   const token = useMemo(() => getToken(), []);
   const [redirecting, setRedirecting] = useState(false);
 
@@ -120,8 +125,13 @@ export default function AgendamentosPage() {
 
   const [qrOpen, setQrOpen] = useState(false);
   const [qrLoading, setQrLoading] = useState(false);
-  const [qrFor, setQrFor] = useState<{ id: number; phase: QRPhase; token: string } | null>(null);
+  const [qrFor, setQrFor] = useState<{
+    id: number;
+    phase: QRPhase;
+    token: string;
+  } | null>(null);
 
+  // controle do modal de avaliação
   const [evalOpen, setEvalOpen] = useState(false);
   const [evalCtx, setEvalCtx] = useState<{
     agendamentoId: number;
@@ -133,19 +143,7 @@ export default function AgendamentosPage() {
   const isPrestador = useMemo(() => user?.tipo === 'prestador', [user]);
   const isContratante = useMemo(() => user?.tipo === 'contratante', [user]);
 
-  // Fallback local se a API não devolver nada
-  const tiposParaSelect = useMemo<TTipoServico[]>(() => {
-    if (tipos && tipos.length > 0) {
-      return tipos;
-    }
-    return [
-      { id: 1, nome: 'Elétrica básica' },
-      { id: 2, nome: 'Hidráulica básica' },
-      { id: 3, nome: 'Pintura de cômodo' },
-    ];
-  }, [tipos]);
-
-  // redireciona para login se não houver token
+  // Redireciona para login se não houver token
   useEffect(() => {
     if (!token) {
       setRedirecting(true);
@@ -155,14 +153,23 @@ export default function AgendamentosPage() {
 
   // CARREGAMENTO INICIAL (usuário + tipos + listas)
   useEffect(() => {
-    if (!token) return;
+    if (!token) return; // já vai redirecionar
 
     (async () => {
       try {
+        console.log(
+          '[Agendamento] BASE URL =>',
+          process.env.NEXT_PUBLIC_API_BASE_URL
+        );
+
+        // 1) usuário
         const me = (await apiFetch('/user/me')) as TUser;
         setUser(me);
 
+        // 2) tipos de serviço (aceita vários formatos)
         const resTipos: any = await apiFetch('/tipos-servico');
+        console.log('DEBUG [/tipos-servico] resposta bruta =>', resTipos);
+
         let itens: TTipoServico[] = [];
 
         if (Array.isArray(resTipos)) {
@@ -175,6 +182,10 @@ export default function AgendamentosPage() {
           itens = resTipos.data as TTipoServico[];
         }
 
+        console.log(
+          'DEBUG [/tipos-servico] itens usados no front =>',
+          itens
+        );
         setTipos(itens);
 
         if (itens.length === 0) {
@@ -184,6 +195,7 @@ export default function AgendamentosPage() {
           );
         }
 
+        // 3) listas conforme perfil
         if (me.tipo === 'prestador') {
           try {
             const [pend, meus] = await Promise.all([
@@ -194,14 +206,19 @@ export default function AgendamentosPage() {
             setMeusAceitos(Array.isArray(meus) ? meus : []);
           } catch (e: any) {
             const t = String(e?.message || '');
-            if (t.toLowerCase().includes('prestador') && t.toLowerCase().includes('não encontrado')) {
+            if (
+              t.toLowerCase().includes('prestador') &&
+              t.toLowerCase().includes('não encontrado')
+            ) {
               setHintPrestador(true);
             } else {
               setMsg(t || 'Erro ao carregar agendamentos do prestador.');
             }
           }
         } else {
-          const meus = (await apiFetch('/agendamentos/cliente')) as TAgendamento[];
+          const meus = (await apiFetch(
+            '/agendamentos/cliente'
+          )) as TAgendamento[];
           setPendentes([]);
           setMeusAceitos(Array.isArray(meus) ? meus : []);
         }
@@ -219,7 +236,7 @@ export default function AgendamentosPage() {
     })();
   }, [token, router]);
 
-  // polling de status p/ CONTRATANTE abrir modal de avaliação
+  // Polling de status para o CONTRATANTE (modal de avaliação automático)
   useEffect(() => {
     if (!isContratante) return;
     if (!meusAceitos || meusAceitos.length === 0) return;
@@ -242,7 +259,11 @@ export default function AgendamentosPage() {
         );
 
         const alvo = checks.find(
-          (x) => x.r && x.r.status === 'concluida' && !x.r.avaliado && !avaliados.has(x.id)
+          (x) =>
+            x.r &&
+            x.r.status === 'concluida' &&
+            !x.r.avaliado &&
+            !avaliados.has(x.id)
         );
 
         if (alvo && !evalOpen) {
@@ -254,7 +275,7 @@ export default function AgendamentosPage() {
           setEvalOpen(true);
         }
       } catch {
-        /* silencioso */
+        // silencioso
       }
 
       if (!stop) setTimeout(tick, 5000);
@@ -284,15 +305,33 @@ export default function AgendamentosPage() {
         hora: form.hora,
         endereco: form.endereco.trim(),
         descricao: form.descricao.trim(),
-        duracao_horas: form.duracao_horas ? Number(form.duracao_horas.replace(',', '.')) : undefined,
+        duracao_horas: form.duracao_horas
+          ? Number(form.duracao_horas.replace(',', '.'))
+          : undefined,
       };
-      await apiFetch('/agendamentos', { method: 'POST', body: JSON.stringify(payload) });
-      setMsg('✅ Agendamento criado como pendente! Um prestador poderá aceitá-lo em breve.');
 
-      const meus = (await apiFetch('/agendamentos/cliente')) as TAgendamento[];
+      await apiFetch('/agendamentos', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      setMsg(
+        '✅ Agendamento criado como pendente! Um prestador poderá aceitá-lo em breve.'
+      );
+
+      const meus = (await apiFetch(
+        '/agendamentos/cliente'
+      )) as TAgendamento[];
       setMeusAceitos(Array.isArray(meus) ? meus : []);
 
-      setForm({ tipo_servico_id: '', data: '', hora: '', endereco: '', descricao: '', duracao_horas: '' });
+      setForm({
+        tipo_servico_id: '',
+        data: '',
+        hora: '',
+        endereco: '',
+        descricao: '',
+        duracao_horas: '',
+      });
     } catch (e: any) {
       setMsg(`❌ ${e?.message || 'Erro ao criar agendamento.'}`);
     } finally {
@@ -303,7 +342,9 @@ export default function AgendamentosPage() {
   async function aceitar(id: number) {
     setMsg('');
     try {
-      const r = await apiFetch(`/agendamentos/${id}/aceitar`, { method: 'POST' });
+      const r = await apiFetch(`/agendamentos/${id}/aceitar`, {
+        method: 'POST',
+      });
       if (r?.id) {
         router.push(`/agendamento/${r.id}/scanner`);
         return;
@@ -326,7 +367,9 @@ export default function AgendamentosPage() {
       setQrOpen(true);
       setQrFor(null);
 
-      const r = (await apiFetch(`/agendamentos/${agId}/qrcode?phase=${phase}`)) as {
+      const r = (await apiFetch(
+        `/agendamentos/${agId}/qrcode?phase=${phase}`
+      )) as {
         id: number;
         phase: QRPhase;
         token: string;
@@ -383,11 +426,18 @@ export default function AgendamentosPage() {
       <div className="mx-auto max-w-5xl space-y-8">
         <header className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-[#8F1D14]">Agendamentos</h1>
-            <p className="text-gray-600 capitalize">Perfil: {user.tipo}</p>
+            <h1 className="text-2xl font-bold text-[#8F1D14]">
+              Agendamentos
+            </h1>
+            <p className="text-gray-600 capitalize">
+              Perfil: {user.tipo}
+            </p>
           </div>
           <div className="text-sm flex items-center gap-2">
-            <Link href="/home" className="text-[#8F1D14] underline hover:opacity-80">
+            <Link
+              href="/home"
+              className="text-[#8F1D14] underline hover:opacity-80"
+            >
               ← Voltar para a home
             </Link>
 
@@ -416,18 +466,25 @@ export default function AgendamentosPage() {
 
         {isPrestador && hintPrestador && (
           <div className="rounded-xl p-3 text-sm bg-yellow-50 text-yellow-800 border border-yellow-200">
-            Seu usuário é do tipo <b>prestador</b>, mas não encontramos seu perfil na tabela de prestadores.
-            Abra sua página de perfil/cadastro de prestador e complete os dados para conseguir aceitar serviços.
+            Seu usuário é do tipo <b>prestador</b>, mas não encontramos seu
+            perfil na tabela de prestadores. Abra sua página de
+            perfil/cadastro de prestador e complete os dados para conseguir
+            aceitar serviços.
           </div>
         )}
 
         {/* CONTRATANTE - NOVO AGENDAMENTO */}
         {isContratante && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold text-[#8F1D14] mb-4">Novo agendamento</h2>
+            <h2 className="text-lg font-semibold text-[#8F1D14] mb-4">
+              Novo agendamento
+            </h2>
             <form onSubmit={criarAgendamento} className="grid gap-3">
               <div>
-                <label htmlFor="tipo_servico_id" className="block text-sm text-gray-700 mb-1">
+                <label
+                  htmlFor="tipo_servico_id"
+                  className="block text-sm text-gray-700 mb-1"
+                >
                   Tipo de serviço
                 </label>
                 <select
@@ -435,10 +492,15 @@ export default function AgendamentosPage() {
                   required
                   className="w-full border rounded-lg px-3 py-2"
                   value={form.tipo_servico_id}
-                  onChange={(e) => setForm((p) => ({ ...p, tipo_servico_id: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      tipo_servico_id: e.target.value,
+                    }))
+                  }
                 >
                   <option value="">Selecione</option>
-                  {tiposParaSelect.map((t) => (
+                  {tipos.map((t) => (
                     <option key={t.id} value={t.id}>
                       {nomeTipoServico(t)}
                     </option>
@@ -448,7 +510,10 @@ export default function AgendamentosPage() {
 
               <div className="grid md:grid-cols-3 gap-3">
                 <div>
-                  <label htmlFor="data" className="block text-sm text-gray-700 mb-1">
+                  <label
+                    htmlFor="data"
+                    className="block text-sm text-gray-700 mb-1"
+                  >
                     Data
                   </label>
                   <input
@@ -457,11 +522,16 @@ export default function AgendamentosPage() {
                     required
                     className="w-full border rounded-lg px-3 py-2"
                     value={form.data}
-                    onChange={(e) => setForm((p) => ({ ...p, data: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, data: e.target.value }))
+                    }
                   />
                 </div>
                 <div>
-                  <label htmlFor="hora" className="block text-sm text-gray-700 mb-1">
+                  <label
+                    htmlFor="hora"
+                    className="block text-sm text-gray-700 mb-1"
+                  >
                     Hora
                   </label>
                   <input
@@ -470,11 +540,16 @@ export default function AgendamentosPage() {
                     required
                     className="w-full border rounded-lg px-3 py-2"
                     value={form.hora}
-                    onChange={(e) => setForm((p) => ({ ...p, hora: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, hora: e.target.value }))
+                    }
                   />
                 </div>
                 <div>
-                  <label htmlFor="duracao_horas" className="block text-sm text-gray-700 mb-1">
+                  <label
+                    htmlFor="duracao_horas"
+                    className="block text-sm text-gray-700 mb-1"
+                  >
                     Duração (h) — opcional
                   </label>
                   <input
@@ -484,14 +559,22 @@ export default function AgendamentosPage() {
                     min="0.5"
                     className="w-full border rounded-lg px-3 py-2"
                     value={form.duracao_horas}
-                    onChange={(e) => setForm((p) => ({ ...p, duracao_horas: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        duracao_horas: e.target.value,
+                      }))
+                    }
                     placeholder="ex.: 1.5"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="endereco" className="block text-sm text-gray-700 mb-1">
+                <label
+                  htmlFor="endereco"
+                  className="block text-sm text-gray-700 mb-1"
+                >
                   Endereço
                 </label>
                 <input
@@ -499,13 +582,18 @@ export default function AgendamentosPage() {
                   required
                   className="w-full border rounded-lg px-3 py-2"
                   value={form.endereco}
-                  onChange={(e) => setForm((p) => ({ ...p, endereco: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, endereco: e.target.value }))
+                  }
                   placeholder="Rua, nº, bairro"
                 />
               </div>
 
               <div>
-                <label htmlFor="descricao" className="block text-sm text-gray-700 mb-1">
+                <label
+                  htmlFor="descricao"
+                  className="block text-sm text-gray-700 mb-1"
+                >
                   Descrição (opcional)
                 </label>
                 <textarea
@@ -513,7 +601,9 @@ export default function AgendamentosPage() {
                   rows={3}
                   className="w-full border rounded-lg px-3 py-2"
                   value={form.descricao}
-                  onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, descricao: e.target.value }))
+                  }
                   placeholder="Detalhes do serviço"
                 />
               </div>
@@ -532,24 +622,43 @@ export default function AgendamentosPage() {
         {/* PRESTADOR: PENDENTES */}
         {isPrestador && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold text-[#8F1D14] mb-3">Agendamentos pendentes</h2>
+            <h2 className="text-lg font-semibold text-[#8F1D14] mb-3">
+              Agendamentos pendentes
+            </h2>
             {pendentes.length === 0 ? (
               <p className="text-gray-600">Nenhum pendente.</p>
             ) : (
               <ul className="grid gap-3">
                 {pendentes.map((ag) => (
-                  <li key={ag.id} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
+                  <li
+                    key={ag.id}
+                    className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm"
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="font-semibold">
-                          {nomeTipoServico(tiposParaSelect.find((t) => t.id === ag.tipo_servico_id))} —{' '}
-                          <span className="text-gray-600">{labelStatus(ag.status)}</span>
+                          {
+                            nomeTipoServico(
+                              tipos.find(
+                                (t) => t.id === ag.tipo_servico_id
+                              )
+                            )
+                          }{' '}
+                          —{' '}
+                          <span className="text-gray-600">
+                            {labelStatus(ag.status)}
+                          </span>
                         </p>
                         <p className="text-gray-700">
-                          {fmtData(ag.data_servico)} · {fmtHora(ag.hora_servico)}
-                          {ag.duracao_horas ? ` · ${ag.duracao_horas}h` : ''}
+                          {fmtData(ag.data_servico)} ·{' '}
+                          {fmtHora(ag.hora_servico)}
+                          {ag.duracao_horas
+                            ? ` · ${ag.duracao_horas}h`
+                            : ''}
                         </p>
-                        {ag.endereco && <p className="text-gray-600">{ag.endereco}</p>}
+                        {ag.endereco && (
+                          <p className="text-gray-600">{ag.endereco}</p>
+                        )}
                       </div>
                       <button
                         type="button"
@@ -569,9 +678,13 @@ export default function AgendamentosPage() {
         {/* PRESTADOR: MEUS ACEITOS */}
         {isPrestador && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold text-[#8F1D14] mb-3">Meus agendamentos aceitos</h2>
+            <h2 className="text-lg font-semibold text-[#8F1D14] mb-3">
+              Meus agendamentos aceitos
+            </h2>
             {meusAceitos.length === 0 ? (
-              <p className="text-gray-600">Você ainda não aceitou nenhum.</p>
+              <p className="text-gray-600">
+                Você ainda não aceitou nenhum.
+              </p>
             ) : (
               <ul className="grid gap-3">
                 {meusAceitos.map((ag) => {
@@ -580,30 +693,68 @@ export default function AgendamentosPage() {
                   const stepEnd = !!(ag.end_at || ag.end_used);
 
                   return (
-                    <li key={ag.id} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
+                    <li
+                      key={ag.id}
+                      className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm"
+                    >
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div>
                           <p className="font-semibold">
-                            {nomeTipoServico(tiposParaSelect.find((t) => t.id === ag.tipo_servico_id))} —{' '}
-                            <span className="text-gray-600">{labelStatus(ag.status)}</span>
+                            {
+                              nomeTipoServico(
+                                tipos.find(
+                                  (t) => t.id === ag.tipo_servico_id
+                                )
+                              )
+                            }{' '}
+                            —{' '}
+                            <span className="text-gray-600">
+                              {labelStatus(ag.status)}
+                            </span>
                           </p>
                           <p className="text-gray-700">
-                            {fmtData(ag.data_servico)} · {fmtHora(ag.hora_servico)}
-                            {ag.duracao_horas ? ` · ${ag.duracao_horas}h` : ''}
+                            {fmtData(ag.data_servico)} ·{' '}
+                            {fmtHora(ag.hora_servico)}
+                            {ag.duracao_horas
+                              ? ` · ${ag.duracao_horas}h`
+                              : ''}
                           </p>
-                          {ag.endereco && <p className="text-gray-600">{ag.endereco}</p>}
+                          {ag.endereco && (
+                            <p className="text-gray-600">{ag.endereco}</p>
+                          )}
 
                           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-                            <span className={`${chipBase} ${stepCheckin ? chipOn : chipOff}`}>
-                              Check-in {ag.checkin_at ? `(${fmtDateTime(ag.checkin_at)})` : ''}
+                            <span
+                              className={`${chipBase} ${
+                                stepCheckin ? chipOn : chipOff
+                              }`}
+                            >
+                              Check-in{' '}
+                              {ag.checkin_at
+                                ? `(${fmtDateTime(ag.checkin_at)})`
+                                : ''}
                             </span>
                             <span className="text-gray-300">→</span>
-                            <span className={`${chipBase} ${stepStart ? chipOn : chipOff}`}>
-                              Início {ag.start_at ? `(${fmtDateTime(ag.start_at)})` : ''}
+                            <span
+                              className={`${chipBase} ${
+                                stepStart ? chipOn : chipOff
+                              }`}
+                            >
+                              Início{' '}
+                              {ag.start_at
+                                ? `(${fmtDateTime(ag.start_at)})`
+                                : ''}
                             </span>
                             <span className="text-gray-300">→</span>
-                            <span className={`${chipBase} ${stepEnd ? chipOn : chipOff}`}>
-                              Término {ag.end_at ? `(${fmtDateTime(ag.end_at)})` : ''}
+                            <span
+                              className={`${chipBase} ${
+                                stepEnd ? chipOn : chipOff
+                              }`}
+                            >
+                              Término{' '}
+                              {ag.end_at
+                                ? `(${fmtDateTime(ag.end_at)})`
+                                : ''}
                             </span>
                           </div>
                         </div>
@@ -626,8 +777,10 @@ export default function AgendamentosPage() {
         {/* CONTRATANTE: lista */}
         {isContratante && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-[#8F1D14]">Meus agendamentos</h2>
+            <div className="mb-3 flex items-center justify_between gap-3">
+              <h2 className="text-lg font-semibold text-[#8F1D14]">
+                Meus agendamentos
+              </h2>
               <Link
                 href="/historico-avaliacoes"
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
@@ -637,7 +790,9 @@ export default function AgendamentosPage() {
             </div>
 
             {meusAceitos.length === 0 ? (
-              <p className="text-gray-600">Nenhum agendamento para mostrar.</p>
+              <p className="text-gray-600">
+                Nenhum agendamento para mostrar.
+              </p>
             ) : (
               <ul className="grid gap-3">
                 {meusAceitos.map((ag) => {
@@ -646,31 +801,75 @@ export default function AgendamentosPage() {
                   const stepEnd = !!(ag.end_at || ag.end_used);
 
                   return (
-                    <li key={ag.id} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
+                    <li
+                      key={ag.id}
+                      className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm"
+                    >
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <div>
                           <p className="font-semibold">
-                            {nomeTipoServico(tiposParaSelect.find((t) => t.id === ag.tipo_servico_id))} —{' '}
-                            <span className="text-gray-600">{labelStatus(ag.status)}</span>
+                            {
+                              nomeTipoServico(
+                                tipos.find(
+                                  (t) => t.id === ag.tipo_servico_id
+                                )
+                              )
+                            }{' '}
+                            —{' '}
+                            <span className="text-gray-600">
+                              {labelStatus(ag.status)}
+                            </span>
                           </p>
                           <p className="text-gray-700">
-                            {fmtData(ag.data_servico)} · {fmtHora(ag.hora_servico)}
-                            {ag.duracao_horas ? ` · ${ag.duracao_horas}h` : ''}
+                            {fmtData(ag.data_servico)} ·{' '}
+                            {fmtHora(ag.hora_servico)}
+                            {ag.duracao_horas
+                              ? ` · ${ag.duracao_horas}h`
+                              : ''}
                           </p>
-                          {ag.endereco && <p className="text-gray-600">{ag.endereco}</p>}
-                          {ag.descricao && <p className="text-gray-600 mt-1">“{ag.descricao}”</p>}
+                          {ag.endereco && (
+                            <p className="text-gray-600">
+                              {ag.endereco}
+                            </p>
+                          )}
+                          {ag.descricao && (
+                            <p className="text-gray-600 mt-1">
+                              “{ag.descricao}”
+                            </p>
+                          )}
 
                           <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-                            <span className={`${chipBase} ${stepCheckin ? chipOn : chipOff}`}>
-                              Check-in {ag.checkin_at ? `(${fmtDateTime(ag.checkin_at)})` : ''}
+                            <span
+                              className={`${chipBase} ${
+                                stepCheckin ? chipOn : chipOff
+                              }`}
+                            >
+                              Check-in{' '}
+                              {ag.checkin_at
+                                ? `(${fmtDateTime(ag.checkin_at)})`
+                                : ''}
                             </span>
                             <span className="text-gray-300">→</span>
-                            <span className={`${chipBase} ${stepStart ? chipOn : chipOff}`}>
-                              Início {ag.start_at ? `(${fmtDateTime(ag.start_at)})` : ''}
+                            <span
+                              className={`${chipBase} ${
+                                stepStart ? chipOn : chipOff
+                              }`}
+                            >
+                              Início{' '}
+                              {ag.start_at
+                                ? `(${fmtDateTime(ag.start_at)})`
+                                : ''}
                             </span>
                             <span className="text-gray-300">→</span>
-                            <span className={`${chipBase} ${stepEnd ? chipOn : chipOff}`}>
-                              Término {ag.end_at ? `(${fmtDateTime(ag.end_at)})` : ''}
+                            <span
+                              className={`${chipBase} ${
+                                stepEnd ? chipOn : chipOff
+                              }`}
+                            >
+                              Término{' '}
+                              {ag.end_at
+                                ? `(${fmtDateTime(ag.end_at)})`
+                                : ''}
                             </span>
                           </div>
                         </div>
@@ -719,8 +918,15 @@ export default function AgendamentosPage() {
       </div>
 
       {/* Modal do QR (contratante) */}
-      <Modal open={qrOpen} onClose={() => setQrOpen(false)} title="QR code do agendamento" maxWidthClass="max-w-md">
-        {qrLoading && <p className="text-sm text-gray-600">Gerando QR…</p>}
+      <Modal
+        open={qrOpen}
+        onClose={() => setQrOpen(false)}
+        title="QR code do agendamento"
+        maxWidthClass="max-w-md"
+      >
+        {qrLoading && (
+          <p className="text-sm text-gray-600">Gerando QR…</p>
+        )}
         {!qrLoading && qrFor && (
           <div className="space-y-3">
             {(() => {
@@ -729,15 +935,27 @@ export default function AgendamentosPage() {
               else if (qrFor.phase === 'start') phaseLabel = 'início';
               return (
                 <p className="text-sm text-gray-700">
-                  Mostre este QR ao prestador para registrar: <strong>{phaseLabel}</strong>.
+                  Mostre este QR ao prestador para registrar:{' '}
+                  <strong>{phaseLabel}</strong>.
                 </p>
               );
             })()}
 
-            <QrDisplay text={JSON.stringify({ id: qrFor.id, phase: qrFor.phase, token: qrFor.token })} size={256} />
+            <QrDisplay
+              text={JSON.stringify({
+                id: qrFor.id,
+                phase: qrFor.phase,
+                token: qrFor.token,
+              })}
+              size={256}
+            />
 
             <code className="block text-xs bg-gray-50 border border-gray-200 rounded p-2 break-all">
-              {JSON.stringify({ id: qrFor.id, phase: qrFor.phase, token: qrFor.token })}
+              {JSON.stringify({
+                id: qrFor.id,
+                phase: qrFor.phase,
+                token: qrFor.token,
+              })}
             </code>
           </div>
         )}
@@ -750,11 +968,15 @@ export default function AgendamentosPage() {
         onClose={() => setEvalOpen(false)}
         onSuccess={async () => {
           if (evalCtx?.agendamentoId) {
-            setAvaliados((prev) => new Set(prev).add(evalCtx.agendamentoId));
+            setAvaliados((prev) =>
+              new Set(prev).add(evalCtx.agendamentoId)
+            );
           }
           try {
             if (isContratante) {
-              const meus = (await apiFetch('/agendamentos/cliente')) as TAgendamento[];
+              const meus = (await apiFetch(
+                '/agendamentos/cliente'
+              )) as TAgendamento[];
               setMeusAceitos(Array.isArray(meus) ? meus : []);
             }
           } catch {}
