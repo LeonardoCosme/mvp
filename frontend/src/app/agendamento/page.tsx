@@ -1,4 +1,4 @@
-// src/app/agendamento/page.tsx
+// página de Agendamentos
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
@@ -18,7 +18,6 @@ type TUser = {
   tipo: 'master' | 'prestador' | 'contratante';
 };
 
-// Tipo flexível: sabemos só que tem um id
 type TTipoServico = {
   id: number;
   [key: string]: any;
@@ -81,7 +80,6 @@ function fmtDateTime(dt?: string | null) {
   return `${dia} ${hora}`;
 }
 
-// Pega o nome do serviço, independente do campo no backend
 function nomeTipoServico(raw?: TTipoServico | null): string {
   if (!raw) return 'Serviço';
   return (
@@ -97,8 +95,6 @@ function nomeTipoServico(raw?: TTipoServico | null): string {
 }
 
 export default function AgendamentosPage() {
-  console.log('######## RENDER NOVO COMPONENTE /AGENDAMENTO (VERSÃO DEBUG) ########');
-
   const router = useRouter();
 
   const token = useMemo(() => getToken(), []);
@@ -126,7 +122,6 @@ export default function AgendamentosPage() {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrFor, setQrFor] = useState<{ id: number; phase: QRPhase; token: string } | null>(null);
 
-  // Modal de avaliação
   const [evalOpen, setEvalOpen] = useState(false);
   const [evalCtx, setEvalCtx] = useState<{
     agendamentoId: number;
@@ -138,28 +133,16 @@ export default function AgendamentosPage() {
   const isPrestador = useMemo(() => user?.tipo === 'prestador', [user]);
   const isContratante = useMemo(() => user?.tipo === 'contratante', [user]);
 
-  // Fallback para quando a API não devolver nada
+  // Fallback local se a API não devolver nada
   const tiposParaSelect = useMemo<TTipoServico[]>(() => {
     if (tipos && tipos.length > 0) {
-      console.log(
-        '✅ tipos no state (sem fallback) =>',
-        tipos.map((t) => ({ id: t.id, nome: nomeTipoServico(t) }))
-      );
       return tipos;
     }
-
-    const fallback = [
+    return [
       { id: 1, nome: 'Elétrica básica' },
       { id: 2, nome: 'Hidráulica básica' },
       { id: 3, nome: 'Pintura de cômodo' },
     ];
-
-    console.log(
-      '⚠ tipos vazio, usando fallback local =>',
-      fallback.map((f) => ({ id: f.id, nome: f.nome }))
-    );
-
-    return fallback;
   }, [tipos]);
 
   // redireciona para login se não houver token
@@ -176,14 +159,10 @@ export default function AgendamentosPage() {
 
     (async () => {
       try {
-        // 1) usuário
         const me = (await apiFetch('/user/me')) as TUser;
         setUser(me);
 
-        // 2) tipos de serviço (aceita vários formatos)
         const resTipos: any = await apiFetch('/tipos-servico');
-        console.log('DEBUG [/tipos-servico] resposta bruta =>', resTipos);
-
         let itens: TTipoServico[] = [];
 
         if (Array.isArray(resTipos)) {
@@ -196,7 +175,6 @@ export default function AgendamentosPage() {
           itens = resTipos.data as TTipoServico[];
         }
 
-        console.log('DEBUG [/tipos-servico] itens usados no front =>', itens);
         setTipos(itens);
 
         if (itens.length === 0) {
@@ -206,7 +184,6 @@ export default function AgendamentosPage() {
           );
         }
 
-        // 3) listas conforme perfil
         if (me.tipo === 'prestador') {
           try {
             const [pend, meus] = await Promise.all([
@@ -242,7 +219,7 @@ export default function AgendamentosPage() {
     })();
   }, [token, router]);
 
-  // polling de status para o CONTRATANTE (modal de avaliação automático)
+  // polling de status p/ CONTRATANTE abrir modal de avaliação
   useEffect(() => {
     if (!isContratante) return;
     if (!meusAceitos || meusAceitos.length === 0) return;
@@ -406,9 +383,7 @@ export default function AgendamentosPage() {
       <div className="mx-auto max-w-5xl space-y-8">
         <header className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-[#8F1D14]">
-              Agendamentos (CÓDIGO NOVO / DEBUG)
-            </h1>
+            <h1 className="text-2xl font-bold text-[#8F1D14]">Agendamentos</h1>
             <p className="text-gray-600 capitalize">Perfil: {user.tipo}</p>
           </div>
           <div className="text-sm flex items-center gap-2">
@@ -449,9 +424,7 @@ export default function AgendamentosPage() {
         {/* CONTRATANTE - NOVO AGENDAMENTO */}
         {isContratante && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold text-[#8F1D14] mb-4">
-              Novo agendamento (VERSÃO NOVA / DEBUG)
-            </h2>
+            <h2 className="text-lg font-semibold text-[#8F1D14] mb-4">Novo agendamento</h2>
             <form onSubmit={criarAgendamento} className="grid gap-3">
               <div>
                 <label htmlFor="tipo_servico_id" className="block text-sm text-gray-700 mb-1">
@@ -465,21 +438,12 @@ export default function AgendamentosPage() {
                   onChange={(e) => setForm((p) => ({ ...p, tipo_servico_id: e.target.value }))}
                 >
                   <option value="">Selecione</option>
-
-                  {/* OPTION FIXA DE TESTE */}
-                  <option value="teste-fixo">🔧 TESTE: opção fixa do NOVO código</option>
-
                   {tiposParaSelect.map((t) => (
                     <option key={t.id} value={t.id}>
                       {nomeTipoServico(t)}
                     </option>
                   ))}
                 </select>
-
-                {/* Debug de contagem no front */}
-                <p className="mt-1 text-xs text-gray-400">
-                  Tipos (state): {tipos.length} / Exibidos (tiposParaSelect): {tiposParaSelect.length}
-                </p>
               </div>
 
               <div className="grid md:grid-cols-3 gap-3">
@@ -568,9 +532,7 @@ export default function AgendamentosPage() {
         {/* PRESTADOR: PENDENTES */}
         {isPrestador && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold text-[#8F1D14] mb-3">
-              Agendamentos pendentes (DEBUG)
-            </h2>
+            <h2 className="text-lg font-semibold text-[#8F1D14] mb-3">Agendamentos pendentes</h2>
             {pendentes.length === 0 ? (
               <p className="text-gray-600">Nenhum pendente.</p>
             ) : (
@@ -607,9 +569,7 @@ export default function AgendamentosPage() {
         {/* PRESTADOR: MEUS ACEITOS */}
         {isPrestador && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold text-[#8F1D14] mb-3">
-              Meus agendamentos aceitos (DEBUG)
-            </h2>
+            <h2 className="text-lg font-semibold text-[#8F1D14] mb-3">Meus agendamentos aceitos</h2>
             {meusAceitos.length === 0 ? (
               <p className="text-gray-600">Você ainda não aceitou nenhum.</p>
             ) : (
@@ -667,7 +627,7 @@ export default function AgendamentosPage() {
         {isContratante && (
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold text-[#8F1D14]">Meus agendamentos (DEBUG)</h2>
+              <h2 className="text-lg font-semibold text-[#8F1D14]">Meus agendamentos</h2>
               <Link
                 href="/historico-avaliacoes"
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
