@@ -1,85 +1,91 @@
 // src/utils/api.ts
 import { getToken } from './auth';
 
-// Tenta ler de várias envs possíveis e cai no Railway se estiver vazio
-const RAW_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.NEXT_PUBLIC_API_BASE_URL ||
-  process.env.NEXT_PUBLIC_BACKEND_URL ||
-  'https://mvp-marido-aluguel.up.railway.app/api';
-
-// remove / no final, se tiver
-const API_BASE_URL = RAW_BASE_URL.replace(/\/$/, '');
+const API_BASE =
+  (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api').replace(/\/$/, '');
 
 type ApiOptions = RequestInit & {
-  /** Se true, não envia Authorization mesmo tendo token */
-  noAuth?: boolean;
+  /** se quiser o Response bruto, sem fazer json() */
+  raw?: boolean;
 };
 
 function buildUrl(path: string): string {
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  const ts = Date.now();
-  const sep = cleanPath.includes('?') ? '&' : '?';
-
-  // Ex: https://.../api + /tipos-servico + ?_=12345
-  return `${API_BASE_URL}${cleanPath}${sep}_=${ts}`;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  if (!path.startsWith('/')) path = '/' + path;
+  return `${API_BASE}${path}`;
 }
 
-export async function apiFetch<T = any>(
-  path: string,
-  options: ApiOptions = {},
-): Promise<T> {
-  const { noAuth, ...fetchOptions } = options;
+export async function apiFetch(path: string, options: ApiOptions = {}) {
+  const url = buildUrl(path);
 
-  const token = getToken();
+  const token = typeof window !== 'undefined' ? getToken() : null;
+
   const headers: HeadersInit = {
-    ...(fetchOptions.headers || {}),
+    ...(options.headers || {}),
   };
 
-  const isFormData = fetchOptions.body instanceof FormData;
-  const hasContentTypeHeader = Object.keys(headers).some(
-    (k) => k.toLowerCase() === 'content-type',
-  );
-
-  // Só seta Content-Type JSON se não for FormData e se for método com body
-  if (
-    !isFormData &&
-    !hasContentTypeHeader &&
-    fetchOptions.method &&
-    fetchOptions.method !== 'GET'
-  ) {
+  // só adiciona Content-Type se tiver body
+  if (options.body && !('Content-Type' in headers)) {
     headers['Content-Type'] = 'application/json';
   }
 
-  // Adiciona Authorization, exceto se pedirmos noAuth
-  if (!noAuth && token) {
+  if (token && !('Authorization' in headers)) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const url = buildUrl(path);
-
-  const res = await fetch(url, {
-    cache: 'no-store', // evita cache do Next/Vercel
-    ...fetchOptions,
+  const init: RequestInit = {
+    // sempre força o navegador a NÃO reutilizar cache HTTP
+    cache: 'no-store',
+    ...options,
     headers,
-  });
+  };
+
+  const res = await fetch(url, init);
+
+  // --- Tratamento especial para 304 (Not Modified) ---
+  // Com cache: 'no-store' isso deve praticamente sumir,
+  // mas deixamos por segurança para não explodir o json().
+  if (res.status === 304) {
+    // não tem corpo útil; deixamos o chamador decidir o default
+    return null;
+  }
 
   if (!res.ok) {
-    let text = '';
+    let message = `Erro HTTP ${res.status}`;
+
     try {
-      text = await res.text();
+      const text = await res.text();
+      if (text) {
+        try {
+          const data = JSON.parse(text);
+          if (data?.message) message = data.message;
+          else if (typeof data === 'string') message = data;
+        } catch {
+          message = text;
+        }
+      }
     } catch {
-      /* ignore */
+      // se der erro para ler o body, mantemos a mensagem padrão
     }
-    throw new Error(text || `Erro HTTP ${res.status}`);
+
+    throw new Error(message);
   }
 
-  const contentType = res.headers.get('content-type') || '';
-
-  if (contentType.includes('application/json')) {
-    return (await res.json()) as T;
+  if (options.raw) {
+    // para casos em que você quer lidar com o Response direto
+    return res;
   }
 
-  // fallback para texto, se algum endpoint não devolver JSON
-  return (await res.text()) as T;
+  // algumas rotas podem devolver 204 (sem conteúdo)
+  if (res.status === 204) return null;
+
+  const text = await res.text();
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    // se não for JSON, devolve texto cru
+    return text;
+  }
 }
