@@ -1,16 +1,16 @@
+// src/app/servicos/page.tsx
 'use client';
+
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { getToken } from '../../utils/auth';
-
-// 🔗 URL fixa da API Railway
-const API_URL = 'https://mvp-marido-aluguel.up.railway.app/api/tipos-servico';
+import { apiFetch } from '@/utils/api';
+import { getToken } from '@/utils/auth';
 
 type TipoServico = {
   id: number;
-  nome: string;
+  [key: string]: any;
 };
 
 type FormAgendamento = {
@@ -20,6 +20,21 @@ type FormAgendamento = {
   endereco: string;
   descricao: string;
 };
+
+// Mesma lógica do /agendamento para achar o "nome" certo
+function nomeTipoServico(raw?: TipoServico | null): string {
+  if (!raw) return 'Serviço';
+  return (
+    raw.nomeServico ??
+    raw.nome_servico ??
+    raw.tipoServico ??
+    raw.tipo_servico ??
+    raw.nome ??
+    raw.descricao ??
+    raw.titulo ??
+    'Serviço'
+  );
+}
 
 export default function ServicosPage() {
   const [servicos, setServicos] = useState<TipoServico[]>([]);
@@ -35,26 +50,27 @@ export default function ServicosPage() {
   const [loading, setLoading] = useState(false);
   const [loadingServicos, setLoadingServicos] = useState(true);
 
-  // 🚀 Carrega os serviços direto da API Railway
+  // 🚀 Carrega os serviços direto do backend usando apiFetch (com anti-304)
   useEffect(() => {
-    console.log('🧩 useEffect executou no cliente');
     (async () => {
       try {
-        console.log('🟠 Buscando serviços em:', API_URL);
-        const res = await fetch(API_URL, { cache: 'no-store' });
-        console.log('📬 Status da resposta:', res.status);
-        if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
-        const data = await res.json();
-        console.log('🟢 Dados recebidos:', data);
+        const raw = (await apiFetch('/tipos-servico', {
+          noAuth: true,
+        })) as
+          | TipoServico[]
+          | { itens?: TipoServico[]; tipos?: TipoServico[]; data?: TipoServico[] };
 
-        if (Array.isArray(data)) {
-          setServicos(data);
-        } else {
-          console.warn('⚠️ Formato inesperado:', data);
-          setServicos([]);
-        }
+        let itens: TipoServico[] = [];
+
+        if (Array.isArray(raw)) itens = raw;
+        else if (Array.isArray((raw as any)?.itens)) itens = (raw as any).itens;
+        else if (Array.isArray((raw as any)?.tipos)) itens = (raw as any).tipos;
+        else if (Array.isArray((raw as any)?.data)) itens = (raw as any).data;
+
+        setServicos(itens);
       } catch (err) {
         console.error('❌ Erro ao carregar serviços:', err);
+        setServicos([]);
       } finally {
         setLoadingServicos(false);
       }
@@ -65,7 +81,7 @@ export default function ServicosPage() {
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return servicos;
-    return servicos.filter((s) => s.nome?.toLowerCase().includes(q));
+    return servicos.filter((s) => nomeTipoServico(s).toLowerCase().includes(q));
   }, [servicos, busca]);
 
   // 🧾 Envio de agendamento
@@ -84,17 +100,29 @@ export default function ServicosPage() {
 
     setLoading(true);
     try {
-      const resp = await fetch('https://mvp-marido-aluguel.up.railway.app/api/agendamentos', {
+      const payload = {
+        ...form,
+        tipo_servico_id: Number(form.tipo_servico_id),
+        endereco: form.endereco.trim(),
+        descricao: form.descricao.trim(),
+      };
+
+      const result = await apiFetch('/agendamentos', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
-      const result = await resp.json();
+
       console.log('📦 Resposta do agendamento:', result);
       setMsg('✅ Agendamento criado com sucesso!');
-      setForm({ tipo_servico_id: '', data: '', hora: '', endereco: '', descricao: '' });
+      setForm({
+        tipo_servico_id: '',
+        data: '',
+        hora: '',
+        endereco: '',
+        descricao: '',
+      });
     } catch (err: any) {
-      setMsg(`❌ Erro: ${err.message}`);
+      setMsg(`❌ Erro: ${err?.message || 'Falha ao criar agendamento.'}`);
     } finally {
       setLoading(false);
     }
@@ -114,7 +142,8 @@ export default function ServicosPage() {
                   Catálogo de Serviços
                 </h1>
                 <p className="mt-3 text-gray-700">
-                  Encontre o serviço ideal e agende em poucos cliques — rápido, seguro e sem complicação.
+                  Encontre o serviço ideal e agende em poucos cliques — rápido, seguro e sem
+                  complicação.
                 </p>
               </div>
               <div className="w-full md:w-80">
@@ -167,13 +196,17 @@ export default function ServicosPage() {
                         🔧
                       </span>
                     </div>
-                    <h3 className="font-semibold text-gray-900">{s.nome || 'Serviço sem nome'}</h3>
+                    <h3 className="font-semibold text-gray-900">
+                      {nomeTipoServico(s) || 'Serviço sem nome'}
+                    </h3>
                   </div>
 
                   <div className="mt-3 flex gap-2">
                     <button
                       type="button"
-                      onClick={() => setForm((p) => ({ ...p, tipo_servico_id: String(s.id) }))}
+                      onClick={() =>
+                        setForm((p) => ({ ...p, tipo_servico_id: String(s.id) }))
+                      }
                       className="text-sm bg-[#F89D13] text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition"
                     >
                       Agendar
@@ -209,13 +242,15 @@ export default function ServicosPage() {
                   id="tipo_servico_id"
                   className="w-full border rounded-lg px-3 py-2"
                   value={form.tipo_servico_id}
-                  onChange={(e) => setForm({ ...form, tipo_servico_id: e.target.value })}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, tipo_servico_id: e.target.value }))
+                  }
                   required
                 >
                   <option value="">Selecione</option>
                   {servicos.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.nome}
+                      {nomeTipoServico(s)}
                     </option>
                   ))}
                 </select>
@@ -231,7 +266,7 @@ export default function ServicosPage() {
                     type="date"
                     className="w-full border rounded-lg px-3 py-2"
                     value={form.data}
-                    onChange={(e) => setForm({ ...form, data: e.target.value })}
+                    onChange={(e) => setForm((p) => ({ ...p, data: e.target.value }))}
                     required
                   />
                 </div>
@@ -244,7 +279,7 @@ export default function ServicosPage() {
                     type="time"
                     className="w-full border rounded-lg px-3 py-2"
                     value={form.hora}
-                    onChange={(e) => setForm({ ...form, hora: e.target.value })}
+                    onChange={(e) => setForm((p) => ({ ...p, hora: e.target.value }))}
                     required
                   />
                 </div>
@@ -259,7 +294,7 @@ export default function ServicosPage() {
                   placeholder="Rua, nº, bairro"
                   className="w-full border rounded-lg px-3 py-2"
                   value={form.endereco}
-                  onChange={(e) => setForm({ ...form, endereco: e.target.value })}
+                  onChange={(e) => setForm((p) => ({ ...p, endereco: e.target.value }))}
                   required
                 />
               </div>
@@ -274,7 +309,7 @@ export default function ServicosPage() {
                   placeholder="Detalhes do serviço"
                   className="w-full border rounded-lg px-3 py-2"
                   value={form.descricao}
-                  onChange={(e) => setForm({ ...form, descricao: e.target.value })}
+                  onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))}
                 />
               </div>
 

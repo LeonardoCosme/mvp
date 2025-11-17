@@ -1,68 +1,85 @@
-// utils/api.ts
+// src/utils/api.ts
+import { getToken } from './auth';
 
-// 🚀 Configuração central do backend
-// Em produção (Vercel), sempre chama a API da Railway diretamente.
-const API_BASE_URL =
+// Tenta ler de várias envs possíveis e cai no Railway se estiver vazio
+const RAW_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://mvp-marido-aluguel.up.railway.app/api"; // backend fixo
+  process.env.NEXT_PUBLIC_API_BASE_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  'https://mvp-marido-aluguel.up.railway.app/api';
 
-/**
- * Faz uma requisição à API backend.
- * - Aceita endpoint com ou sem barra inicial
- * - Converte body para JSON automaticamente
- * - Faz log de diagnóstico no console
- */
-export async function apiFetch(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<any> {
-  const cleanEndpoint = endpoint.startsWith("/")
-    ? endpoint
-    : `/${endpoint}`;
+// remove / no final, se tiver
+const API_BASE_URL = RAW_BASE_URL.replace(/\/$/, '');
 
-  const url = `${API_BASE_URL}${cleanEndpoint}`;
+type ApiOptions = RequestInit & {
+  /** Se true, não envia Authorization mesmo tendo token */
+  noAuth?: boolean;
+};
 
-  // Cabeçalhos padrão
-  const headers = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
+function buildUrl(path: string): string {
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  const ts = Date.now();
+  const sep = cleanPath.includes('?') ? '&' : '?';
+
+  // Ex: https://.../api + /tipos-servico + ?_=12345
+  return `${API_BASE_URL}${cleanPath}${sep}_=${ts}`;
+}
+
+export async function apiFetch<T = any>(
+  path: string,
+  options: ApiOptions = {},
+): Promise<T> {
+  const { noAuth, ...fetchOptions } = options;
+
+  const token = getToken();
+  const headers: HeadersInit = {
+    ...(fetchOptions.headers || {}),
   };
 
-  // Converte body em string JSON, se necessário
-  let body = options.body;
-  if (body && typeof body === "object" && !(body instanceof FormData)) {
-    body = JSON.stringify(body);
+  const isFormData = fetchOptions.body instanceof FormData;
+  const hasContentTypeHeader = Object.keys(headers).some(
+    (k) => k.toLowerCase() === 'content-type',
+  );
+
+  // Só seta Content-Type JSON se não for FormData e se for método com body
+  if (
+    !isFormData &&
+    !hasContentTypeHeader &&
+    fetchOptions.method &&
+    fetchOptions.method !== 'GET'
+  ) {
+    headers['Content-Type'] = 'application/json';
   }
 
-  console.groupCollapsed(`🌐 [apiFetch] ${options.method || "GET"} → ${url}`);
-  console.log("📤 Headers:", headers);
-  if (body) console.log("📦 Body:", body);
-  console.groupEnd();
+  // Adiciona Authorization, exceto se pedirmos noAuth
+  if (!noAuth && token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
-  try {
-    const res = await fetch(url, {
-      method: options.method || "GET",
-      headers,
-      body: typeof body === "string" ? body : undefined,
-      mode: "cors",
-    });
+  const url = buildUrl(path);
 
-    if (!res.ok) {
-      let msg = `Erro ${res.status}`;
-      try {
-        const data = await res.json();
-        msg = data?.error || data?.message || msg;
-      } catch {
-        console.warn("⚠️ Resposta não era JSON válida.");
-      }
-      throw new Error(msg);
+  const res = await fetch(url, {
+    cache: 'no-store', // evita cache do Next/Vercel
+    ...fetchOptions,
+    headers,
+  });
+
+  if (!res.ok) {
+    let text = '';
+    try {
+      text = await res.text();
+    } catch {
+      /* ignore */
     }
-
-    const data = await res.json();
-    console.log("✅ [apiFetch] Sucesso:", data);
-    return data;
-  } catch (err: any) {
-    console.error("💥 Erro de conexão com o backend:", err.message);
-    throw err;
+    throw new Error(text || `Erro HTTP ${res.status}`);
   }
+
+  const contentType = res.headers.get('content-type') || '';
+
+  if (contentType.includes('application/json')) {
+    return (await res.json()) as T;
+  }
+
+  // fallback para texto, se algum endpoint não devolver JSON
+  return (await res.text()) as T;
 }
