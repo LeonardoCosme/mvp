@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { apiFetch } from '../../utils/api';
-import { getToken } from '../../utils/auth';
+import { apiFetch } from '@/utils/api';
+import { getToken } from '@/utils/auth';
 
 type TipoServico = {
   id: number;
@@ -23,11 +23,11 @@ type FormAgendamento = {
   descricao: string;
 };
 
-// Função para achar o "nome" certo do serviço
+// Pega o nome do serviço de forma tolerante
 function nomeTipoServico(raw?: TipoServico | null): string {
   if (!raw) return 'Serviço';
   return (
-    raw.nome || // produção: { id, nome }
+    raw.nome ||
     raw.nomeServico ||
     (raw as any).nome_servico ||
     (raw as any).tipoServico ||
@@ -51,6 +51,12 @@ export default function ServicosPage() {
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingServicos, setLoadingServicos] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // 🔑 Define se o usuário está logado só no cliente (evita erro 418)
+  useEffect(() => {
+    setIsLoggedIn(!!getToken());
+  }, []);
 
   // 🚀 Carrega os serviços direto do backend usando apiFetch
   useEffect(() => {
@@ -67,7 +73,7 @@ export default function ServicosPage() {
         else if (Array.isArray((raw as any)?.tipos)) itens = (raw as any).tipos;
         else if (Array.isArray((raw as any)?.data)) itens = (raw as any).data;
 
-        // Log para debug (F12 → Console)
+        // Pra conferir no F12 → Console
         // eslint-disable-next-line no-console
         console.log('TIPOS SERVICO RAW =>', raw, 'Itens normalizados =>', itens);
 
@@ -326,7 +332,7 @@ export default function ServicosPage() {
                   {loading ? 'Enviando…' : 'Agendar serviço'}
                 </button>
 
-                {!getToken() && (
+                {!isLoggedIn && (
                   <Link
                     href="/login?next=/servicos"
                     className="text-[#8F1D14] underline hover:opacity-80"
