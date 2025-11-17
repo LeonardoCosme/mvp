@@ -1,469 +1,215 @@
 // src/app/agendamento/page.tsx
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+export const dynamic = 'force-dynamic';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { apiFetch } from '@/utils/api';
-import { getToken, removeToken } from '@/utils/auth';
+import { getToken } from '@/utils/auth';
 
-import Modal from '@/app/components/modal';
-import QrDisplay from '@/app/components/QrDisplay';
-import AvaliacaoModal from '@/app/components/avaliacaomodal';
-
-type TUser = {
+type TipoServico = {
   id: number;
-  nomeUsuario: string;
-  email: string;
-  tipo: 'master' | 'prestador' | 'contratante';
+  nome: string;
 };
 
-// Tipo mais flexível, aceita qualquer forma que venha do backend
-type TTipoServico = {
-  id: number;
-  [key: string]: any;
-};
-
-type TAgendamento = {
-  id: number;
-  prestador_id: number | null;
-  contratante_id: number;
-  tipo_servico_id: number;
-  descricao: string | null;
-  data_servico: string | null;
-  hora_servico: string | null;
-  duracao_horas?: number | null;
-  endereco: string | null;
-  status: 'pendente' | 'aceita' | 'concluida' | 'cancelada';
-  created_at?: string;
-
-  checkin_at?: string | null;
-  start_at?: string | null;
-  end_at?: string | null;
-  checkin_used?: 0 | 1 | boolean;
-  start_used?: 0 | 1 | boolean;
-  end_used?: 0 | 1 | boolean;
-};
-
-type FormNovo = {
+type FormAgendamento = {
   tipo_servico_id: string;
   data: string;
   hora: string;
+  duracao?: string;
   endereco: string;
   descricao: string;
-  duracao_horas?: string;
 };
 
-type QRPhase = 'checkin' | 'start' | 'end';
+export default function AgendamentoPage() {
+  const [tiposServico, setTiposServico] = useState<TipoServico[]>([]);
+  const [loadingTipos, setLoadingTipos] = useState(true);
 
-/* ===== Helpers de formatação ===== */
-function fmtData(d?: string | null) {
-  if (!d || typeof d !== 'string') return '--';
-  const parts = d.split('-');
-  if (parts.length < 3) return d;
-  const [y, m, day] = parts.map(Number);
-  if (!y || !m || !day) return d;
-  return new Date(y, m - 1, day).toLocaleDateString('pt-BR');
-}
-
-function fmtHora(h?: string | null) {
-  if (!h || typeof h !== 'string') return '--';
-  const [hh = '00', mm = '00'] = h.split(':');
-  return `${hh.padStart(2, '0')}:${mm.padStart(2, '0')}`;
-}
-
-function fmtDateTime(dt?: string | null) {
-  if (!dt) return null;
-  const d = new Date(dt);
-  if (Number.isNaN(d.getTime())) return dt;
-  const dia = d.toLocaleDateString('pt-BR');
-  const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  return `${dia} ${hora}`;
-}
-
-// Tenta descobrir o campo correto do nome do tipo de serviço
-function nomeTipoServico(raw?: TTipoServico | null): string {
-  if (!raw) return 'Serviço';
-  return (
-    raw.nomeServico ??
-    raw.nome_servico ??
-    raw.tipoServico ??
-    raw.tipo_servico ??
-    raw.nome ??
-    raw.descricao ??
-    raw.titulo ??
-    'Serviço'
-  );
-}
-
-export default function AgendamentosPage() {
-  const router = useRouter();
-
-  // guarda o token só na primeira renderização
-  const token = useMemo(() => getToken(), []);
-  const [redirecting, setRedirecting] = useState(false);
-
-  const [user, setUser] = useState<TUser | null>(null);
-  const [tipos, setTipos] = useState<TTipoServico[]>([]);
-  const [pendentes, setPendentes] = useState<TAgendamento[]>([]);
-  const [meusAceitos, setMeusAceitos] = useState<TAgendamento[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState<string>('');
-  const [hintPrestador, setHintPrestador] = useState<boolean>(false);
-
-  const [form, setForm] = useState<FormNovo>({
+  const [form, setForm] = useState<FormAgendamento>({
     tipo_servico_id: '',
     data: '',
     hora: '',
+    duracao: '',
     endereco: '',
     descricao: '',
-    duracao_horas: '',
   });
-  const [sending, setSending] = useState(false);
 
-  const [qrOpen, setQrOpen] = useState(false);
-  const [qrLoading, setQrLoading] = useState(false);
-  const [qrFor, setQrFor] = useState<{ id: number; phase: QRPhase; token: string } | null>(null);
+  const [msg, setMsg] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  const [evalOpen, setEvalOpen] = useState(false);
-  const [evalCtx, setEvalCtx] = useState<{
-    agendamentoId: number;
-    prestadorNome?: string | null;
-    servicoNome?: string | null;
-  } | null>(null);
-  const [avaliados, setAvaliados] = useState<Set<number>>(new Set());
-
-  const isPrestador = useMemo(() => user?.tipo === 'prestador', [user]);
-  const isContratante = useMemo(() => user?.tipo === 'contratante', [user]);
-
-  // Redireciona para login se não tiver token
+  // Verifica se está logado (só no cliente)
   useEffect(() => {
-    if (!token) {
-      setRedirecting(true);
-      router.replace('/login');
-    }
-  }, [token, router]);
+    setIsLoggedIn(!!getToken());
+  }, []);
 
-  // CARREGAMENTO INICIAL (usuário + tipos + listas)
+  // Carrega tipos de serviço direto da API
   useEffect(() => {
-    if (!token) return;
-
-    (async () => {
+    async function carregarTipos() {
       try {
-        // 1) Usuário logado
-        const me = (await apiFetch('/user/me')) as TUser;
-        setUser(me);
-        // eslint-disable-next-line no-console
-        console.log('[AGENDAMENTO] /user/me =>', me);
-
-        // 2) Tipos de serviço
-        const resTipos: any = await apiFetch('/tipos-servico');
-        // eslint-disable-next-line no-console
-        console.log('[AGENDAMENTO] /tipos-servico (bruto) =>', resTipos);
-
-        let itens: TTipoServico[] = [];
-
-        if (Array.isArray(resTipos)) {
-          itens = resTipos as TTipoServico[];
-        } else if (Array.isArray(resTipos?.itens)) {
-          itens = resTipos.itens as TTipoServico[];
-        } else if (Array.isArray(resTipos?.tipos)) {
-          itens = resTipos.tipos as TTipoServico[];
-        } else if (Array.isArray(resTipos?.data)) {
-          itens = resTipos.data as TTipoServico[];
-        }
-
-        // eslint-disable-next-line no-console
-        console.log('[AGENDAMENTO] tipos extraídos =>', itens);
-        setTipos(itens);
-
-        if (itens.length === 0) {
-          setMsg((prev) =>
-            prev ||
-            '⚠ Nenhum tipo de serviço cadastrado. Cadastre um tipo em "Serviços" antes de criar agendamentos.'
-          );
-        }
-
-        // 3) Agendamentos conforme o perfil
-        if (me.tipo === 'prestador') {
-          try {
-            const [pend, meus] = await Promise.all([
-              apiFetch('/agendamentos/pendentes') as Promise<TAgendamento[]>,
-              apiFetch('/agendamentos/prestador') as Promise<TAgendamento[]>,
-            ]);
-            setPendentes(Array.isArray(pend) ? pend : []);
-            setMeusAceitos(Array.isArray(meus) ? meus : []);
-          } catch (e: any) {
-            const t = String(e?.message || '');
-            if (t.toLowerCase().includes('prestador') && t.toLowerCase().includes('não encontrado')) {
-              setHintPrestador(true);
-            } else {
-              setMsg(t || 'Erro ao carregar agendamentos do prestador.');
-            }
+        const resp = await fetch(
+          'https://mvp-marido-aluguel.up.railway.app/api/tipos-servico',
+          {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            cache: 'no-store',
           }
-        } else {
-          const meus = (await apiFetch('/agendamentos/cliente')) as TAgendamento[];
-          setPendentes([]);
-          setMeusAceitos(Array.isArray(meus) ? meus : []);
+        );
+
+        if (!resp.ok) {
+          const txt = await resp.text();
+          console.error('[AGENDAMENTO] ERRO HTTP /tipos-servico', resp.status, txt);
+          throw new Error(`Erro ao buscar tipos de serviço (${resp.status})`);
         }
-      } catch (e: any) {
-        const text = String(e?.message || '');
-        if (text.toLowerCase().includes('token')) {
-          removeToken();
-          router.replace('/login');
-          return;
-        }
-        setMsg(text || 'Erro ao carregar agendamentos.');
-        // eslint-disable-next-line no-console
-        console.error('[AGENDAMENTO] erro no carregamento inicial =>', e);
+
+        const data = (await resp.json()) as TipoServico[] | any;
+        const itens: TipoServico[] = Array.isArray(data) ? data : [];
+
+        console.log('[AGENDAMENTO] tipos =>', itens);
+
+        setTiposServico(itens);
+      } catch (err) {
+        console.error('❌ Erro ao carregar tipos de serviço:', err);
+        setTiposServico([]);
       } finally {
-        setLoading(false);
+        setLoadingTipos(false);
       }
-    })();
-  }, [token, router]);
-
-  // Polling de status para o CONTRATANTE (modal de avaliação automático)
-  useEffect(() => {
-    if (!isContratante) return;
-    if (!meusAceitos || meusAceitos.length === 0) return;
-
-    let stop = false;
-
-    async function tick() {
-      if (stop) return;
-      try {
-        const ids = meusAceitos.map((a) => a.id).filter(Boolean);
-        const checks = await Promise.all(
-          ids.map(async (id) => {
-            try {
-              const r = await apiFetch(`/agendamentos/${id}/status`);
-              return { id, r };
-            } catch {
-              return { id, r: null as any };
-            }
-          })
-        );
-
-        const alvo = checks.find(
-          (x) => x.r && x.r.status === 'concluida' && !x.r.avaliado && !avaliados.has(x.id)
-        );
-
-        if (alvo && !evalOpen) {
-          setEvalCtx({
-            agendamentoId: alvo.r.id,
-            prestadorNome: alvo.r.prestador_nome,
-            servicoNome: alvo.r.tipo_nome,
-          });
-          setEvalOpen(true);
-        }
-      } catch {
-        // silencioso
-      }
-
-      if (!stop) setTimeout(tick, 5000);
     }
 
-    tick();
-    return () => {
-      stop = true;
-    };
-  }, [isContratante, meusAceitos, avaliados, evalOpen]);
+    carregarTipos();
+  }, []);
 
-  function labelStatus(s: TAgendamento['status']) {
-    if (s === 'pendente') return 'Pendente';
-    if (s === 'aceita') return 'Aceita';
-    if (s === 'concluida') return 'Concluída';
-    return 'Cancelada';
-  }
-
-  async function criarAgendamento(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg('');
-    setSending(true);
+
+    if (!getToken()) {
+      setMsg('❌ Faça login para agendar um serviço.');
+      return;
+    }
+    if (!form.tipo_servico_id) return setMsg('❌ Selecione um tipo de serviço.');
+    if (!form.data) return setMsg('❌ Informe a data.');
+    if (!form.hora) return setMsg('❌ Informe a hora.');
+    if (!form.endereco.trim()) return setMsg('❌ Informe o endereço.');
+
+    setLoading(true);
     try {
       const payload = {
         tipo_servico_id: Number(form.tipo_servico_id),
         data: form.data,
         hora: form.hora,
+        duracao: form.duracao || null,
         endereco: form.endereco.trim(),
         descricao: form.descricao.trim(),
-        duracao_horas: form.duracao_horas ? Number(form.duracao_horas.replace(',', '.')) : undefined,
       };
 
-      // eslint-disable-next-line no-console
-      console.log('[AGENDAMENTO] payload novo agendamento =>', payload);
+      const resp = await fetch(
+        'https://mvp-marido-aluguel.up.railway.app/api/agendamentos',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
-      await apiFetch('/agendamentos', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      setMsg('✅ Agendamento criado como pendente! Um prestador poderá aceitá-lo em breve.');
+      const result = await resp.json().catch(() => ({}));
+      console.log('[AGENDAMENTO] resposta =>', result);
 
-      const meus = (await apiFetch('/agendamentos/cliente')) as TAgendamento[];
-      setMeusAceitos(Array.isArray(meus) ? meus : []);
+      if (!resp.ok) {
+        throw new Error(
+          (result && (result.message as string)) ||
+            `Erro HTTP ${resp.status}`
+        );
+      }
 
+      setMsg('✅ Agendamento criado com sucesso!');
       setForm({
         tipo_servico_id: '',
         data: '',
         hora: '',
+        duracao: '',
         endereco: '',
         descricao: '',
-        duracao_horas: '',
       });
-    } catch (e: any) {
-      setMsg(`❌ ${e?.message || 'Erro ao criar agendamento.'}`);
+    } catch (err: any) {
+      setMsg(`❌ Erro ao criar agendamento: ${err?.message || 'Falha desconhecida.'}`);
     } finally {
-      setSending(false);
+      setLoading(false);
     }
   }
 
-  async function aceitar(id: number) {
-    setMsg('');
-    try {
-      const r = await apiFetch(`/agendamentos/${id}/aceitar`, { method: 'POST' });
-      if (r?.id) {
-        router.push(`/agendamento/${r.id}/scanner`);
-        return;
-      }
-      setMsg('✅ Agendamento aceito!');
-      const [pend, meus] = await Promise.all([
-        apiFetch('/agendamentos/pendentes') as Promise<TAgendamento[]>,
-        apiFetch('/agendamentos/prestador') as Promise<TAgendamento[]>,
-      ]);
-      setPendentes(Array.isArray(pend) ? pend : []);
-      setMeusAceitos(Array.isArray(meus) ? meus : []);
-    } catch (e: any) {
-      setMsg(`❌ ${e?.message || 'Erro ao aceitar agendamento.'}`);
-    }
-  }
-
-  async function abrirQr(agId: number, phase: QRPhase) {
-    try {
-      setQrLoading(true);
-      setQrOpen(true);
-      setQrFor(null);
-
-      const r = (await apiFetch(`/agendamentos/${agId}/qrcode?phase=${phase}`)) as {
-        id: number;
-        phase: QRPhase;
-        token: string;
-        url?: string;
-      };
-
-      setQrFor({ id: r.id, phase: r.phase, token: r.token });
-    } catch (e: any) {
-      setMsg(`❌ ${e?.message || 'Falha ao gerar QR.'}`);
-      setQrOpen(false);
-    } finally {
-      setQrLoading(false);
-    }
-  }
-
-  async function abrirAvaliacao(agId: number) {
-    try {
-      const st = await apiFetch(`/agendamentos/${agId}/status`);
-      setEvalCtx({
-        agendamentoId: st.id,
-        prestadorNome: st.prestador_nome,
-        servicoNome: st.tipo_nome,
-      });
-      setEvalOpen(true);
-    } catch (e: any) {
-      setMsg(e?.message || 'Não foi possível abrir a avaliação.');
-    }
-  }
-
-  if (redirecting) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F89D13]/10">
-        Redirecionando para login…
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F89D13]/10">
-        Carregando agendamentos...
-      </div>
-    );
-  }
-
-  if (!user) return null;
-
-  const chipBase = 'px-2 py-1 rounded-full border';
-  const chipOn = 'bg-green-50 text-green-700 border-green-200';
-  const chipOff = 'bg-gray-50 text-gray-600 border-gray-200';
+  const msgClass = msg.startsWith('✅') ? 'text-green-700' : 'text-red-700';
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 p-6">
-      <div className="mx-auto max-w-5xl space-y-8">
-        <header className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-[#8F1D14]">Agendamentos</h1>
-            <p className="text-gray-600 capitalize">Perfil: {user.tipo}</p>
-          </div>
-          <div className="text-sm flex items-center gap-2">
-            <Link href="/home" className="text-[#8F1D14] underline hover:opacity-80">
-              ← Voltar para a home
-            </Link>
-
-            {isContratante && (
-              <Link
-                href="/historico-avaliacoes"
-                className="ml-2 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#8F1D14] text-white hover:bg-[#a2261b] transition"
-              >
-                Histórico de avaliações
-              </Link>
-            )}
-          </div>
-        </header>
-
-        {msg && (
-          <div
-            className={`rounded-xl p-3 text-sm ${
-              msg.startsWith('✅')
-                ? 'bg-green-50 text-green-700 border border-green-200'
-                : 'bg-red-50 text-red-700 border border-red-200'
-            }`}
-          >
-            {msg}
-          </div>
-        )}
-
-        {isPrestador && hintPrestador && (
-          <div className="rounded-xl p-3 text-sm bg-yellow-50 text-yellow-800 border border-yellow-200">
-            Seu usuário é do tipo <b>prestador</b>, mas não encontramos seu perfil na tabela de prestadores.
-            Abra sua página de perfil/cadastro de prestador e complete os dados para conseguir aceitar serviços.
-          </div>
-        )}
-
-        {/* CONTRATANTE - NOVO AGENDAMENTO */}
-        {isContratante && (
-          <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold text-[#8F1D14] mb-4">Novo agendamento</h2>
-            <form onSubmit={criarAgendamento} className="grid gap-3">
+    <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 pb-20">
+      <section className="pt-24 md:pt-28">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 md:p-8">
+            <header className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
               <div>
-                <label htmlFor="tipo_servico_id" className="block text-sm text-gray-700 mb-1">
+                <h1 className="text-2xl md:text-3xl font-extrabold text-[#8F1D14]">
+                  Agendamentos
+                </h1>
+                <p className="text-sm text-gray-600">
+                  Perfil: Contratante
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <Link
+                  href="/home"
+                  className="px-4 py-2 text-sm rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition"
+                >
+                  ← Voltar para a home
+                </Link>
+                <Link
+                  href="/agendamentos/historico"
+                  className="px-4 py-2 text-sm rounded-lg bg-[#8F1D14] text-white hover:bg-[#a2261b] transition"
+                >
+                  Histórico de avaliações
+                </Link>
+              </div>
+            </header>
+
+            <h2 className="text-lg md:text-xl font-bold text-[#8F1D14] mb-3">
+              Novo agendamento
+            </h2>
+
+            <form onSubmit={handleSubmit} className="grid gap-4">
+              {/* Tipo de serviço */}
+              <div>
+                <label
+                  htmlFor="tipo_servico_id"
+                  className="block text-sm text-gray-700 mb-1"
+                >
                   Tipo de serviço
                 </label>
                 <select
                   id="tipo_servico_id"
-                  required
                   className="w-full border rounded-lg px-3 py-2"
                   value={form.tipo_servico_id}
-                  onChange={(e) => setForm((p) => ({ ...p, tipo_servico_id: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, tipo_servico_id: e.target.value }))
+                  }
+                  required
+                  disabled={loadingTipos}
                 >
-                  <option value="">Selecione</option>
-                  {tipos.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {nomeTipoServico(t)}
+                  <option value="">
+                    {loadingTipos ? 'Carregando...' : 'Selecione'}
+                  </option>
+                  {tiposServico.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nome || 'Serviço'}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div className="grid md:grid-cols-3 gap-3">
+              {/* Data e hora */}
+              <div className="grid md:grid-cols-3 gap-4">
                 <div>
                   <label htmlFor="data" className="block text-sm text-gray-700 mb-1">
                     Data
@@ -471,10 +217,12 @@ export default function AgendamentosPage() {
                   <input
                     id="data"
                     type="date"
-                    required
                     className="w-full border rounded-lg px-3 py-2"
                     value={form.data}
-                    onChange={(e) => setForm((p) => ({ ...p, data: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, data: e.target.value }))
+                    }
+                    required
                   />
                 </div>
                 <div>
@@ -484,43 +232,48 @@ export default function AgendamentosPage() {
                   <input
                     id="hora"
                     type="time"
-                    required
                     className="w-full border rounded-lg px-3 py-2"
                     value={form.hora}
-                    onChange={(e) => setForm((p) => ({ ...p, hora: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, hora: e.target.value }))
+                    }
+                    required
                   />
                 </div>
                 <div>
-                  <label htmlFor="duracao_horas" className="block text-sm text-gray-700 mb-1">
+                  <label htmlFor="duracao" className="block text-sm text-gray-700 mb-1">
                     Duração (h) — opcional
                   </label>
                   <input
-                    id="duracao_horas"
-                    type="number"
-                    step="0.5"
-                    min="0.5"
-                    className="w-full border rounded-lg px-3 py-2"
-                    value={form.duracao_horas}
-                    onChange={(e) => setForm((p) => ({ ...p, duracao_horas: e.target.value }))}
+                    id="duracao"
                     placeholder="ex.: 1.5"
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={form.duracao}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, duracao: e.target.value }))
+                    }
                   />
                 </div>
               </div>
 
+              {/* Endereço */}
               <div>
                 <label htmlFor="endereco" className="block text-sm text-gray-700 mb-1">
                   Endereço
                 </label>
                 <input
                   id="endereco"
-                  required
+                  placeholder="Rua, nº, bairro"
                   className="w-full border rounded-lg px-3 py-2"
                   value={form.endereco}
-                  onChange={(e) => setForm((p) => ({ ...p, endereco: e.target.value }))}
-                  placeholder="Rua, nº, bairro"
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, endereco: e.target.value }))
+                  }
+                  required
                 />
               </div>
 
+              {/* Descrição */}
               <div>
                 <label htmlFor="descricao" className="block text-sm text-gray-700 mb-1">
                   Descrição (opcional)
@@ -528,260 +281,44 @@ export default function AgendamentosPage() {
                 <textarea
                   id="descricao"
                   rows={3}
+                  placeholder="Detalhes do serviço"
                   className="w-full border rounded-lg px-3 py-2"
                   value={form.descricao}
-                  onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))}
-                  placeholder="Detalhes do serviço"
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, descricao: e.target.value }))
+                  }
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={sending}
-                className="self-start bg-[#8F1D14] text-white px-5 py-2 rounded-lg shadow hover:bg-[#a2261b] transition"
-              >
-                {sending ? 'Enviando...' : 'Criar agendamento'}
-              </button>
+              {/* Botão + aviso de login */}
+              <div className="flex flex-col md:flex-row md:items-center gap-3 mt-2">
+                <button
+                  type="submit"
+                  disabled={loading || loadingTipos}
+                  className="bg-[#8F1D14] text-white px-5 py-2 rounded-lg font-semibold shadow hover:bg-[#a2261b] transition disabled:opacity-60"
+                >
+                  {loading ? 'Enviando…' : 'Criar agendamento'}
+                </button>
+
+                {!isLoggedIn && (
+                  <p className="text-sm text-gray-600">
+                    Para agendar, faça{' '}
+                    <Link
+                      href="/login?next=/agendamento"
+                      className="text-[#8F1D14] underline"
+                    >
+                      login
+                    </Link>
+                    .
+                  </p>
+                )}
+              </div>
+
+              {msg && <p className={`text-sm mt-1 ${msgClass}`}>{msg}</p>}
             </form>
-          </section>
-        )}
-
-        {/* PRESTADOR: PENDENTES */}
-        {isPrestador && (
-          <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold text-[#8F1D14] mb-3">Agendamentos pendentes</h2>
-            {pendentes.length === 0 ? (
-              <p className="text-gray-600">Nenhum pendente.</p>
-            ) : (
-              <ul className="grid gap-3">
-                {pendentes.map((ag) => (
-                  <li key={ag.id} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-semibold">
-                          {nomeTipoServico(tipos.find((t) => t.id === ag.tipo_servico_id))} —{' '}
-                          <span className="text-gray-600">{labelStatus(ag.status)}</span>
-                        </p>
-                        <p className="text-gray-700">
-                          {fmtData(ag.data_servico)} · {fmtHora(ag.hora_servico)}
-                          {ag.duracao_horas ? ` · ${ag.duracao_horas}h` : ''}
-                        </p>
-                        {ag.endereco && <p className="text-gray-600">{ag.endereco}</p>}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => aceitar(ag.id)}
-                        className="bg-[#F89D13] text-white px-4 py-2 rounded-lg hover:bg-[#e68a11] transition"
-                      >
-                        Aceitar
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        )}
-
-        {/* PRESTADOR: MEUS ACEITOS */}
-        {isPrestador && (
-          <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold text-[#8F1D14] mb-3">Meus agendamentos aceitos</h2>
-            {meusAceitos.length === 0 ? (
-              <p className="text-gray-600">Você ainda não aceitou nenhum.</p>
-            ) : (
-              <ul className="grid gap-3">
-                {meusAceitos.map((ag) => {
-                  const stepCheckin = !!(ag.checkin_at || ag.checkin_used);
-                  const stepStart = !!(ag.start_at || ag.start_used);
-                  const stepEnd = !!(ag.end_at || ag.end_used);
-
-                  return (
-                    <li key={ag.id} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div>
-                          <p className="font-semibold">
-                            {nomeTipoServico(tipos.find((t) => t.id === ag.tipo_servico_id))} —{' '}
-                            <span className="text-gray-600">{labelStatus(ag.status)}</span>
-                          </p>
-                          <p className="text-gray-700">
-                            {fmtData(ag.data_servico)} · {fmtHora(ag.hora_servico)}
-                            {ag.duracao_horas ? ` · ${ag.duracao_horas}h` : ''}
-                          </p>
-                          {ag.endereco && <p className="text-gray-600">{ag.endereco}</p>}
-
-                          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-                            <span className={`${chipBase} ${stepCheckin ? chipOn : chipOff}`}>
-                              Check-in {ag.checkin_at ? `(${fmtDateTime(ag.checkin_at)})` : ''}
-                            </span>
-                            <span className="text-gray-300">→</span>
-                            <span className={`${chipBase} ${stepStart ? chipOn : chipOff}`}>
-                              Início {ag.start_at ? `(${fmtDateTime(ag.start_at)})` : ''}
-                            </span>
-                            <span className="text-gray-300">→</span>
-                            <span className={`${chipBase} ${stepEnd ? chipOn : chipOff}`}>
-                              Término {ag.end_at ? `(${fmtDateTime(ag.end_at)})` : ''}
-                            </span>
-                          </div>
-                        </div>
-
-                        <Link
-                          href={`/agendamento/${ag.id}/scanner`}
-                          className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
-                        >
-                          Abrir scanner
-                        </Link>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        )}
-
-        {/* CONTRATANTE: LISTA */}
-        {isContratante && (
-          <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6">
-            <div className="mb-3 flex items-center justify_between gap-3">
-              <h2 className="text-lg font-semibold text-[#8F1D14]">Meus agendamentos</h2>
-              <Link
-                href="/historico-avaliacoes"
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
-              >
-                Ver histórico de avaliações
-              </Link>
-            </div>
-
-            {meusAceitos.length === 0 ? (
-              <p className="text-gray-600">Nenhum agendamento para mostrar.</p>
-            ) : (
-              <ul className="grid gap-3">
-                {meusAceitos.map((ag) => {
-                  const stepCheckin = !!(ag.checkin_at || ag.checkin_used);
-                  const stepStart = !!(ag.start_at || ag.start_used);
-                  const stepEnd = !!(ag.end_at || ag.end_used);
-
-                  return (
-                    <li key={ag.id} className="border border-gray-200 rounded-xl p-4 bg-white shadow-sm">
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                        <div>
-                          <p className="font-semibold">
-                            {nomeTipoServico(tipos.find((t) => t.id === ag.tipo_servico_id))} —{' '}
-                            <span className="text-gray-600">{labelStatus(ag.status)}</span>
-                          </p>
-                          <p className="text-gray-700">
-                            {fmtData(ag.data_servico)} · {fmtHora(ag.hora_servico)}
-                            {ag.duracao_horas ? ` · ${ag.duracao_horas}h` : ''}
-                          </p>
-                          {ag.endereco && <p className="text-gray-600">{ag.endereco}</p>}
-                          {ag.descricao && <p className="text-gray-600 mt-1">“{ag.descricao}”</p>}
-
-                          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-                            <span className={`${chipBase} ${stepCheckin ? chipOn : chipOff}`}>
-                              Check-in {ag.checkin_at ? `(${fmtDateTime(ag.checkin_at)})` : ''}
-                            </span>
-                            <span className="text-gray-300">→</span>
-                            <span className={`${chipBase} ${stepStart ? chipOn : chipOff}`}>
-                              Início {ag.start_at ? `(${fmtDateTime(ag.start_at)})` : ''}
-                            </span>
-                            <span className="text-gray-300">→</span>
-                            <span className={`${chipBase} ${stepEnd ? chipOn : chipOff}`}>
-                              Término {ag.end_at ? `(${fmtDateTime(ag.end_at)})` : ''}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => abrirQr(ag.id, 'checkin')}
-                            className="px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
-                          >
-                            QR Check-in
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => abrirQr(ag.id, 'start')}
-                            className="px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
-                          >
-                            QR Início
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => abrirQr(ag.id, 'end')}
-                            className="px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
-                          >
-                            QR Término
-                          </button>
-
-                          {stepEnd && (
-                            <button
-                              type="button"
-                              onClick={() => abrirAvaliacao(ag.id)}
-                              className="px-3 py-2 rounded-lg bg-[#8F1D14] text-white hover:bg-[#a2261b]"
-                            >
-                              Avaliar
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        )}
-      </div>
-
-      {/* Modal do QR */}
-      <Modal open={qrOpen} onClose={() => setQrOpen(false)} title="QR code do agendamento" maxWidthClass="max-w-md">
-        {qrLoading && <p className="text-sm text-gray-600">Gerando QR…</p>}
-        {!qrLoading && qrFor && (
-          <div className="space-y-3">
-            {(() => {
-              let phaseLabel = 'término';
-              if (qrFor.phase === 'checkin') phaseLabel = 'check-in';
-              else if (qrFor.phase === 'start') phaseLabel = 'início';
-              return (
-                <p className="text-sm text-gray-700">
-                  Mostre este QR ao prestador para registrar: <strong>{phaseLabel}</strong>.
-                </p>
-              );
-            })()}
-
-            <QrDisplay text={JSON.stringify({ id: qrFor.id, phase: qrFor.phase, token: qrFor.token })} size={256} />
-
-            <code className="block text-xs bg-gray-50 border border-gray-200 rounded p-2 break-all">
-              {JSON.stringify({ id: qrFor.id, phase: qrFor.phase, token: qrFor.token })}
-            </code>
           </div>
-        )}
-      </Modal>
-
-      {/* Modal de Avaliação */}
-      <AvaliacaoModal
-        agendamentoId={evalCtx?.agendamentoId ?? 0}
-        open={evalOpen && !!evalCtx}
-        onClose={() => setEvalOpen(false)}
-        onSuccess={async () => {
-          if (evalCtx?.agendamentoId) {
-            setAvaliados((prev) => new Set(prev).add(evalCtx.agendamentoId));
-          }
-          try {
-            if (isContratante) {
-              const meus = (await apiFetch('/agendamentos/cliente')) as TAgendamento[];
-              setMeusAceitos(Array.isArray(meus) ? meus : []);
-            }
-          } catch {
-            // ignora
-          }
-          setEvalOpen(false);
-        }}
-        prestadorNome={evalCtx?.prestadorNome}
-        servicoNome={evalCtx?.servicoNome}
-      />
+        </div>
+      </section>
     </main>
   );
 }
