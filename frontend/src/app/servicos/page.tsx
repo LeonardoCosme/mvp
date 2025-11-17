@@ -5,11 +5,13 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { apiFetch } from '@/utils/api';
-import { getToken } from '@/utils/auth';
+import { apiFetch } from '../../utils/api';
+import { getToken } from '../../utils/auth';
 
 type TipoServico = {
   id: number;
+  nome?: string;
+  nomeServico?: string;
   [key: string]: any;
 };
 
@@ -21,17 +23,17 @@ type FormAgendamento = {
   descricao: string;
 };
 
-// Mesma lógica do /agendamento para achar o "nome" certo
+// Função para achar o "nome" certo do serviço
 function nomeTipoServico(raw?: TipoServico | null): string {
   if (!raw) return 'Serviço';
   return (
-    raw.nomeServico ??
-    raw.nome_servico ??
-    raw.tipoServico ??
-    raw.tipo_servico ??
-    raw.nome ??
-    raw.descricao ??
-    raw.titulo ??
+    raw.nome || // produção: { id, nome }
+    raw.nomeServico ||
+    (raw as any).nome_servico ||
+    (raw as any).tipoServico ||
+    (raw as any).tipo_servico ||
+    (raw as any).descricao ||
+    (raw as any).titulo ||
     'Serviço'
   );
 }
@@ -50,13 +52,11 @@ export default function ServicosPage() {
   const [loading, setLoading] = useState(false);
   const [loadingServicos, setLoadingServicos] = useState(true);
 
-  // 🚀 Carrega os serviços direto do backend usando apiFetch (com anti-304)
+  // 🚀 Carrega os serviços direto do backend usando apiFetch
   useEffect(() => {
     (async () => {
       try {
-        const raw = (await apiFetch('/tipos-servico', {
-          noAuth: true,
-        })) as
+        const raw = (await apiFetch('/tipos-servico')) as
           | TipoServico[]
           | { itens?: TipoServico[]; tipos?: TipoServico[]; data?: TipoServico[] };
 
@@ -66,6 +66,10 @@ export default function ServicosPage() {
         else if (Array.isArray((raw as any)?.itens)) itens = (raw as any).itens;
         else if (Array.isArray((raw as any)?.tipos)) itens = (raw as any).tipos;
         else if (Array.isArray((raw as any)?.data)) itens = (raw as any).data;
+
+        // Log para debug (F12 → Console)
+        // eslint-disable-next-line no-console
+        console.log('TIPOS SERVICO RAW =>', raw, 'Itens normalizados =>', itens);
 
         setServicos(itens);
       } catch (err) {
@@ -142,8 +146,8 @@ export default function ServicosPage() {
                   Catálogo de Serviços
                 </h1>
                 <p className="mt-3 text-gray-700">
-                  Encontre o serviço ideal e agende em poucos cliques — rápido, seguro e sem
-                  complicação.
+                  Encontre o serviço ideal e agende em poucos cliques — rápido, seguro e
+                  sem complicação.
                 </p>
               </div>
               <div className="w-full md:w-80">
