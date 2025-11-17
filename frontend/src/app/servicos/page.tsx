@@ -5,14 +5,11 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { apiFetch } from '@/utils/api';
 import { getToken } from '@/utils/auth';
 
 type TipoServico = {
   id: number;
-  nome?: string;
-  nomeServico?: string;
-  [key: string]: any;
+  nome: string;
 };
 
 type FormAgendamento = {
@@ -22,21 +19,6 @@ type FormAgendamento = {
   endereco: string;
   descricao: string;
 };
-
-// Pega o nome do serviço de forma tolerante
-function nomeTipoServico(raw?: TipoServico | null): string {
-  if (!raw) return 'Serviço';
-  return (
-    raw.nome ||
-    raw.nomeServico ||
-    (raw as any).nome_servico ||
-    (raw as any).tipoServico ||
-    (raw as any).tipo_servico ||
-    (raw as any).descricao ||
-    (raw as any).titulo ||
-    'Serviço'
-  );
-}
 
 export default function ServicosPage() {
   const [servicos, setServicos] = useState<TipoServico[]>([]);
@@ -53,29 +35,36 @@ export default function ServicosPage() {
   const [loadingServicos, setLoadingServicos] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // 🔑 Define se o usuário está logado só no cliente (evita erro 418)
+  // 🔑 verifica login só no cliente (pra evitar hydration error)
   useEffect(() => {
     setIsLoggedIn(!!getToken());
   }, []);
 
-  // 🚀 Carrega os serviços direto do backend usando apiFetch
+  // 🚀 carrega os tipos de serviço DIRETO da API (sem apiFetch, pra testar)
   useEffect(() => {
-    (async () => {
+    async function carregarServicos() {
       try {
-        const raw = (await apiFetch('/tipos-servico')) as
-          | TipoServico[]
-          | { itens?: TipoServico[]; tipos?: TipoServico[]; data?: TipoServico[] };
+        const resp = await fetch(
+          'https://mvp-marido-aluguel.up.railway.app/api/tipos-servico',
+          {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            cache: 'no-store',
+          }
+        );
 
-        let itens: TipoServico[] = [];
+        if (!resp.ok) {
+          const txt = await resp.text();
+          console.error('[TIPOS-SERVICO] ERRO HTTP', resp.status, txt);
+          throw new Error(`Erro ao buscar serviços (${resp.status})`);
+        }
 
-        if (Array.isArray(raw)) itens = raw;
-        else if (Array.isArray((raw as any)?.itens)) itens = (raw as any).itens;
-        else if (Array.isArray((raw as any)?.tipos)) itens = (raw as any).tipos;
-        else if (Array.isArray((raw as any)?.data)) itens = (raw as any).data;
+        const data = (await resp.json()) as TipoServico[] | any;
 
-        // Pra conferir no F12 → Console
-        // eslint-disable-next-line no-console
-        console.log('TIPOS SERVICO RAW =>', raw, 'Itens normalizados =>', itens);
+        // garante que é array
+        const itens: TipoServico[] = Array.isArray(data) ? data : [];
+
+        console.log('[TIPOS-SERVICO] dados recebidos =>', itens);
 
         setServicos(itens);
       } catch (err) {
@@ -84,17 +73,19 @@ export default function ServicosPage() {
       } finally {
         setLoadingServicos(false);
       }
-    })();
+    }
+
+    carregarServicos();
   }, []);
 
-  // 🔍 Filtro de busca
+  // 🔍 filtro de busca pelo nome
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return servicos;
-    return servicos.filter((s) => nomeTipoServico(s).toLowerCase().includes(q));
+    return servicos.filter((s) => s.nome.toLowerCase().includes(q));
   }, [servicos, busca]);
 
-  // 🧾 Envio de agendamento
+  // 🧾 envio do agendamento
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg('');
@@ -117,12 +108,29 @@ export default function ServicosPage() {
         descricao: form.descricao.trim(),
       };
 
-      const result = await apiFetch('/agendamentos', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      const resp = await fetch(
+        'https://mvp-marido-aluguel.up.railway.app/api/agendamentos',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${getToken()}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      const result = await resp.json().catch(() => ({}));
 
       console.log('📦 Resposta do agendamento:', result);
+
+      if (!resp.ok) {
+        throw new Error(
+          (result && (result.message as string)) ||
+            `Erro HTTP ${resp.status}`
+        );
+      }
+
       setMsg('✅ Agendamento criado com sucesso!');
       setForm({
         tipo_servico_id: '',
@@ -152,8 +160,8 @@ export default function ServicosPage() {
                   Catálogo de Serviços
                 </h1>
                 <p className="mt-3 text-gray-700">
-                  Encontre o serviço ideal e agende em poucos cliques — rápido, seguro e
-                  sem complicação.
+                  Encontre o serviço ideal e agende em poucos cliques — rápido,
+                  seguro e sem complicação.
                 </p>
               </div>
               <div className="w-full md:w-80">
@@ -163,7 +171,7 @@ export default function ServicosPage() {
               </div>
             </div>
 
-            {/* Campo de busca */}
+            {/* Busca */}
             <div className="mt-6">
               <label htmlFor="busca" className="sr-only">
                 Buscar serviço
@@ -207,7 +215,7 @@ export default function ServicosPage() {
                       </span>
                     </div>
                     <h3 className="font-semibold text-gray-900">
-                      {nomeTipoServico(s) || 'Serviço sem nome'}
+                      {s.nome || 'Serviço'}
                     </h3>
                   </div>
 
@@ -245,7 +253,10 @@ export default function ServicosPage() {
 
             <form onSubmit={handleSubmit} className="grid gap-4">
               <div>
-                <label htmlFor="tipo_servico_id" className="block text-sm text-gray-700 mb-1">
+                <label
+                  htmlFor="tipo_servico_id"
+                  className="block text-sm text-gray-700 mb-1"
+                >
                   Tipo de serviço
                 </label>
                 <select
@@ -260,7 +271,7 @@ export default function ServicosPage() {
                   <option value="">Selecione</option>
                   {servicos.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {nomeTipoServico(s)}
+                      {s.nome || 'Serviço'}
                     </option>
                   ))}
                 </select>
@@ -276,7 +287,9 @@ export default function ServicosPage() {
                     type="date"
                     className="w-full border rounded-lg px-3 py-2"
                     value={form.data}
-                    onChange={(e) => setForm((p) => ({ ...p, data: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, data: e.target.value }))
+                    }
                     required
                   />
                 </div>
@@ -289,14 +302,19 @@ export default function ServicosPage() {
                     type="time"
                     className="w-full border rounded-lg px-3 py-2"
                     value={form.hora}
-                    onChange={(e) => setForm((p) => ({ ...p, hora: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, hora: e.target.value }))
+                    }
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="endereco" className="block text-sm text-gray-700 mb-1">
+                <label
+                  htmlFor="endereco"
+                  className="block text-sm text-gray-700 mb-1"
+                >
                   Endereço
                 </label>
                 <input
@@ -304,13 +322,18 @@ export default function ServicosPage() {
                   placeholder="Rua, nº, bairro"
                   className="w-full border rounded-lg px-3 py-2"
                   value={form.endereco}
-                  onChange={(e) => setForm((p) => ({ ...p, endereco: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, endereco: e.target.value }))
+                  }
                   required
                 />
               </div>
 
               <div>
-                <label htmlFor="descricao" className="block text-sm text-gray-700 mb-1">
+                <label
+                  htmlFor="descricao"
+                  className="block text-sm text-gray-700 mb-1"
+                >
                   Descrição (opcional)
                 </label>
                 <textarea
@@ -319,7 +342,9 @@ export default function ServicosPage() {
                   placeholder="Detalhes do serviço"
                   className="w-full border rounded-lg px-3 py-2"
                   value={form.descricao}
-                  onChange={(e) => setForm((p) => ({ ...p, descricao: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, descricao: e.target.value }))
+                  }
                 />
               </div>
 
