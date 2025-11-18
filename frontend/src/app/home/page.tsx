@@ -87,7 +87,7 @@ export default function LandingPage() {
       {/* Conteúdo abaixo */}
       <section className="flex flex-col items-center justify-center p-6 mt-10 text-center">
         <h1 className="text-4xl font-bold text-[#8F1D14] mb-4">
-          {logged && nome ? `Bem-vindo, ${nome.split(' ')[0]}!` : 'Bem-vindo ao InterServ'}
+          {logged && nome ? `Bem-vindo - DEBUG 1, ${nome.split(' ')[0]}!` : 'Bem-vindo ao InterServ'}
         </h1>
         <p className="text-gray-700 max-w-md mb-10">
           Encontre profissionais de confiança para serviços rápidos, práticos e seguros.
@@ -106,7 +106,7 @@ export default function LandingPage() {
                 href="/perfil"
                 className="bg-white border border-[#8F1D14] text-[#8F1D14] px-6 py-3 rounded-lg shadow-md hover:bg-[#8F1D14] hover:text-white transition text-center"
               >
-                Meu perfil - DEBUG 1
+                Meu perfil
               </Link>
               <Link
                 href="/servicos"
