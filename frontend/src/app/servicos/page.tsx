@@ -9,7 +9,8 @@ import { getToken } from '@/utils/auth';
 
 type TipoServico = {
   id: number;
-  nome: string;
+  nomeServico?: string; // vem do backend como alias de 'nome'
+  nome?: string;        // fallback se um dia voltar a ser 'nome'
 };
 
 type FormAgendamento = {
@@ -19,6 +20,10 @@ type FormAgendamento = {
   endereco: string;
   descricao: string;
 };
+
+function rotuloServico(s: TipoServico): string {
+  return s.nomeServico || s.nome || 'Serviço';
+}
 
 export default function ServicosPage() {
   const [servicos, setServicos] = useState<TipoServico[]>([]);
@@ -65,8 +70,6 @@ export default function ServicosPage() {
         }
 
         const data = (await resp.json()) as TipoServico[] | any;
-
-        // garante que é array
         const itens: TipoServico[] = Array.isArray(data) ? data : [];
 
         console.log('[TIPOS-SERVICO] dados recebidos =>', itens);
@@ -90,11 +93,13 @@ export default function ServicosPage() {
   // DEBUG VISUAL: mostra o que veio da API na própria página
   const debugServicos = JSON.stringify(servicos, null, 2);
 
-  // 🔍 filtro de busca pelo nome
+  // 🔍 filtro de busca usando rotuloServico
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return servicos;
-    return servicos.filter((s) => (s.nome || '').toLowerCase().includes(q));
+    return servicos.filter((s) =>
+      rotuloServico(s).toLowerCase().includes(q)
+    );
   }, [servicos, busca]);
 
   // 🧾 envio do agendamento
@@ -234,7 +239,7 @@ export default function ServicosPage() {
                       </span>
                     </div>
                     <h3 className="font-semibold text-gray-900">
-                      {s.nome || 'Serviço'}
+                      {rotuloServico(s)}
                     </h3>
                   </div>
 
@@ -290,7 +295,7 @@ export default function ServicosPage() {
                   <option value="">Selecione</option>
                   {servicos.map((s) => (
                     <option key={s.id} value={s.id}>
-                      {s.nome || 'Serviço'}
+                      {rotuloServico(s)}
                     </option>
                   ))}
                 </select>
