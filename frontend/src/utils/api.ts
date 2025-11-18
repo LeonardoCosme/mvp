@@ -1,91 +1,86 @@
 // src/utils/api.ts
-'use client';
 
-import { getToken } from './auth';
-
-const isDev = process.env.NODE_ENV !== 'production';
-
-/**
- * Em desenvolvimento:
- *   - usa NEXT_PUBLIC_API_URL se existir
- *   - senão, cai em http://localhost:8080/api
- *
- * Em produção:
- *   - OBRIGA ter NEXT_PUBLIC_API_URL configurada
- */
-const RAW_BASE = isDev
-  ? (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api')
-  : process.env.NEXT_PUBLIC_API_URL;
-
-if (!RAW_BASE) {
-  throw new Error(
-    'NEXT_PUBLIC_API_URL não está configurada. ' +
-      'Defina nas variáveis de ambiente (ex.: https://SEU-APP.up.railway.app/api).'
-  );
-}
-
-export const API_BASE_URL = RAW_BASE.replace(/\/+$/, ''); // tira barras finais
-
-function buildUrl(path: string): string {
-  if (path.startsWith('http://') || path.startsWith('https://')) {
-    return path;
-  }
-  const normalized = path.startsWith('/') ? path : `/${path}`;
-  return `${API_BASE_URL}${normalized}`;
-}
-
-type ApiOptions = RequestInit & {
-  /** Se true, não envia Authorization Bearer */
+export type ApiOptions = RequestInit & {
+  /** Se true, não envia Authorization: Bearer token */
   noAuth?: boolean;
 };
 
-export async function apiFetch<T = any>(
-  path: string,
-  options: ApiOptions = {}
-): Promise<T> {
-  const { noAuth, ...fetchOptions } = options;
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL ??
+  'https://mvp-marido-aluguel.up.railway.app/api';
 
-  const url = buildUrl(path);
-  const headers = new Headers(fetchOptions.headers ?? {});
+function getTokenFromStorage(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return localStorage.getItem('token');
+  } catch {
+    return null;
+  }
+}
 
-  // Só define Content-Type se não tiver sido setado
-  if (!headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
+export async function apiFetch(path: string, options: ApiOptions = {}) {
+  // monta URL completa
+  const url = path.startsWith('http')
+    ? path
+    : `${BASE_URL}${path.startsWith('/') ? path : `/${path}`}`;
+
+  const { noAuth, headers, body, ...rest } = options;
+
+  const finalHeaders = new Headers(headers || {});
+  if (!finalHeaders.has('Accept')) {
+    finalHeaders.set('Accept', 'application/json');
   }
 
-  const token = !noAuth ? getToken() : null;
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
+  // adiciona token se necessário
+  const token = !noAuth ? getTokenFromStorage() : null;
+  if (token && !finalHeaders.has('Authorization')) {
+    finalHeaders.set('Authorization', `Bearer ${token}`);
+  }
+
+  // trata body / JSON
+  let finalBody: BodyInit | undefined = body as any;
+
+  const isFormData =
+    typeof FormData !== 'undefined' && body instanceof FormData;
+  const isBlob = typeof Blob !== 'undefined' && body instanceof Blob;
+
+  if (body && !isFormData && !isBlob) {
+    // sempre marcar como JSON quando não for FormData/Blob
+    if (!finalHeaders.has('Content-Type')) {
+      finalHeaders.set('Content-Type', 'application/json');
+    }
+
+    // se for objeto, transformamos em JSON
+    if (typeof body === 'object' && typeof body !== 'string') {
+      finalBody = JSON.stringify(body);
+    }
   }
 
   const resp = await fetch(url, {
-    ...fetchOptions,
-    headers,
-    cache: 'no-store',
+    ...rest,
+    headers: finalHeaders,
+    body: finalBody,
   });
 
-  if (!resp.ok) {
-    let msg = `Erro HTTP ${resp.status}`;
-    try {
-      const data = await resp.json();
-      if (data && typeof data === 'object') {
-        msg = (data as any).message ?? (data as any).error ?? msg;
-      }
-      // debug
-      // eslint-disable-next-line no-console
-      console.error('apiFetch ERROR body JSON =>', data);
-    } catch {
-      const text = await resp.text();
-      if (text) msg = text;
-      // eslint-disable-next-line no-console
-      console.error('apiFetch ERROR body TEXT =>', text);
-    }
-    throw new Error(msg);
+  const text = await resp.text();
+  let data: any = null;
+
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
   }
 
-  const contentType = resp.headers.get('content-type') ?? '';
-  if (contentType.includes('application/json')) {
-    return (await resp.json()) as T;
+  if (!resp.ok) {
+    console.error('apiFetch ERROR', resp.status, data);
+    const err: any = new Error(
+      (data && (data.message || data.error || data.details)) ||
+        `Erro na API (${resp.status})`
+    );
+    err.status = resp.status;
+    err.body = data;
+    throw err;
   }
-  return (await resp.text()) as T;
+
+  return data;
 }
