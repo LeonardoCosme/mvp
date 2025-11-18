@@ -34,16 +34,18 @@ export default function ServicosPage() {
   const [loading, setLoading] = useState(false);
   const [loadingServicos, setLoadingServicos] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [debugMsg, setDebugMsg] = useState<string>('');
 
-  // 🔑 verifica login só no cliente (pra evitar hydration error)
+  // 🔑 verifica login só no cliente (evita erro de hydration)
   useEffect(() => {
     setIsLoggedIn(!!getToken());
   }, []);
 
-  // 🚀 carrega os tipos de serviço DIRETO da API (sem apiFetch, pra testar)
+  // 🚀 carrega os tipos de serviço DIRETO da API Railway
   useEffect(() => {
     async function carregarServicos() {
       try {
+        setDebugMsg('Buscando /api/tipos-servico na Railway...');
         const resp = await fetch(
           'https://mvp-marido-aluguel.up.railway.app/api/tipos-servico',
           {
@@ -56,6 +58,9 @@ export default function ServicosPage() {
         if (!resp.ok) {
           const txt = await resp.text();
           console.error('[TIPOS-SERVICO] ERRO HTTP', resp.status, txt);
+          setDebugMsg(
+            `ERRO HTTP ${resp.status} ao buscar /api/tipos-servico: ${txt}`
+          );
           throw new Error(`Erro ao buscar serviços (${resp.status})`);
         }
 
@@ -65,10 +70,14 @@ export default function ServicosPage() {
         const itens: TipoServico[] = Array.isArray(data) ? data : [];
 
         console.log('[TIPOS-SERVICO] dados recebidos =>', itens);
+        setDebugMsg(
+          `OK! Recebidos ${itens.length} itens de /api/tipos-servico. Veja abaixo.`
+        );
 
         setServicos(itens);
-      } catch (err) {
+      } catch (err: any) {
         console.error('❌ Erro ao carregar serviços:', err);
+        setDebugMsg(`❌ Erro no useEffect: ${String(err?.message || err)}`);
         setServicos([]);
       } finally {
         setLoadingServicos(false);
@@ -78,11 +87,14 @@ export default function ServicosPage() {
     carregarServicos();
   }, []);
 
+  // DEBUG VISUAL: mostra o que veio da API na própria página
+  const debugServicos = JSON.stringify(servicos, null, 2);
+
   // 🔍 filtro de busca pelo nome
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return servicos;
-    return servicos.filter((s) => s.nome.toLowerCase().includes(q));
+    return servicos.filter((s) => (s.nome || '').toLowerCase().includes(q));
   }, [servicos, busca]);
 
   // 🧾 envio do agendamento
@@ -171,7 +183,14 @@ export default function ServicosPage() {
               </div>
             </div>
 
-            {/* Busca */}
+            {/* DEBUG VISUAL */}
+            <div className="mt-4 bg-black/80 text-green-300 text-xs font-mono p-3 rounded-lg overflow-x-auto max-h-40">
+              <div className="font-bold mb-1">DEBUG /api/tipos-servico:</div>
+              <div className="mb-1 text-yellow-300">{debugMsg}</div>
+              <pre>{debugServicos}</pre>
+            </div>
+
+            {/* Campo de busca */}
             <div className="mt-6">
               <label htmlFor="busca" className="sr-only">
                 Buscar serviço
@@ -311,10 +330,7 @@ export default function ServicosPage() {
               </div>
 
               <div>
-                <label
-                  htmlFor="endereco"
-                  className="block text-sm text-gray-700 mb-1"
-                >
+                <label htmlFor="endereco" className="block text-sm text-gray-700 mb-1">
                   Endereço
                 </label>
                 <input
@@ -330,10 +346,7 @@ export default function ServicosPage() {
               </div>
 
               <div>
-                <label
-                  htmlFor="descricao"
-                  className="block text-sm text-gray-700 mb-1"
-                >
+                <label htmlFor="descricao" className="block text-sm text-gray-700 mb-1">
                   Descrição (opcional)
                 </label>
                 <textarea
@@ -352,7 +365,7 @@ export default function ServicosPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="bg-[#8F1D14] text-white px-5 py-2 rounded-lg font-semibold shadow hover:bg-[#a2261b] transition"
+                  className="bg-[#8F1D14] text-white px-5 py-2 rounded-lg font-semibold shadow hover:bg-[#a2261b] transition disabled:opacity-60"
                 >
                   {loading ? 'Enviando…' : 'Agendar serviço'}
                 </button>
