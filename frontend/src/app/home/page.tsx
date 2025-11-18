@@ -112,7 +112,7 @@ export default function LandingPage() {
                 href="/servicos"
                 className="bg-[#F89D13] text-white px-6 py-3 rounded-lg shadow-md hover:bg-[#e68a11] transition text-center"
               >
-                Catálogo de Serviços
+                Catálogo de Serviços - DEBUG 1
               </Link>
             </>
           ) : (
