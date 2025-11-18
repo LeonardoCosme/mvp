@@ -106,13 +106,13 @@ export default function LandingPage() {
                 href="/perfil"
                 className="bg-white border border-[#8F1D14] text-[#8F1D14] px-6 py-3 rounded-lg shadow-md hover:bg-[#8F1D14] hover:text-white transition text-center"
               >
-                Meu perfil
+                Meu perfil - DEBUG 1
               </Link>
               <Link
                 href="/servicos"
                 className="bg-[#F89D13] text-white px-6 py-3 rounded-lg shadow-md hover:bg-[#e68a11] transition text-center"
               >
-                Catálogo de Serviços - DEBUG 1
+                Catálogo de Serviços 
               </Link>
             </>
           ) : (
