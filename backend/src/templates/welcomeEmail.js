@@ -9,7 +9,7 @@ const { emailBase } = require('./emailBase');
  */
 function welcomeEmail(nome, linkVerificacao) {
   return emailBase({
-    title: 'Bem-vindo - DEBUG 1(a) ao Marido de Aluguel!',
+    title: 'Bem-vindo (a) ao Marido de Aluguel!',
     message: `
       Olá, <strong>${nome}</strong>!<br><br>
       Estamos muito felizes em ter você conosco. 🎉<br>

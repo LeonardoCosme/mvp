@@ -169,8 +169,8 @@ export default function ServicosPage() {
             <div className="flex flex-col md:flex-row items-center gap-6">
               <div className="flex-1">
                 <h1 className="text-3xl md:text-4xl font-extrabold text-[#8F1D14]">
-                  Catálogo de Serviços
-                </h1>
+  Catálogo de Serviços - DEBUG 1
+</h1>
                 <p className="mt-3 text-gray-700">
                   Encontre o serviço ideal e agende em poucos cliques — rápido,
                   seguro e sem complicação.
