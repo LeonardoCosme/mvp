@@ -1,4 +1,4 @@
-// src/controllers/auth_controller.js
+// src/controllers/auth_Controller.js
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { Resend } from "resend";
@@ -10,10 +10,13 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // 🔐 LOGIN
 export async function login(req, res) {
   try {
-    const { email, senha } = req.body;
+    const { email, senha, password } = req.body;
+    const senhaLogin = senha || password; // aceita tanto "senha" quanto "password"
 
-    if (!email || !senha) {
-      return res.status(400).json({ message: "E-mail e senha são obrigatórios." });
+    if (!email || !senhaLogin) {
+      return res
+        .status(400)
+        .json({ message: "E-mail e senha são obrigatórios." });
     }
 
     const user = await Usuario.findOne({ where: { email } });
@@ -21,7 +24,7 @@ export async function login(req, res) {
       return res.status(404).json({ message: "Usuário não encontrado." });
     }
 
-    const senhaValida = await bcrypt.compare(senha, user.senha);
+    const senhaValida = await bcrypt.compare(String(senhaLogin), user.senha);
     if (!senhaValida) {
       return res.status(401).json({ message: "Senha incorreta." });
     }
@@ -32,7 +35,7 @@ export async function login(req, res) {
       { expiresIn: "1d" }
     );
 
-    res.json({
+    return res.json({
       message: "Login realizado com sucesso!",
       token,
       nomeUsuario: user.nomeUsuario,
@@ -40,17 +43,22 @@ export async function login(req, res) {
     });
   } catch (error) {
     console.error("❌ Erro no login:", error);
-    res.status(500).json({ message: "Erro interno ao realizar login." });
+    return res
+      .status(500)
+      .json({ message: "Erro interno ao realizar login." });
   }
 }
 
 // 🧾 CADASTRO
 export async function register(req, res) {
   try {
-    const { nomeUsuario, email, cpfUsuario, senha, tipo } = req.body;
+    const { nomeUsuario, email, cpfUsuario, senha, password, tipo } = req.body;
+    const senhaFinal = senha || password;
 
-    if (!nomeUsuario || !email || !senha || !tipo) {
-      return res.status(400).json({ message: "Preencha todos os campos obrigatórios." });
+    if (!nomeUsuario || !email || !senhaFinal || !tipo) {
+      return res
+        .status(400)
+        .json({ message: "Preencha todos os campos obrigatórios." });
     }
 
     const usuarioExistente = await Usuario.findOne({ where: { email } });
@@ -58,7 +66,7 @@ export async function register(req, res) {
       return res.status(400).json({ message: "E-mail já cadastrado." });
     }
 
-    const hashSenha = await bcrypt.hash(String(senha), 10);
+    const hashSenha = await bcrypt.hash(String(senhaFinal), 10);
 
     const novoUsuario = await Usuario.create({
       nomeUsuario,
@@ -68,18 +76,23 @@ export async function register(req, res) {
       tipo,
     });
 
-    // ✅ Envia e-mail de boas-vindas via Resend
+    // ✅ E-mail de boas-vindas (opcional)
     if (process.env.RESEND_API_KEY) {
       try {
         await resend.emails.send({
-          from: process.env.EMAIL_FROM || "Marido de Aluguel <no-reply@maridodealuguel.app.br>",
+          from:
+            process.env.EMAIL_FROM ||
+            "Marido de Aluguel <no-reply@maridodealuguel.app.br>",
           to: email,
           subject: "Cadastro realizado com sucesso!",
           html: `
-            <h2>Olá, ${nomeUsuario}!</h2>
+            <h2>Olá, ${novoUsuario.nomeUsuario}!</h2>
             <p>Seu cadastro foi realizado com sucesso no portal <b>Marido de Aluguel</b>.</p>
             <p>Agora você pode fazer login e utilizar todos os nossos serviços.</p>
-            <p>💡 <a href="${process.env.FRONTEND_URL || "https://mvp-marido-aluguel.vercel.app"}/login">Acesse sua conta</a></p>
+            <p>💡 <a href="${
+              process.env.FRONTEND_URL ||
+              "https://mvp-marido-aluguel.vercel.app"
+            }/login">Acesse sua conta</a></p>
           `,
         });
         console.log(`📧 E-mail de boas-vindas enviado para ${email}`);
@@ -88,7 +101,7 @@ export async function register(req, res) {
       }
     }
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Usuário cadastrado com sucesso!",
       user: {
         id: novoUsuario.id,
@@ -99,7 +112,10 @@ export async function register(req, res) {
     });
   } catch (error) {
     console.error("❌ Erro em /register:", error);
-    res.status(500).json({ message: "Erro ao cadastrar usuário.", detail: error.message });
+    return res.status(500).json({
+      message: "Erro ao cadastrar usuário.",
+      detail: error.message,
+    });
   }
 }
 
@@ -123,7 +139,8 @@ export async function forgotPassword(req, res) {
       { expiresIn: "1h" }
     );
 
-    const frontendUrl = process.env.FRONTEND_URL || "https://mvp-marido-aluguel.vercel.app";
+    const frontendUrl =
+      process.env.FRONTEND_URL || "https://mvp-marido-aluguel.vercel.app";
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     console.log(`🔗 Link de redefinição para ${email}: ${resetLink}`);
@@ -131,7 +148,9 @@ export async function forgotPassword(req, res) {
     if (process.env.RESEND_API_KEY) {
       try {
         await resend.emails.send({
-          from: process.env.EMAIL_FROM || "Marido de Aluguel <no-reply@maridodealuguel.app.br>",
+          from:
+            process.env.EMAIL_FROM ||
+            "Marido de Aluguel <no-reply@maridodealuguel.app.br>",
           to: email,
           subject: "Redefinição de senha - Marido de Aluguel",
           html: `
@@ -145,13 +164,19 @@ export async function forgotPassword(req, res) {
         console.log(`✅ E-mail de recuperação enviado para ${email}`);
       } catch (err) {
         console.error("❌ Erro ao enviar e-mail com Resend:", err.message);
-        return res.status(500).json({ message: "Falha ao enviar e-mail de recuperação." });
+        return res
+          .status(500)
+          .json({ message: "Falha ao enviar e-mail de recuperação." });
       }
     }
 
-    res.json({ message: "Instruções de recuperação enviadas por e-mail." });
+    return res.json({
+      message: "Instruções de recuperação enviadas por e-mail.",
+    });
   } catch (error) {
     console.error("❌ Erro ao enviar recuperação de senha:", error);
-    res.status(500).json({ message: "Erro ao enviar recuperação de senha." });
+    return res
+      .status(500)
+      .json({ message: "Erro ao enviar recuperação de senha." });
   }
 }

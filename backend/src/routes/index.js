@@ -1,22 +1,22 @@
 // src/routes/index.js
 import express from "express";
-import authenticate from "../middleware/authenticate.js";
+import authenticate from "./middleware/authenticate.js";
 
 // Controllers (todos em formato ESM)
-import * as Auth from "../controllers/auth_Controller.js";
-import * as User from "../controllers/user_controller.js";
-import * as Password from "../controllers/password_controller.js";
-import * as Prest from "../controllers/prestador_controller.js";
-import * as Contr from "../controllers/contratante_controller.js";
-import * as Cat from "../controllers/catalogo_controller.js";
-import * as Ag from "../controllers/agendamento_controller.js";
-import * as Aval from "../controllers/avaliacao_controller.js";
-import * as Historico from "../controllers/historico_controller.js";
+import * as Auth from "./controllers/auth_Controller.js";
+import * as User from "./controllers/user_controller.js";
+import * as Password from "./controllers/password_controller.js";
+import * as Prest from "./controllers/prestador_controller.js";
+import * as Contr from "./controllers/contratante_controller.js";
+import * as Cat from "./controllers/catalogo_controller.js";
+import * as Ag from "./controllers/agendamento_controller.js";
+import * as Aval from "./controllers/avaliacao_controller.js";
+import * as Historico from "./controllers/historico_controller.js";
 
 const router = express.Router();
 
 /* ==========================================================
-   🔹 LOG DE ROTAS — apenas em ambiente de desenvolvimento
+   🔹 LOG DE ROTAS — apenas em desenvolvimento
 ========================================================== */
 if (process.env.NODE_ENV !== "production") {
   console.log("🔹 Rotas carregadas:");
@@ -44,7 +44,7 @@ router.post("/auth/forgot-password", Auth.forgotPassword);
 router.get("/user/me", authenticate, User.me);
 
 /* ==========================================================
-   🔑 RECUPERAÇÃO DE SENHA
+   🔑 RECUPERAÇÃO DE SENHA (controlador antigo, se existir)
 ========================================================== */
 if (Password?.forgotPassword && Password?.resetPassword) {
   router.post("/user/forgot-password", Password.forgotPassword);
@@ -82,7 +82,7 @@ if (typeof Ag.listPrestador === "function") {
 
 router.post("/agendamentos/:id/aceitar", authenticate, Ag.accept);
 
-/* ✅ QR Code Rotas Corrigidas */
+/* ✅ QR Code / Scan */
 if (typeof Ag.qrcode === "function") {
   router.get("/agendamentos/:id/qrcode", authenticate, Ag.qrcode);
 } else {
@@ -100,7 +100,11 @@ if (typeof Ag.scan === "function") {
 ========================================================== */
 router.post("/avaliacoes", authenticate, Aval.create);
 if (typeof Aval.resumoPrestador === "function") {
-  router.get("/avaliacoes/resumo/:prestadorId", authenticate, Aval.resumoPrestador);
+  router.get(
+    "/avaliacoes/resumo/:prestadorId",
+    authenticate,
+    Aval.resumoPrestador
+  );
 }
 
 /* ==========================================================
@@ -114,7 +118,7 @@ if (typeof Historico.statusCliente === "function") {
 }
 
 /* ==========================================================
-   🩺 HEALTHCHECK (para Railway e monitoramento)
+   🩺 HEALTHCHECK
 ========================================================== */
 router.get("/health", (_req, res) =>
   res.json({
@@ -125,6 +129,6 @@ router.get("/health", (_req, res) =>
 );
 
 /* ==========================================================
-   ✅ EXPORT PADRÃO
+   ✅ EXPORT
 ========================================================== */
 export default router;

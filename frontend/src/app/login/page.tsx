@@ -3,7 +3,7 @@
 
 import { FormEvent, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { apiFetch } from '@/utils/api';
+import { apiFetch } from '../../utils/api';
 
 type LoginResponse = {
   token?: string;

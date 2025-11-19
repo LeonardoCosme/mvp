@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { getToken } from '@/utils/auth';
+import { getToken } from '../../utils/auth';
 
 type TipoServico = {
   id: number;
