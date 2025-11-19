@@ -58,7 +58,17 @@ export default function Header() {
     router.push('/login');
   }
 
+  // rota de agendamento (só acessa se estiver logado)
   const agendamentoHref = logged ? '/agendamento' : '/login?next=/agendamento';
+
+  // rota de "perfil" de acordo com o tipo de usuário
+  // - contratante/cliente -> /historico (meus agendamentos)
+  // - prestador -> /historico-avaliacoes
+  const perfilHref = !logged
+    ? '/login'
+    : tipo === 'prestador'
+    ? '/historico-avaliacoes'
+    : '/historico';
 
   const links = [
     { href: '/home', label: 'Home' },
@@ -66,10 +76,13 @@ export default function Header() {
     { href: '/servicos', label: 'Serviços' },
     !logged && { href: '/login', label: 'Login' },
     !logged && { href: '/cadastro', label: 'Cadastro' },
-    logged && { href: '/perfil', label: nome ? nome.split(' ')[0] : 'Meu Perfil' },
+    logged && {
+      href: perfilHref,
+      label: nome ? nome.split(' ')[0] : 'Meu Perfil',
+    },
   ].filter(Boolean) as { href: string; label: string }[];
 
-  // ✅ Correção: extrair ternário aninhado
+  // badge com o tipo de usuário
   let tipoClass = 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
 
   if (tipo === 'prestador') {
@@ -91,7 +104,9 @@ export default function Header() {
             className="min-w-0 shrink font-extrabold text-[#8F1D14] text-base sm:text-lg tracking-tight hover:opacity-90 transition leading-tight"
           >
             <span className="block sm:hidden">
-              Marido de<br />Aluguel
+              Marido de
+              <br />
+              Aluguel
             </span>
             <span className="hidden sm:block">Marido de Aluguel</span>
           </Link>
@@ -99,7 +114,7 @@ export default function Header() {
           <nav className="min-w-0 w-full sm:w-auto flex flex-wrap sm:flex-nowrap items-center justify-start sm:justify-end gap-1 sm:gap-2">
             {links.map((link) => {
               const active = pathname === link.href;
-              const isPerfil = link.href === '/perfil';
+              const isPerfil = link.href === perfilHref && logged;
 
               return (
                 <div key={link.href} className="relative">
@@ -116,7 +131,9 @@ export default function Header() {
                     ].join(' ')}
                   >
                     {link.label}
-                    {logged && isPerfil && tipo && <span className={badgeClass}>{tipo}</span>}
+                    {logged && isPerfil && tipo && (
+                      <span className={badgeClass}>{tipo}</span>
+                    )}
                   </Link>
 
                   <AnimatePresence>
