@@ -63,6 +63,8 @@ export default function AgendamentoPage() {
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
+        console.log('[AGENDAMENTO] user =>', user);
+
         const isContratante = !!user?.Contratante;
         const isPrestador = !!user?.Prestador;
 
@@ -85,19 +87,17 @@ export default function AgendamentoPage() {
           lista = [];
         }
 
+        console.log('[AGENDAMENTO] lista =>', lista);
+
         if (!cancelado) {
-          console.log('[AGENDAMENTOS] lista =>', lista);
           setAgendamentos(Array.isArray(lista) ? lista : []);
         }
       } catch (err: any) {
         console.error('❌ Erro ao carregar agendamentos:', err);
-
-        // se o token estiver inválido / expirado
         if (err?.status === 401) {
           router.push('/login?next=/agendamento');
           return;
         }
-
         if (!cancelado) {
           setErro(
             err?.body?.message ||
@@ -129,10 +129,7 @@ export default function AgendamentoPage() {
                   Agendamentos
                 </h1>
                 <p className="text-sm text-gray-600 mt-1">
-                  Perfil:{' '}
-                  <span className="font-semibold">
-                    {perfil}
-                  </span>
+                  Perfil: <span className="font-semibold">{perfil}</span>
                 </p>
               </div>
 
@@ -144,6 +141,7 @@ export default function AgendamentoPage() {
                   ← Voltar para a home
                 </Link>
 
+                {/* 👉 AQUI: link direto para /historico */}
                 <Link
                   href="/historico"
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
@@ -160,7 +158,7 @@ export default function AgendamentoPage() {
               </div>
             )}
 
-            {/* Link para criar novo */}
+            {/* Aviso + link para criar novo agendamento */}
             <div className="mb-6 rounded-xl bg-[#F89D13]/10 border border-[#F89D13]/30 px-4 py-3 text-sm text-gray-800 flex flex-wrap items-center justify-between gap-2">
               <span>
                 Para criar um novo agendamento, escolha o serviço no catálogo.
@@ -213,7 +211,7 @@ export default function AgendamentoPage() {
                         <p className="text-xs text-gray-500 mt-0.5 capitalize">
                           Status:{' '}
                           <span className="font-medium text-gray-800">
-                            {ag.status.replace('_', ' ')}
+                            {ag.status?.replace('_', ' ')}
                           </span>
                         </p>
                       </div>
