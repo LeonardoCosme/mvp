@@ -9,6 +9,8 @@ type LoginResponse = {
   token?: string;
   message?: string;
   error?: string;
+  nomeUsuario?: string;
+  tipo?: string;
   [key: string]: any;
 };
 
@@ -38,8 +40,8 @@ export default function LoginPage() {
         noAuth: true,
         body: {
           email: email.trim(),
-          senha: senha,    // compatível com backend antigo
-          password: senha, // compatível com backend novo
+          senha: senha,    // compatível com backend (campo "senha")
+          password: senha, // compatível com variantes futuras
           lembrar,
         },
       })) as LoginResponse;
@@ -55,7 +57,29 @@ export default function LoginPage() {
       }
 
       if (typeof window !== 'undefined') {
-        localStorage.setItem('token', token);
+        // limpa qualquer lixo de sessão antiga
+        window.localStorage.removeItem('token');
+        window.localStorage.removeItem('nomeUsuario');
+        window.localStorage.removeItem('tipo');
+        window.localStorage.removeItem('tipoUsuario');
+
+        // salva token novo
+        window.localStorage.setItem('token', token);
+
+        // backend manda nomeUsuario e tipo soltos:
+        const nomeUsuario = data.nomeUsuario || '';
+        const tipo = data.tipo || '';
+
+        if (nomeUsuario) {
+          window.localStorage.setItem('nomeUsuario', String(nomeUsuario));
+        }
+        if (tipo) {
+          window.localStorage.setItem('tipo', String(tipo));
+          window.localStorage.setItem('tipoUsuario', String(tipo));
+        }
+
+        // avisa Header / outros componentes que o auth mudou
+        window.dispatchEvent(new Event('auth-changed'));
       }
 
       const next = searchParams.get('next') || '/home';
@@ -137,7 +161,6 @@ export default function LoginPage() {
                 Lembrar de mim
               </label>
 
-              {/* 🔑 Esqueci minha senha → vai para /forgot-password */}
               <button
                 type="button"
                 onClick={() => router.push('/forgot-password')}
