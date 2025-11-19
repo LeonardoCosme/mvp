@@ -1,19 +1,19 @@
-// src/routes/index.js
 import express from "express";
-import authenticate from "./middleware/authenticate.js";
+import authenticate from "../middleware/authenticate.js";
 
 // Controllers (todos em formato ESM)
-import * as Auth from "./controllers/auth_Controller.js";
-import * as User from "./controllers/user_controller.js";
-import * as Password from "./controllers/password_controller.js";
-import * as Prest from "./controllers/prestador_controller.js";
-import * as Contr from "./controllers/contratante_controller.js";
-import * as Cat from "./controllers/catalogo_controller.js";
-import * as Ag from "./controllers/agendamento_controller.js";
-import * as Aval from "./controllers/avaliacao_controller.js";
-import * as Historico from "./controllers/historico_controller.js";
+import * as Auth from "../controllers/auth_Controller.js";
+import * as User from "../controllers/user_controller.js";
+import * as Password from "../controllers/password_controller.js";
+import * as Prest from "../controllers/prestador_controller.js";
+import * as Contr from "../controllers/contratante_controller.js";
+import * as Cat from "../controllers/catalogo_controller.js";
+import * as Ag from "../controllers/agendamento_controller.js";
+import * as Aval from "../controllers/avaliacao_controller.js";
+import * as Historico from "../controllers/historico_controller.js";
 
 const router = express.Router();
+
 
 /* ==========================================================
    🔹 LOG DE ROTAS — apenas em desenvolvimento
