@@ -1,16 +1,25 @@
 // src/utils/api.ts
 
-import { getToken, removeToken } from './auth';
+import { removeToken } from './auth';
 
 export type ApiOptions = RequestInit & {
   /** Se true, não envia Authorization: Bearer token */
   noAuth?: boolean;
 };
 
-// URL base do backend (Railway)
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   'https://mvp-marido-aluguel.up.railway.app/api';
+
+// lê sempre do localStorage
+function getTokenFromStorage(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    return window.localStorage.getItem('token');
+  } catch {
+    return null;
+  }
+}
 
 export async function apiFetch(path: string, options: ApiOptions = {}) {
   // monta URL completa
@@ -21,7 +30,6 @@ export async function apiFetch(path: string, options: ApiOptions = {}) {
   const { noAuth, headers, body, ...rest } = options;
 
   const finalHeaders = new Headers(headers || {});
-
   if (!finalHeaders.has('Accept')) {
     finalHeaders.set('Accept', 'application/json');
   }
@@ -30,17 +38,7 @@ export async function apiFetch(path: string, options: ApiOptions = {}) {
   let token: string | null = null;
 
   if (!noAuth && typeof window !== 'undefined') {
-    try {
-      // usa o mesmo helper do projeto
-      token = getToken();
-    } catch {
-      // fallback direto no localStorage, se necessário
-      try {
-        token = window.localStorage.getItem('token');
-      } catch {
-        token = null;
-      }
-    }
+    token = getTokenFromStorage();
   }
 
   if (token && !finalHeaders.has('Authorization')) {
@@ -55,18 +53,15 @@ export async function apiFetch(path: string, options: ApiOptions = {}) {
   const isBlob = typeof Blob !== 'undefined' && body instanceof Blob;
 
   if (body && !isFormData && !isBlob) {
-    // sempre marcar como JSON quando não for FormData/Blob
     if (!finalHeaders.has('Content-Type')) {
       finalHeaders.set('Content-Type', 'application/json');
     }
 
-    // se for objeto, transformamos em JSON
     if (typeof body === 'object' && typeof body !== 'string') {
       finalBody = JSON.stringify(body);
     }
   }
 
-  // ===== FETCH =====
   const resp = await fetch(url, {
     ...rest,
     headers: finalHeaders,
@@ -86,8 +81,8 @@ export async function apiFetch(path: string, options: ApiOptions = {}) {
   if (!resp.ok) {
     console.error('apiFetch ERROR', resp.status, data);
 
-    // se deu 401, limpamos o token pra evitar estado "meio logado"
     if (resp.status === 401 && typeof window !== 'undefined') {
+      // se deu 401, limpamos token para evitar "semi logado"
       try {
         removeToken();
       } catch {
