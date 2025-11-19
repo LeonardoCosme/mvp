@@ -14,10 +14,10 @@ type Perfil = 'Contratante' | 'Prestador' | 'Usuário';
 type AgendamentoResumo = {
   id: number;
   status: string;
-  tipo_nome: string;
-  data_servico: string;
-  hora_servico: string;
-  endereco: string;
+  tipo_nome: string | null;
+  data_servico: string | null;
+  hora_servico: string | null;
+  endereco: string | null;
   avaliacao?: {
     nota?: number | null;
     comentario?: string | null;
@@ -75,7 +75,7 @@ export default function AgendamentoPage() {
         setPerfil(perfilDetectado);
 
         // 2) busca os agendamentos conforme o perfil
-        let lista: unknown = [];
+        let lista: AgendamentoResumo[] = [];
 
         if (isContratante) {
           lista = await apiFetch('/agendamentos/cliente');
@@ -86,16 +86,18 @@ export default function AgendamentoPage() {
         }
 
         if (!cancelado) {
-          const arr = Array.isArray(lista) ? (lista as AgendamentoResumo[]) : [];
-          console.log('[AGENDAMENTOS] lista =>', arr);
-          setAgendamentos(arr);
+          console.log('[AGENDAMENTOS] lista =>', lista);
+          setAgendamentos(Array.isArray(lista) ? lista : []);
         }
       } catch (err: any) {
         console.error('❌ Erro ao carregar agendamentos:', err);
+
+        // se o token estiver inválido / expirado
         if (err?.status === 401) {
           router.push('/login?next=/agendamento');
           return;
         }
+
         if (!cancelado) {
           setErro(
             err?.body?.message ||
@@ -127,7 +129,10 @@ export default function AgendamentoPage() {
                   Agendamentos
                 </h1>
                 <p className="text-sm text-gray-600 mt-1">
-                  Perfil: <span className="font-semibold">{perfil}</span>
+                  Perfil:{' '}
+                  <span className="font-semibold">
+                    {perfil}
+                  </span>
                 </p>
               </div>
 
@@ -139,7 +144,6 @@ export default function AgendamentoPage() {
                   ← Voltar para a home
                 </Link>
 
-                {/* sempre aponta para /historico */}
                 <Link
                   href="/historico"
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
@@ -197,7 +201,7 @@ export default function AgendamentoPage() {
                     >
                       <div>
                         <p className="text-sm font-semibold text-gray-900">
-                          {ag.tipo_nome}{' '}
+                          {ag.tipo_nome || 'Serviço'}{' '}
                           <span className="text-xs text-gray-500">
                             #{ag.id}
                           </span>

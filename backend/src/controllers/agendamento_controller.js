@@ -28,7 +28,10 @@ function normalizeCreate(body = {}) {
         ? Number(String(body.duracao_horas).replace(",", "."))
         : null,
   };
+
+  // se vier "16:40", transforma em "16:40:00"
   if (out.hora && out.hora.length === 5) out.hora = `${out.hora}:00`;
+
   return out;
 }
 
@@ -45,31 +48,41 @@ export async function create(req, res) {
     const userId = req.user.id;
     const payload = normalizeCreate(req.body);
 
-    if (!payload.tipo_servico_id)
+    if (!payload.tipo_servico_id) {
       return res.status(400).json({ error: "tipo_servico_id é obrigatório." });
-    if (!payload.data || !isISODate(payload.data))
-      return res.status(400).json({ error: "Data inválida. Use YYYY-MM-DD." });
-    if (!payload.hora || !isTime(payload.hora))
+    }
+    if (!payload.data || !isISODate(payload.data)) {
+      return res
+        .status(400)
+        .json({ error: "Data inválida. Use o formato YYYY-MM-DD." });
+    }
+    if (!payload.hora || !isTime(payload.hora)) {
       return res
         .status(400)
         .json({ error: "Hora inválida. Use HH:MM ou HH:MM:SS." });
-    if (!payload.endereco)
+    }
+    if (!payload.endereco) {
       return res.status(400).json({ error: "Endereço é obrigatório." });
+    }
 
     const tipo = await TipoServico.findByPk(payload.tipo_servico_id, {
       attributes: ["id"],
     });
-    if (!tipo)
-      return res.status(404).json({ error: "Tipo de serviço não encontrado." });
+    if (!tipo) {
+      return res
+        .status(404)
+        .json({ error: "Tipo de serviço não encontrado." });
+    }
 
     const contr = await Contratante.findOne({
       where: { usuario_id: userId },
       attributes: ["id"],
     });
-    if (!contr)
+    if (!contr) {
       return res
         .status(403)
         .json({ error: "Perfil de contratante não encontrado." });
+    }
 
     const novo = await Agendamento.create({
       contratanteId: contr.id,
@@ -111,10 +124,11 @@ export async function listCliente(req, res) {
       where: { usuario_id: userId },
       attributes: ["id"],
     });
-    if (!contr)
+    if (!contr) {
       return res
         .status(403)
         .json({ error: "Perfil de contratante não encontrado." });
+    }
 
     const itens = await Agendamento.findAll({
       where: { contratanteId: contr.id },
@@ -124,10 +138,16 @@ export async function listCliente(req, res) {
           as: "tipo",
           attributes: ["id", "nome"],
         },
+        {
+          model: Avaliacao,
+          as: "avaliacao",
+          required: false,
+          attributes: ["id", "nota", "comentario"],
+        },
       ],
       order: [
-        [Sequelize.col("Agendamento.data_servico"), "ASC"],
-        [Sequelize.col("Agendamento.hora_servico"), "ASC"],
+        ["dataServico", "ASC"],
+        ["horaServico", "ASC"],
       ],
     });
 
@@ -150,6 +170,13 @@ export async function listCliente(req, res) {
       checkin_used: a.checkinUsed ?? 0,
       start_used: a.startUsed ?? 0,
       end_used: a.endUsed ?? 0,
+      avaliacao: a.avaliacao
+        ? {
+            id: a.avaliacao.id,
+            nota: a.avaliacao.nota,
+            comentario: a.avaliacao.comentario,
+          }
+        : null,
     }));
 
     return res.json(out);
@@ -164,8 +191,9 @@ export async function listCliente(req, res) {
 /** ✅ GET /api/agendamentos/pendentes — lista pendentes para prestador */
 export async function listPrestadorPendentes(req, res) {
   try {
-    if (req.user?.tipo !== "prestador")
+    if (req.user?.tipo !== "prestador") {
       return res.status(403).json({ error: "Apenas prestadores." });
+    }
 
     const itens = await Agendamento.findAll({
       where: { status: "pendente" },
@@ -177,8 +205,8 @@ export async function listPrestadorPendentes(req, res) {
         },
       ],
       order: [
-        [Sequelize.col("Agendamento.data_servico"), "ASC"],
-        [Sequelize.col("Agendamento.hora_servico"), "ASC"],
+        ["dataServico", "ASC"],
+        ["horaServico", "ASC"],
       ],
     });
 
@@ -204,30 +232,40 @@ export async function listPrestadorPendentes(req, res) {
   }
 }
 
-/** ✅ GET /api/agendamentos/prestador — lista aceitos/concluídos */
+/** ✅ GET /api/agendamentos/prestador — lista aceitos / concluídos do prestador */
 export async function listPrestador(req, res) {
   try {
-    if (req.user?.tipo !== "prestador")
+    if (req.user?.tipo !== "prestador") {
       return res.status(403).json({ error: "Apenas prestadores." });
+    }
 
     const prest = await Prestador.findOne({
       where: { usuario_id: req.user.id },
       attributes: ["id"],
     });
-    if (!prest)
+    if (!prest) {
       return res
         .status(403)
         .json({ error: "Perfil de prestador não encontrado." });
+    }
 
     const itens = await Agendamento.findAll({
       where: {
         prestadorId: prest.id,
         status: { [Op.in]: ["aceita", "concluida"] },
       },
-      include: [{ model: TipoServico, as: "tipo", attributes: ["id", "nome"] }],
+      include: [
+        { model: TipoServico, as: "tipo", attributes: ["id", "nome"] },
+        {
+          model: Avaliacao,
+          as: "avaliacao",
+          required: false,
+          attributes: ["id", "nota", "comentario"],
+        },
+      ],
       order: [
-        [Sequelize.col("Agendamento.data_servico"), "ASC"],
-        [Sequelize.col("Agendamento.hora_servico"), "ASC"],
+        ["dataServico", "ASC"],
+        ["horaServico", "ASC"],
       ],
     });
 
@@ -247,6 +285,13 @@ export async function listPrestador(req, res) {
       checkin_at: a.checkinAt ?? null,
       start_at: a.startAt ?? null,
       end_at: a.endAt ?? null,
+      avaliacao: a.avaliacao
+        ? {
+            id: a.avaliacao.id,
+            nota: a.avaliacao.nota,
+            comentario: a.avaliacao.comentario,
+          }
+        : null,
     }));
 
     return res.json(out);
@@ -261,30 +306,38 @@ export async function listPrestador(req, res) {
 /** ✅ POST /api/agendamentos/:id/aceitar — prestador aceita um pendente */
 export async function accept(req, res) {
   try {
-    if (req.user?.tipo !== "prestador")
+    if (req.user?.tipo !== "prestador") {
       return res.status(403).json({ error: "Apenas prestadores." });
+    }
 
     const usuarioId = req.user.id;
     const agId = Number(req.params.id);
-    if (!agId) return res.status(400).json({ error: "ID inválido." });
+    if (!agId) {
+      return res.status(400).json({ error: "ID inválido." });
+    }
 
     const prest = await Prestador.findOne({
       where: { usuario_id: usuarioId },
       attributes: ["id", "usuario_id"],
     });
-    if (!prest)
-      return res
-        .status(409)
-        .json({ error: "Complete seu cadastro de prestador antes de aceitar." });
+    if (!prest) {
+      return res.status(409).json({
+        error: "Complete seu cadastro de prestador antes de aceitar.",
+      });
+    }
 
     const ag = await Agendamento.findByPk(agId);
-    if (!ag) return res.status(404).json({ error: "Agendamento não encontrado." });
-    if (ag.status !== "pendente")
-      return res
-        .status(400)
-        .json({ error: "Somente agendamentos pendentes podem ser aceitos." });
+    if (!ag) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
+    if (ag.status !== "pendente") {
+      return res.status(400).json({
+        error: "Somente agendamentos pendentes podem ser aceitos.",
+      });
+    }
 
     await ag.update({ status: "aceita", prestadorId: prest.id });
+
     return res.json({ ok: true, id: ag.id, status: ag.status });
   } catch (err) {
     console.error("❌ Agendamento.accept:", err);
@@ -298,18 +351,23 @@ export async function qrcode(req, res) {
     const userId = req.user.id;
     const phase = String(req.query.phase || "").toLowerCase();
     const validPhases = ["checkin", "start", "end"];
-    if (!validPhases.includes(phase))
+
+    if (!validPhases.includes(phase)) {
       return res.status(400).json({ error: "phase inválida." });
+    }
 
     const ag = await Agendamento.findByPk(req.params.id);
-    if (!ag) return res.status(404).json({ error: "Agendamento não encontrado." });
+    if (!ag) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
 
     const contr = await Contratante.findOne({
       where: { usuario_id: userId },
       attributes: ["id"],
     });
-    if (!contr || contr.id !== ag.contratanteId)
+    if (!contr || contr.id !== ag.contratanteId) {
       return res.status(403).json({ error: "Acesso negado." });
+    }
 
     const tokenField = `${phase}Qr`;
     if (!ag[tokenField]) {
@@ -321,6 +379,7 @@ export async function qrcode(req, res) {
       process.env.FRONTEND_URL ||
       process.env.APP_URL ||
       `${req.protocol}://${req.get("host")}`;
+
     const url = `${baseUrl}/scanner/${ag.id}?phase=${phase}&token=${ag[tokenField]}`;
 
     return res.json({ id: ag.id, phase, token: ag[tokenField], url });
@@ -333,45 +392,67 @@ export async function qrcode(req, res) {
 /** ✅ POST /api/agendamentos/:id/scan { token, phase } */
 export async function scan(req, res) {
   try {
-    if (req.user?.tipo !== "prestador")
+    if (req.user?.tipo !== "prestador") {
       return res.status(403).json({ error: "Apenas prestadores." });
+    }
 
     const userId = req.user.id;
     const { token, phase } = req.body;
     const valid = ["checkin", "start", "end"];
-    if (!token || !valid.includes(phase))
+
+    if (!token || !valid.includes(phase)) {
       return res.status(400).json({ error: "Dados inválidos." });
+    }
 
     const ag = await Agendamento.findByPk(req.params.id);
-    if (!ag) return res.status(404).json({ error: "Agendamento não encontrado." });
+    if (!ag) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
 
     const prest = await Prestador.findOne({
       where: { usuario_id: userId },
       attributes: ["id"],
     });
-    if (!prest)
-      return res.status(403).json({ error: "Perfil de prestador não encontrado." });
-    if (!ag.prestadorId || ag.prestadorId !== prest.id)
-      return res.status(403).json({ error: "Este agendamento não pertence a você." });
+    if (!prest) {
+      return res
+        .status(403)
+        .json({ error: "Perfil de prestador não encontrado." });
+    }
+    if (!ag.prestadorId || ag.prestadorId !== prest.id) {
+      return res
+        .status(403)
+        .json({ error: "Este agendamento não pertence a você." });
+    }
 
     const tokenField = `${phase}Qr`;
     const usedField = `${phase}Used`;
     const timeField = `${phase}At`;
 
-    if (!ag[tokenField]) return res.status(400).json({ error: "QR não gerado." });
-    if (ag[usedField]) return res.status(409).json({ error: "QR já utilizado." });
-    if (ag[tokenField] !== token)
+    if (!ag[tokenField]) {
+      return res.status(400).json({ error: "QR não gerado." });
+    }
+    if (ag[usedField]) {
+      return res.status(409).json({ error: "QR já utilizado." });
+    }
+    if (ag[tokenField] !== token) {
       return res.status(400).json({ error: "Token inválido." });
+    }
 
-    if (phase === "start" && !ag.checkinAt)
-      return res.status(400).json({ error: "Faça check-in antes de iniciar." });
-    if (phase === "end" && !ag.startAt)
+    if (phase === "start" && !ag.checkinAt) {
+      return res
+        .status(400)
+        .json({ error: "Faça check-in antes de iniciar." });
+    }
+    if (phase === "end" && !ag.startAt) {
       return res.status(400).json({ error: "Inicie antes de encerrar." });
+    }
 
     ag[usedField] = true;
     ag[timeField] = new Date();
-    if (phase === "end" && ["aceita", "pendente"].includes(ag.status))
+
+    if (phase === "end" && ["aceita", "pendente"].includes(ag.status)) {
       ag.status = "concluida";
+    }
 
     await ag.save();
 
