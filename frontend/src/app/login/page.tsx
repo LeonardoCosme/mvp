@@ -1,4 +1,4 @@
-// src/app/login/page.tsx
+// frontend/src/app/login/page.tsx
 'use client';
 
 import { FormEvent, useState } from 'react';
@@ -20,7 +20,7 @@ export default function LoginPage() {
   const [senha, setSenha] = useState('');
   const [lembrar, setLembrar] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<string>('');
+  const [msg, setMsg] = useState('');
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -38,8 +38,8 @@ export default function LoginPage() {
         noAuth: true,
         body: {
           email: email.trim(),
-          senha: senha,    // backend antigo
-          password: senha, // backend novo (/api/login)
+          senha: senha,    // compatível com backend antigo
+          password: senha, // compatível com backend novo
           lembrar,
         },
       })) as LoginResponse;
@@ -74,11 +74,13 @@ export default function LoginPage() {
     }
   }
 
-  const msgClass = msg.startsWith('E-mail e senha são obrigatórios')
-    ? 'text-red-600'
-    : msg.startsWith('Login efetuado')
-    ? 'text-green-600'
-    : 'text-red-600';
+  const msgClass = msg
+    ? msg.startsWith('E-mail e senha são obrigatórios')
+      ? 'text-red-600'
+      : msg.toLowerCase().includes('sucesso')
+      ? 'text-green-600'
+      : 'text-red-600'
+    : '';
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#4b2506] to-[#2b1304] flex items-center justify-center px-4">
@@ -135,11 +137,11 @@ export default function LoginPage() {
                 Lembrar de mim
               </label>
 
-              {/* 🔑 Esqueci minha senha -> navega para /forgot-password */}
+              {/* 🔑 Esqueci minha senha → vai para /forgot-password */}
               <button
                 type="button"
                 onClick={() => router.push('/forgot-password')}
-                className="text-[#F89D13] hover:underline"
+                className="px-3 py-1 rounded-md bg-[#F89D13] text-white font-semibold hover:opacity-90 transition"
               >
                 Esqueci minha senha
               </button>
