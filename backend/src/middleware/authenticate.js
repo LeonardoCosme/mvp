@@ -1,18 +1,10 @@
-// src/middleware/authenticate.js
+// backend/src/middleware/authenticate.js
 import jwt from "jsonwebtoken";
 
-/**
- * Middleware de autenticação JWT
- * 
- * Espera o header:
- *   Authorization: Bearer <token>
- * 
- * Se o token for válido, adiciona `req.user = { id, tipo }`
- * Caso contrário, retorna 401 com mensagem adequada.
- */
 export default function authenticate(req, res, next) {
   try {
     const authHeader = req.headers.authorization || "";
+
     if (!authHeader.startsWith("Bearer ")) {
       return res.status(401).json({ error: "Token ausente." });
     }
@@ -24,12 +16,28 @@ export default function authenticate(req, res, next) {
 
     const secret = process.env.JWT_SECRET;
     if (!secret) {
-      console.warn("⚠️  JWT_SECRET não definido no .env — usando chave padrão.");
+      console.warn("⚠️ JWT_SECRET não definido no .env — usando chave padrão.");
     }
 
-    const payload = jwt.verify(token, secret || "chave_secreta_padrao");
+    // 🔎 Apenas para o MVP / desenvolvimento:
+    // - verifica a assinatura
+    // - NÃO falha por causa de expiração
+    const payload = jwt.verify(token, secret || "chave_secreta_padrao", {
+      ignoreExpiration: true, // <<<<<<<<<<<<<<<<<<<<<<
+    });
 
-    // adiciona informações do usuário ao request
+    // Só pra conferência/debug: loga os tempos do token
+    if (payload && payload.iat && payload.exp) {
+      const now = Math.floor(Date.now() / 1000);
+      console.log("🔐 Token recebido:", {
+        id: payload.id,
+        tipo: payload.tipo,
+        iat: payload.iat,
+        exp: payload.exp,
+        now,
+      });
+    }
+
     req.user = { id: payload.id, tipo: payload.tipo };
     next();
   } catch (err) {
