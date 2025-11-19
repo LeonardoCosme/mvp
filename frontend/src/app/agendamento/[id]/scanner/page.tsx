@@ -75,7 +75,7 @@ export default function AgendamentoPage() {
         setPerfil(perfilDetectado);
 
         // 2) busca os agendamentos conforme o perfil
-        let lista: AgendamentoResumo[] = [];
+        let lista: unknown = [];
 
         if (isContratante) {
           lista = await apiFetch('/agendamentos/cliente');
@@ -86,8 +86,9 @@ export default function AgendamentoPage() {
         }
 
         if (!cancelado) {
-          console.log('[AGENDAMENTOS] lista =>', lista);
-          setAgendamentos(Array.isArray(lista) ? lista : []);
+          const arr = Array.isArray(lista) ? (lista as AgendamentoResumo[]) : [];
+          console.log('[AGENDAMENTOS] lista =>', arr);
+          setAgendamentos(arr);
         }
       } catch (err: any) {
         console.error('❌ Erro ao carregar agendamentos:', err);
@@ -138,6 +139,7 @@ export default function AgendamentoPage() {
                   ← Voltar para a home
                 </Link>
 
+                {/* sempre aponta para /historico */}
                 <Link
                   href="/historico"
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
@@ -218,14 +220,6 @@ export default function AgendamentoPage() {
                             ⭐ Avaliado ({ag.avaliacao.nota}/5)
                           </span>
                         )}
-
-                        {/* se você tiver página de detalhes do agendamento, pode apontar pra /agendamento/[id] */}
-                        {/* <Link
-                          href={`/agendamento/${ag.id}`}
-                          className="text-xs font-semibold text-[#8F1D14] hover:underline"
-                        >
-                          Ver detalhes
-                        </Link> */}
                       </div>
                     </article>
                   ))}
