@@ -1,22 +1,16 @@
 // src/utils/api.ts
 
+import { getToken, removeToken } from './auth';
+
 export type ApiOptions = RequestInit & {
   /** Se true, não envia Authorization: Bearer token */
   noAuth?: boolean;
 };
 
+// URL base do backend (Railway)
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   'https://mvp-marido-aluguel.up.railway.app/api';
-
-function getTokenFromStorage(): string | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    return localStorage.getItem('token');
-  } catch {
-    return null;
-  }
-}
 
 export async function apiFetch(path: string, options: ApiOptions = {}) {
   // monta URL completa
@@ -27,17 +21,33 @@ export async function apiFetch(path: string, options: ApiOptions = {}) {
   const { noAuth, headers, body, ...rest } = options;
 
   const finalHeaders = new Headers(headers || {});
+
   if (!finalHeaders.has('Accept')) {
     finalHeaders.set('Accept', 'application/json');
   }
 
-  // adiciona token se necessário
-  const token = !noAuth ? getTokenFromStorage() : null;
+  // ===== TOKEN / AUTH =====
+  let token: string | null = null;
+
+  if (!noAuth && typeof window !== 'undefined') {
+    try {
+      // usa o mesmo helper do projeto
+      token = getToken();
+    } catch {
+      // fallback direto no localStorage, se necessário
+      try {
+        token = window.localStorage.getItem('token');
+      } catch {
+        token = null;
+      }
+    }
+  }
+
   if (token && !finalHeaders.has('Authorization')) {
     finalHeaders.set('Authorization', `Bearer ${token}`);
   }
 
-  // trata body / JSON
+  // ===== BODY / JSON =====
   let finalBody: BodyInit | undefined = body as any;
 
   const isFormData =
@@ -56,6 +66,7 @@ export async function apiFetch(path: string, options: ApiOptions = {}) {
     }
   }
 
+  // ===== FETCH =====
   const resp = await fetch(url, {
     ...rest,
     headers: finalHeaders,
@@ -71,12 +82,33 @@ export async function apiFetch(path: string, options: ApiOptions = {}) {
     data = text;
   }
 
+  // ===== TRATAMENTO DE ERRO =====
   if (!resp.ok) {
     console.error('apiFetch ERROR', resp.status, data);
-    const err: any = new Error(
+
+    // se deu 401, limpamos o token pra evitar estado "meio logado"
+    if (resp.status === 401 && typeof window !== 'undefined') {
+      try {
+        removeToken();
+      } catch {
+        try {
+          window.localStorage.removeItem('token');
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    const baseMsg =
       (data && (data.message || data.error || data.details)) ||
-        `Erro na API (${resp.status})`
-    );
+      `Erro na API (${resp.status})`;
+
+    const message =
+      resp.status === 401
+        ? 'Não autorizado. Faça login novamente.'
+        : baseMsg;
+
+    const err: any = new Error(message);
     err.status = resp.status;
     err.body = data;
     throw err;

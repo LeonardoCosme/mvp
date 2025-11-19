@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { getToken, removeToken } from '@/utils/auth';
+import { getToken, removeToken } from '../../utils/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Header() {
