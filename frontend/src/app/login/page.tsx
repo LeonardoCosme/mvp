@@ -1,174 +1,177 @@
+// src/app/login/page.tsx
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { FormEvent, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/utils/api';
-import { saveToken } from '@/utils/auth';
+
+type LoginResponse = {
+  token?: string;
+  message?: string;
+  error?: string;
+  [key: string]: any;
+};
 
 export default function LoginPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ email: '', password: '' });
-  const [showPass, setShowPass] = useState(false);
+  const searchParams = useSearchParams();
+
+  const [email, setEmail] = useState('');
+  const [senha, setSenha] = useState('');
+  const [lembrar, setLembrar] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [msg, setMsg] = useState<string>('');
 
-  function onChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
-  }
-
-  async function onSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setError('');
+    setMsg('');
 
-    if (!form.email.trim() || !form.password.trim()) {
-      setError('Informe e-mail e senha.');
+    if (!email.trim() || !senha.trim()) {
+      setMsg('E-mail e senha são obrigatórios.');
       return;
     }
 
     setLoading(true);
     try {
-      const res = await apiFetch('auth/login', {
+      const data = (await apiFetch('/login', {
         method: 'POST',
-        body: JSON.stringify({
-          email: form.email.trim().toLowerCase(),
-          password: form.password,
-        }),
-      });
+        noAuth: true,
+        body: {
+          email: email.trim(),
+          senha: senha,    // backend antigo
+          password: senha, // backend novo (/api/login)
+          lembrar,
+        },
+      })) as LoginResponse;
 
-      // ✅ Salva sessão
-      saveToken(res.token);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('nomeUsuario', res.nomeUsuario || '');
-        localStorage.setItem('tipo', res.tipo || '');
-        window.dispatchEvent(new Event('auth-changed'));
+      const token = data.token;
+      if (!token) {
+        setMsg(
+          data.message ||
+            data.error ||
+            'Não foi possível realizar o login. Tente novamente.'
+        );
+        return;
       }
 
-      router.push('/home');
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('token', token);
+      }
+
+      const next = searchParams.get('next') || '/home';
+      router.push(next);
     } catch (err: any) {
-      setError(err.message || 'Erro ao entrar.');
+      const body = err?.body || {};
+      setMsg(
+        body.message ||
+          body.error ||
+          err.message ||
+          'Erro ao tentar fazer login.'
+      );
+      console.error('❌ Erro no login:', err);
     } finally {
       setLoading(false);
     }
   }
 
+  const msgClass = msg.startsWith('E-mail e senha são obrigatórios')
+    ? 'text-red-600'
+    : msg.startsWith('Login efetuado')
+    ? 'text-green-600'
+    : 'text-red-600';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 flex items-center justify-center p-6">
-      <div className="bg-white/90 backdrop-blur-md shadow-2xl rounded-2xl w-full max-w-lg p-8 animate-[fadeIn_0.5s_ease-in]">
-        <h1 className="text-3xl font-bold text-center text-[#8F1D14] mb-1">
-          Entrar
-        </h1>
-        <p className="text-center text-gray-600 mb-8">
-          Acesse sua conta do{' '}
-          <span className="font-semibold text-[#F89D13]">Marido de Aluguel</span>.
-        </p>
+    <main className="min-h-screen bg-gradient-to-b from-[#4b2506] to-[#2b1304] flex items-center justify-center px-4">
+      <div className="w-full max-w-md">
+        <div className="bg-white/95 rounded-2xl shadow-xl px-8 py-10">
+          <h1 className="text-3xl font-bold text-center text-[#8F1D14] mb-2">
+            Entrar
+          </h1>
+          <p className="text-center text-sm text-gray-600 mb-6">
+            Acesse sua conta do{' '}
+            <span className="font-semibold text-[#F89D13]">
+              Marido de Aluguel
+            </span>
+            .
+          </p>
 
-        <form onSubmit={onSubmit} className="space-y-4" noValidate>
-          {/* E-MAIL */}
-          <div>
-            <label
-              htmlFor="email"
-              className="block font-medium text-gray-700 mb-1"
-            >
-              E-mail
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={onChange}
-              autoComplete="email"
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
-              placeholder="voce@email.com"
-            />
-          </div>
-
-          {/* SENHA */}
-          <div>
-            <label
-              htmlFor="password"
-              className="block font-medium text-gray-700 mb-1"
-            >
-              Senha
-            </label>
-            <div className="relative">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-700 mb-1" htmlFor="email">
+                E-mail
+              </label>
               <input
-                id="password"
-                name="password"
-                type={showPass ? 'text' : 'password'}
-                value={form.password}
-                onChange={onChange}
-                autoComplete="current-password"
-                required
-                className="w-full px-4 py-2 border rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
-                placeholder="••••••••"
+                id="email"
+                type="email"
+                className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#F89D13]"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
               />
-              <button
-                type="button"
-                onClick={() => setShowPass((v) => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-sm text-gray-600 hover:text-gray-800 px-2 py-1"
-                aria-label={showPass ? 'Ocultar senha' : 'Mostrar senha'}
-              >
-                {showPass ? 'Ocultar' : 'Mostrar'}
-              </button>
             </div>
 
-            {/* Opções extras */}
-            <div className="flex items-center justify-between mt-2">
-              <div className="flex items-center gap-2">
-                <input
-                  id="remember"
-                  type="checkbox"
-                  className="h-4 w-4 accent-[#F89D13]"
-                />
-                <label
-                  htmlFor="remember"
-                  className="text-sm text-gray-600 select-none"
-                >
-                  Lembrar de mim
-                </label>
-              </div>
+            <div>
+              <label className="block text-sm text-gray-700 mb-1" htmlFor="senha">
+                Senha
+              </label>
+              <input
+                id="senha"
+                type="password"
+                className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#F89D13]"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                autoComplete="current-password"
+              />
+            </div>
 
-              {/* Rota de recuperação (em breve) */}
+            <div className="flex items-center justify-between text-sm">
+              <label className="inline-flex items-center gap-2 text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={lembrar}
+                  onChange={(e) => setLembrar(e.target.checked)}
+                  className="rounded border-gray-300"
+                />
+                Lembrar de mim
+              </label>
+
+              {/* 🔑 Esqueci minha senha -> navega para /forgot-password */}
               <button
                 type="button"
-                className="text-sm text-[#8F1D14] hover:underline"
-                onClick={() =>
-                  alert('A recuperação de senha estará disponível em breve.')
-                }
+                onClick={() => router.push('/forgot-password')}
+                className="text-[#F89D13] hover:underline"
               >
                 Esqueci minha senha
               </button>
             </div>
-          </div>
 
-          {/* ERRO */}
-          {error && (
-            <p className="text-red-600 text-sm text-center mt-2">{error}</p>
-          )}
+            {msg && (
+              <p className={`text-xs mt-1 ${msgClass}`}>
+                {msg}
+              </p>
+            )}
 
-          {/* BOTÃO */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[#8F1D14] text-white py-3 rounded-lg font-semibold hover:bg-[#a2261b] transition mt-2 shadow-md"
-          >
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#8F1D14] text-white py-2.5 rounded-lg font-semibold mt-2 hover:bg-[#a2261b] transition disabled:opacity-70"
+            >
+              {loading ? 'Entrando…' : 'Entrar'}
+            </button>
+          </form>
 
-        {/* RODAPÉ */}
-        <p className="text-center text-gray-600 mt-6 text-sm">
-          Ainda não tem conta?{' '}
-          <a
-            href="/cadastro"
-            className="text-[#8F1D14] font-medium hover:underline"
-          >
-            Cadastre-se
-          </a>
-        </p>
+          <p className="mt-6 text-center text-sm text-gray-600">
+            Ainda não tem conta?{' '}
+            <button
+              type="button"
+              onClick={() => router.push('/cadastro')}
+              className="text-[#F89D13] font-semibold hover:underline"
+            >
+              Cadastre-se
+            </button>
+          </p>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }
