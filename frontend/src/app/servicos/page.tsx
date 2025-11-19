@@ -5,12 +5,15 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { getToken } from '../../utils/auth';
+import { apiFetch } from '@/utils/api';
+import { getToken } from '@/utils/auth';
 
 type TipoServico = {
   id: number;
-  nomeServico?: string; // vem do backend como alias de 'nome'
-  nome?: string;        // fallback se um dia voltar a ser 'nome'
+  // no backend o alias costuma vir como "nomeServico",
+  // mas deixamos "nome" como fallback
+  nomeServico?: string;
+  nome?: string;
 };
 
 type FormAgendamento = {
@@ -40,31 +43,16 @@ export default function ServicosPage() {
   const [loadingServicos, setLoadingServicos] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  // 🔑 verifica login só no cliente (evita erro de hydration)
+  // 🔑 verifica login só no cliente
   useEffect(() => {
     setIsLoggedIn(!!getToken());
   }, []);
 
-  // 🚀 carrega os tipos de serviço DIRETO da API Railway
+  // 🚀 carrega os tipos de serviço da API
   useEffect(() => {
     async function carregarServicos() {
       try {
-        const resp = await fetch(
-          'https://mvp-marido-aluguel.up.railway.app/api/tipos-servico',
-          {
-            method: 'GET',
-            headers: { Accept: 'application/json' },
-            cache: 'no-store',
-          }
-        );
-
-        if (!resp.ok) {
-          const txt = await resp.text();
-          console.error('[TIPOS-SERVICO] ERRO HTTP', resp.status, txt);
-          throw new Error(`Erro ao buscar serviços (${resp.status})`);
-        }
-
-        const data = (await resp.json()) as TipoServico[] | any;
+        const data = await apiFetch('/tipos-servico', { noAuth: true });
         const itens: TipoServico[] = Array.isArray(data) ? data : [];
 
         console.log('[TIPOS-SERVICO] dados recebidos =>', itens);
@@ -80,7 +68,7 @@ export default function ServicosPage() {
     carregarServicos();
   }, []);
 
-  // 🔍 filtro de busca usando rotuloServico
+  // 🔍 filtro de busca
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     if (!q) return servicos;
@@ -94,7 +82,9 @@ export default function ServicosPage() {
     e.preventDefault();
     setMsg('');
 
-    if (!getToken()) {
+    const token = getToken();
+
+    if (!token) {
       setMsg('❌ Faça login para agendar um serviço.');
       return;
     }
@@ -112,28 +102,12 @@ export default function ServicosPage() {
         descricao: form.descricao.trim(),
       };
 
-      const resp = await fetch(
-        'https://mvp-marido-aluguel.up.railway.app/api/agendamentos',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${getToken()}`,
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      const result = await resp.json().catch(() => ({}));
+      const result = await apiFetch('/agendamentos', {
+        method: 'POST',
+        body: payload,
+      });
 
       console.log('📦 Resposta do agendamento:', result);
-
-      if (!resp.ok) {
-        throw new Error(
-          (result && (result.message as string)) ||
-            `Erro HTTP ${resp.status}`
-        );
-      }
 
       setMsg('✅ Agendamento criado com sucesso!');
       setForm({
@@ -144,7 +118,13 @@ export default function ServicosPage() {
         descricao: '',
       });
     } catch (err: any) {
-      setMsg(`❌ Erro: ${err?.message || 'Falha ao criar agendamento.'}`);
+      const msgErro =
+        err?.body?.message ||
+        err?.body?.error ||
+        err?.message ||
+        'Falha ao criar agendamento.';
+      setMsg(`❌ Erro: ${msgErro}`);
+      console.error('❌ Erro ao criar agendamento:', err);
     } finally {
       setLoading(false);
     }
