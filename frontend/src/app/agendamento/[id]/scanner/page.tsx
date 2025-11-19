@@ -1,218 +1,240 @@
+// frontend/src/app/agendamento/page.tsx
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+export const dynamic = 'force-dynamic';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Scanner } from '@yudiel/react-qr-scanner';
-import type { IDetectedBarcode } from '@yudiel/react-qr-scanner';
+import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/utils/api';
+import { getToken } from '@/utils/auth';
 
-type ScanPhase = 'idle' | 'processing' | 'done' | 'error';
-type ValidPhase = 'checkin' | 'start' | 'end';
+type Perfil = 'Contratante' | 'Prestador' | 'Usuário';
 
-export default function ScannerPage() {
+type AgendamentoResumo = {
+  id: number;
+  status: string;
+  tipo_nome: string;
+  data_servico: string;
+  hora_servico: string;
+  endereco: string;
+  avaliacao?: {
+    nota?: number | null;
+    comentario?: string | null;
+  } | null;
+};
+
+function formatDateBR(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  return `${d}/${m}/${y}`;
+}
+
+function formatHora(h?: string | null): string {
+  if (!h) return '';
+  return h.slice(0, 5);
+}
+
+export default function AgendamentoPage() {
   const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const search = useSearchParams();
 
-  const agendamentoId = useMemo(() => Number(params?.id ?? 0), [params]);
+  const [perfil, setPerfil] = useState<Perfil>('Usuário');
+  const [agendamentos, setAgendamentos] = useState<AgendamentoResumo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState('');
 
-  const [phase, setPhase] = useState<ScanPhase>('idle');
-  const [message, setMessage] = useState<string>('');
-  const lastTextRef = useRef<string | null>(null);
-  const triedURLOnce = useRef(false);
-
-  const defaultPhase = search?.get('phase');
-  const defaultToken = search?.get('token');
-
-  const title = 'Ler QR Code do Agendamento';
-  const help =
-    'Aponte a câmera para o QR gerado pelo contratante. Permita o acesso à câmera quando solicitado.';
-
-  // --- Util ---
-
-  function parsePayload(
-    text: string
-  ): { id: number; phase: ValidPhase; token: string } | null {
-    // tenta JSON
-    try {
-      const obj = JSON.parse(text);
-      if (
-        obj &&
-        typeof obj.id === 'number' &&
-        typeof obj.phase === 'string' &&
-        typeof obj.token === 'string'
-      ) {
-        if (obj.phase === 'checkin' || obj.phase === 'start' || obj.phase === 'end') {
-          return { id: obj.id, phase: obj.phase, token: obj.token };
-        }
-      }
-    } catch {
-      /* não é JSON */
-    }
-
-    // tenta namespace "interserv:acao:id:token"
-    const parts = text.split(':');
-    if (parts.length >= 4) {
-      const [ns, action, idStr, token] = parts;
-      if (ns === 'interserv' && (action === 'checkin' || action === 'start' || action === 'end')) {
-        const id = Number(idStr);
-        if (id && token) return { id, phase: action as ValidPhase, token };
-      }
-    }
-    return null;
-  }
-
-  // --- Se vier phase+token na URL, tenta registrar sem abrir câmera ---
   useEffect(() => {
-    if (triedURLOnce.current) return;
-    if (!defaultPhase || !defaultToken) return;
-    if (defaultPhase !== 'checkin' && defaultPhase !== 'start' && defaultPhase !== 'end') return;
+    // se não tiver token, manda para login
+    if (!getToken()) {
+      router.push('/login?next=/agendamento');
+      return;
+    }
 
-    triedURLOnce.current = true;
+    let cancelado = false;
 
-    (async () => {
+    async function carregar() {
       try {
-        setPhase('processing');
-        setMessage('Processando QR da URL...');
-        await apiFetch(`/agendamentos/${agendamentoId}/scan`, {
-          method: 'POST',
-          body: JSON.stringify({ phase: defaultPhase, token: defaultToken }),
-        });
-        setPhase('done');
-        setMessage('✅ Etapa registrada com sucesso!');
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Falha ao processar a URL.';
-        setPhase('error');
-        setMessage(msg);
-      }
-    })();
-  }, [agendamentoId, defaultPhase, defaultToken]);
+        setLoading(true);
+        setErro('');
 
-  // --- Quando o QR é lido pela câmera ---
-  const handleScan = useCallback(
-    async (codes: IDetectedBarcode[]) => {
-      if (!codes?.length) return;
+        // 1) pega o usuário logado
+        const user = await apiFetch('/user/me');
+        if (cancelado) return;
 
-      const text = codes[0]?.rawValue;
-      if (!text) return;
+        const isContratante = !!user?.Contratante;
+        const isPrestador = !!user?.Prestador;
 
-      // evita retrigger com o mesmo payload
-      if (lastTextRef.current === text) return;
-      lastTextRef.current = text;
+        const perfilDetectado: Perfil = isContratante
+          ? 'Contratante'
+          : isPrestador
+          ? 'Prestador'
+          : 'Usuário';
 
-      try {
-        setPhase('processing');
-        setMessage('Processando leitura…');
+        setPerfil(perfilDetectado);
 
-        const payload = parsePayload(text);
-        if (!payload) {
-          setPhase('error');
-          setMessage('QR inválido. Tente novamente.');
-          return;
+        // 2) busca os agendamentos conforme o perfil
+        let lista: AgendamentoResumo[] = [];
+
+        if (isContratante) {
+          lista = await apiFetch('/agendamentos/cliente');
+        } else if (isPrestador) {
+          lista = await apiFetch('/agendamentos/prestador');
+        } else {
+          lista = [];
         }
 
-        if (payload.id !== agendamentoId) {
-          setPhase('error');
-          setMessage(
-            `Este QR é do agendamento #${payload.id}, mas você abriu o scanner para #${agendamentoId}.`
+        if (!cancelado) {
+          console.log('[AGENDAMENTOS] lista =>', lista);
+          setAgendamentos(Array.isArray(lista) ? lista : []);
+        }
+      } catch (err: any) {
+        console.error('❌ Erro ao carregar agendamentos:', err);
+        if (err?.status === 401) {
+          router.push('/login?next=/agendamento');
+          return;
+        }
+        if (!cancelado) {
+          setErro(
+            err?.body?.message ||
+              err?.message ||
+              'Erro ao carregar seus agendamentos.'
           );
-          return;
         }
-
-        await apiFetch(`/agendamentos/${agendamentoId}/scan`, {
-          method: 'POST',
-          body: JSON.stringify({ phase: payload.phase, token: payload.token }),
-        });
-
-        setPhase('done');
-        setMessage('✅ Etapa registrada com sucesso!');
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Falha ao processar o QR.';
-        setPhase('error');
-        setMessage(msg);
+      } finally {
+        if (!cancelado) setLoading(false);
       }
-    },
-    [agendamentoId]
-  );
+    }
 
-  // erros do scanner/câmera
-  const handleError = useCallback((err: unknown) => {
-    const msg = err instanceof Error ? err.message : 'Erro de câmera / permissão.';
-    // não derruba estados já definidos; só marca erro se estava ocioso
-    setPhase((p) => (p === 'idle' ? 'error' : p));
-    setMessage((m) => m || msg);
-  }, []);
+    carregar();
 
-  // classes do alerta
-  let alertClass = 'border-gray-200 bg-gray-50 text-gray-700';
-  if (phase === 'error') {
-    alertClass = 'border-red-200 bg-red-50 text-red-700';
-  } else if (phase === 'done') {
-    alertClass = 'border-green-200 bg-green-50 text-green-700';
-  }
-
-  // Pausa o scanner enquanto processa ou depois que concluiu
-  const scannerPaused = phase === 'processing' || phase === 'done';
+    return () => {
+      cancelado = true;
+    };
+  }, [router]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 p-6">
-      <div className="mx-auto max-w-3xl space-y-6">
-        {/* Header */}
-        <header className="bg-white/90 rounded-2xl shadow-lg p-6">
-          <h1 className="text-2xl font-bold text-[#8F1D14]">{title}</h1>
-          <p className="text-gray-700 mt-1">{help}</p>
-          <p className="text-sm text-gray-500 mt-1">
-            Agendamento: <span className="font-semibold">#{agendamentoId}</span>
-          </p>
-        </header>
+    <main className="min-h-screen bg-gradient-to-b from-[#4b2506] to-[#2b1304] pb-16">
+      <section className="pt-24">
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="bg-white/95 rounded-2xl shadow-lg p-6 md:p-8">
+            {/* Cabeçalho */}
+            <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-extrabold text-[#8F1D14]">
+                  Agendamentos
+                </h1>
+                <p className="text-sm text-gray-600 mt-1">
+                  Perfil: <span className="font-semibold">{perfil}</span>
+                </p>
+              </div>
 
-        {/* Scanner */}
-        <section className="bg-white rounded-2xl shadow-lg p-4">
-          <div className="aspect-[4/3] w-full rounded-xl overflow-hidden bg-black/5">
-            <Scanner
-              onScan={handleScan}
-              onError={handleError}
-              components={{ torch: true, finder: false }}
-              paused={scannerPaused}
-              styles={{
-                container: { width: '100%' },
-                video: { width: '100%', height: '100%', objectFit: 'cover' },
-              }}
-            />
-          </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/home"
+                  className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  ← Voltar para a home
+                </Link>
 
-          {/* Mensagem de status */}
-          {message && (
-            <div className={`mt-4 rounded-lg border p-3 text-sm ${alertClass}`}>
-              {message}
-            </div>
-          )}
+                <Link
+                  href="/historico"
+                  className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
+                >
+                  Histórico de avaliações
+                </Link>
+              </div>
+            </header>
 
-          <div className="mt-4 flex items-center justify-between">
-            <Link href="/agendamento" className="text-[#8F1D14] hover:underline">
-              ← Voltar aos agendamentos
-            </Link>
-
-            {phase === 'done' && (
-              <button
-                className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white hover:bg-[#a2261b]"
-                onClick={() => router.push('/agendamento')}
-                type="button"
-              >
-                Concluir
-              </button>
+            {/* Info / erro */}
+            {erro && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {erro}
+              </div>
             )}
-          </div>
-        </section>
 
-        <section className="text-sm text-gray-600">
-          <p>
-            Problemas com a câmera? Verifique as permissões do navegador (ícone de cadeado na barra
-            de endereço) ou tente outro dispositivo.
-          </p>
-        </section>
-      </div>
+            {/* Link para criar novo */}
+            <div className="mb-6 rounded-xl bg-[#F89D13]/10 border border-[#F89D13]/30 px-4 py-3 text-sm text-gray-800 flex flex-wrap items-center justify-between gap-2">
+              <span>
+                Para criar um novo agendamento, escolha o serviço no catálogo.
+              </span>
+              <Link
+                href="/servicos"
+                className="px-3 py-1.5 rounded-lg bg-[#F89D13] text-white text-xs font-semibold hover:opacity-90"
+              >
+                Ir para Catálogo de Serviços
+              </Link>
+            </div>
+
+            {/* Lista de agendamentos */}
+            <section>
+              <h2 className="text-lg font-bold text-[#8F1D14] mb-3">
+                Meus agendamentos
+              </h2>
+
+              {loading ? (
+                <div className="space-y-2">
+                  {[...Array(3)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-16 rounded-xl bg-gray-100 animate-pulse"
+                    />
+                  ))}
+                </div>
+              ) : agendamentos.length === 0 ? (
+                <p className="text-sm text-gray-600">
+                  Você ainda não possui agendamentos cadastrados.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {agendamentos.map((ag) => (
+                    <article
+                      key={ag.id}
+                      className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {ag.tipo_nome}{' '}
+                          <span className="text-xs text-gray-500">
+                            #{ag.id}
+                          </span>
+                        </p>
+                        <p className="text-xs text-gray-600 mt-0.5">
+                          {formatDateBR(ag.data_servico)} às{' '}
+                          {formatHora(ag.hora_servico)} — {ag.endereco}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5 capitalize">
+                          Status:{' '}
+                          <span className="font-medium text-gray-800">
+                            {ag.status.replace('_', ' ')}
+                          </span>
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {ag.avaliacao?.nota != null && (
+                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                            ⭐ Avaliado ({ag.avaliacao.nota}/5)
+                          </span>
+                        )}
+
+                        {/* se você tiver página de detalhes do agendamento, pode apontar pra /agendamento/[id] */}
+                        {/* <Link
+                          href={`/agendamento/${ag.id}`}
+                          className="text-xs font-semibold text-[#8F1D14] hover:underline"
+                        >
+                          Ver detalhes
+                        </Link> */}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
