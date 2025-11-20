@@ -15,9 +15,9 @@ type AgendamentoResumo = {
   id: number;
   status: string;
   tipo_nome: string | null;
-  data_servico: string | null;
-  hora_servico: string | null;
-  endereco: string | null;
+  data_servico: string;
+  hora_servico: string;
+  endereco: string;
   avaliacao?: {
     nota?: number | null;
     comentario?: string | null;
@@ -63,8 +63,9 @@ export default function AgendamentoPage() {
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
-        const isContratante = !!user?.Contratante;
-        const isPrestador = !!user?.Prestador;
+        // ⚠️ IMPORTANTE: no backend as chaves são "contratante" e "prestador"
+        const isContratante = !!(user?.contratante || user?.Contratante);
+        const isPrestador = !!(user?.prestador || user?.Prestador);
 
         const perfilDetectado: Perfil = isContratante
           ? 'Contratante'
@@ -78,10 +79,8 @@ export default function AgendamentoPage() {
         let lista: AgendamentoResumo[] = [];
 
         if (isContratante) {
-          // ✅ usa rota /api/agendamentos/cliente
           lista = await apiFetch('/agendamentos/cliente');
         } else if (isPrestador) {
-          // ✅ usa rota /api/agendamentos/prestador
           lista = await apiFetch('/agendamentos/prestador');
         } else {
           lista = [];
@@ -128,7 +127,10 @@ export default function AgendamentoPage() {
                   Agendamentos
                 </h1>
                 <p className="text-sm text-gray-600 mt-1">
-                  Perfil: <span className="font-semibold">{perfil}</span>
+                  Perfil:{' '}
+                  <span className="font-semibold">
+                    {perfil}
+                  </span>
                 </p>
               </div>
 
@@ -140,7 +142,7 @@ export default function AgendamentoPage() {
                   ← Voltar para a home
                 </Link>
 
-                {/* 🔴 IMPORTANTE: rota ABSOLUTA, não "historico" */}
+                {/* 🔁 AGORA APONTA PARA /historico (não /agendamentos/historico) */}
                 <Link
                   href="/historico"
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
@@ -150,14 +152,14 @@ export default function AgendamentoPage() {
               </div>
             </header>
 
-            {/* Aviso / erro */}
+            {/* Info / erro */}
             {erro && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {erro}
               </div>
             )}
 
-            {/* Info para novo agendamento */}
+            {/* Link para criar novo */}
             <div className="mb-6 rounded-xl bg-[#F89D13]/10 border border-[#F89D13]/30 px-4 py-3 text-sm text-gray-800 flex flex-wrap items-center justify-between gap-2">
               <span>
                 Para criar um novo agendamento, escolha o serviço no catálogo.
@@ -198,7 +200,7 @@ export default function AgendamentoPage() {
                     >
                       <div>
                         <p className="text-sm font-semibold text-gray-900">
-                          {ag.tipo_nome ?? 'Serviço'}{' '}
+                          {ag.tipo_nome || 'Serviço'}{' '}
                           <span className="text-xs text-gray-500">
                             #{ag.id}
                           </span>
@@ -210,7 +212,7 @@ export default function AgendamentoPage() {
                         <p className="text-xs text-gray-500 mt-0.5 capitalize">
                           Status:{' '}
                           <span className="font-medium text-gray-800">
-                            {ag.status?.replace('_', ' ')}
+                            {ag.status.replace('_', ' ')}
                           </span>
                         </p>
                       </div>
