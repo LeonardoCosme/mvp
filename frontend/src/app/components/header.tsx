@@ -2,9 +2,15 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { getToken, removeToken } from '../../utils/auth';
-import { motion, AnimatePresence } from 'framer-motion';
+import { usePathname, useRouter } from 'next/navigation';
+import { getToken, removeToken } from '@/utils/auth';
+
+type TipoUsuario = 'contratante' | 'prestador' | null;
+
+function isActive(pathname: string, href: string) {
+  if (href === '/') return pathname === '/';
+  return pathname.startsWith(href);
+}
 
 export default function Header() {
   const router = useRouter();
@@ -12,161 +18,121 @@ export default function Header() {
 
   const [logged, setLogged] = useState(false);
   const [nome, setNome] = useState<string | null>(null);
-  const [tipo, setTipo] = useState<string | null>(null);
+  const [tipo, setTipo] = useState<TipoUsuario>(null);
 
-  const syncAuthState = () => {
-    const hasToken = !!getToken();
-    setLogged(hasToken);
-
-    if (typeof globalThis !== 'undefined' && globalThis.localStorage) {
-      setNome(globalThis.localStorage.getItem('nomeUsuario') || null);
-      const t =
-        globalThis.localStorage.getItem('tipo') ||
-        globalThis.localStorage.getItem('tipoUsuario');
-      setTipo(t);
-    }
-  };
-
+  // sincroniza estado de autenticação sempre que a rota muda
   useEffect(() => {
-    syncAuthState();
+    const token = getToken();
+    setLogged(!!token);
+
+    if (typeof window !== 'undefined') {
+      const nomeLocal = window.localStorage.getItem('nomeUsuario');
+      const tipoLocal =
+        (window.localStorage.getItem('tipo') ||
+          window.localStorage.getItem('tipoUsuario')) as TipoUsuario | null;
+
+      setNome(nomeLocal);
+      setTipo(tipoLocal);
+    }
   }, [pathname]);
 
-  useEffect(() => {
-    const handler = () => syncAuthState();
-
-    if (typeof globalThis !== 'undefined' && globalThis.addEventListener) {
-      globalThis.addEventListener('auth-changed', handler);
-      return () => globalThis.removeEventListener('auth-changed', handler);
-    }
-
-    return undefined;
-  }, []);
-
-  function logout() {
+  function handleLogout() {
     removeToken();
-
-    if (typeof globalThis !== 'undefined' && globalThis.localStorage) {
-      globalThis.localStorage.removeItem('tipo');
-      globalThis.localStorage.removeItem('tipoUsuario');
-      globalThis.localStorage.removeItem('nomeUsuario');
-      globalThis.dispatchEvent(new Event('auth-changed'));
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem('nomeUsuario');
+      window.localStorage.removeItem('tipo');
+      window.localStorage.removeItem('tipoUsuario');
     }
-
     setLogged(false);
-    setNome(null);
-    setTipo(null);
     router.push('/login');
   }
 
-  // rota de agendamento (só acessa se estiver logado)
-  const agendamentoHref = logged ? '/agendamento' : '/login?next=/agendamento';
-
-  // rota de "perfil" de acordo com o tipo de usuário
-  // - contratante/cliente -> /historico (meus agendamentos)
-  // - prestador -> /historico-avaliacoes
-  const perfilHref = !logged
-    ? '/login'
-    : tipo === 'prestador'
-    ? '/historico-avaliacoes'
-    : '/historico';
-
-  const links = [
-    { href: '/home', label: 'Home' },
-    { href: agendamentoHref, label: 'Agendamentos' },
-    { href: '/servicos', label: 'Serviços' },
-    !logged && { href: '/login', label: 'Login' },
-    !logged && { href: '/cadastro', label: 'Cadastro' },
-    logged && {
-      href: perfilHref,
-      label: nome ? nome.split(' ')[0] : 'Meu Perfil',
-    },
-  ].filter(Boolean) as { href: string; label: string }[];
-
-  // badge com o tipo de usuário
-  let tipoClass = 'bg-zinc-100 text-zinc-700 ring-zinc-500/20';
-
-  if (tipo === 'prestador') {
-    tipoClass = 'bg-blue-50 text-blue-700 ring-blue-600/20';
-  } else if (tipo === 'contratante') {
-    tipoClass = 'bg-emerald-50 text-emerald-700 ring-emerald-600/20';
-  }
-
-  const badgeClass =
-    'ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ' +
-    tipoClass;
+  const perfilHref =
+    tipo === 'prestador'
+      ? '/perfil/prestador'
+      : tipo === 'contratante'
+      ? '/perfil/contratante'
+      : '/perfil';
 
   return (
-    <header className="sticky top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-sm shadow-md">
-      <div className="max-w-6xl mx-auto px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+    <header className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
+      <nav className="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
+        <Link href="/" className="font-bold text-[#8F1D14]">
+          Marido de <span className="font-extrabold">Aluguel</span>
+        </Link>
+
+        <div className="flex items-center gap-4 text-sm">
           <Link
             href="/"
-            className="min-w-0 shrink font-extrabold text-[#8F1D14] text-base sm:text-lg tracking-tight hover:opacity-90 transition leading-tight"
+            className={
+              isActive(pathname, '/')
+                ? 'font-semibold text-[#8F1D14]'
+                : 'text-gray-700 hover:text-[#8F1D14]'
+            }
           >
-            <span className="block sm:hidden">
-              Marido de
-              <br />
-              Aluguel
-            </span>
-            <span className="hidden sm:block">Marido de Aluguel</span>
+            Home
           </Link>
 
-          <nav className="min-w-0 w-full sm:w-auto flex flex-wrap sm:flex-nowrap items-center justify-start sm:justify-end gap-1 sm:gap-2">
-            {links.map((link) => {
-              const active = pathname === link.href;
-              const isPerfil = link.href === perfilHref && logged;
+          <Link
+            href="/agendamento"
+            className={
+              isActive(pathname, '/agendamento')
+                ? 'font-semibold text-[#8F1D14]'
+                : 'text-gray-700 hover:text-[#8F1D14]'
+            }
+          >
+            Agendamentos
+          </Link>
 
-              return (
-                <div key={link.href} className="relative">
-                  <Link
-                    href={link.href}
-                    className={[
-                      'relative z-10 px-3 py-1.5 rounded-lg transition-all duration-200 font-medium',
-                      'text-sm sm:text-base',
-                      'whitespace-normal',
-                      active
-                        ? 'text-[#8F1D14]'
-                        : 'text-gray-700 hover:text-[#8F1D14] hover:bg-[#F89D13]/10',
-                      'flex items-center',
-                    ].join(' ')}
-                  >
-                    {link.label}
-                    {logged && isPerfil && tipo && (
-                      <span className={badgeClass}>{tipo}</span>
-                    )}
-                  </Link>
+          <Link
+            href="/servicos"
+            className={
+              isActive(pathname, '/servicos')
+                ? 'font-semibold text-[#8F1D14]'
+                : 'text-gray-700 hover:text-[#8F1D14]'
+            }
+          >
+            Serviços
+          </Link>
 
-                  <AnimatePresence>
-                    {active && (
-                      <motion.div
-                        layoutId="activeLink"
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.95 }}
-                        transition={{ duration: 0.2, ease: 'easeOut' }}
-                        className="pointer-events-none absolute inset-0 -z-0 rounded-lg bg-[#F89D13]/25 shadow-sm"
-                      />
-                    )}
-                  </AnimatePresence>
-                </div>
-              );
-            })}
-
-            {logged && (
-              <button
-                onClick={logout}
-                className="max-w-[40vw] sm:max-w-none truncate text-red-600 text-sm sm:text-base px-3 py-1.5 rounded-lg hover:bg-red-50 transition-all font-medium"
-                title={nome ? `Sair (${nome.split(' ')[0]})` : 'Sair'}
+          {!logged ? (
+            <>
+              <Link
+                href="/login"
+                className="px-3 py-1 rounded-lg border border-[#8F1D14] text-[#8F1D14] hover:bg-[#8F1D14]/5"
               >
-                <span className="sm:hidden">Sair</span>
-                <span className="hidden sm:inline">
-                  Sair {nome ? `(${nome.split(' ')[0]})` : ''}
-                </span>
+                Entrar
+              </Link>
+              <Link
+                href="/cadastro"
+                className="px-3 py-1 rounded-lg bg-[#8F1D14] text-white hover:bg-[#a2261b]"
+              >
+                Cadastrar
+              </Link>
+            </>
+          ) : (
+            <>
+              {/* LINK PARA PERFIL – NÃO DESLOGA */}
+              <Link
+                href={perfilHref}
+                className="px-3 py-1 rounded-full bg-[#F89D13]/15 text-[#8F1D14] font-medium max-w-[180px] truncate"
+              >
+                {nome || 'Meu perfil'}
+                {tipo ? ` • ${tipo}` : ''}
+              </Link>
+
+              {/* BOTÃO SAIR – ÚNICO QUE CHAMA LOGOUT */}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="px-3 py-1 rounded-lg bg-[#8F1D14] text-white hover:bg-[#a2261b]"
+              >
+                Sair
               </button>
-            )}
-          </nav>
+            </>
+          )}
         </div>
-      </div>
+      </nav>
     </header>
   );
 }

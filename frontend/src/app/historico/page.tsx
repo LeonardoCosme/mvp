@@ -6,8 +6,8 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { apiFetch } from '@/utils/api';
-import { getToken } from '@/utils/auth';
+import { apiFetch } from '../../utils/api';
+import { getToken } from '../../utils/auth';
 
 type HistoricoItem = {
   id: number;

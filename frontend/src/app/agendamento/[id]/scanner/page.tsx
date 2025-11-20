@@ -15,9 +15,9 @@ type AgendamentoResumo = {
   id: number;
   status: string;
   tipo_nome: string | null;
-  data_servico: string;
-  hora_servico: string;
-  endereco: string;
+  data_servico: string | null;
+  hora_servico: string | null;
+  endereco: string | null;
   avaliacao?: {
     nota?: number | null;
     comentario?: string | null;
@@ -138,9 +138,10 @@ export default function AgendamentoPage() {
                   ← Voltar para a home
                 </Link>
 
-                {/* 🔴 IMPORTANTE: caminho ABSOLUTO para /historico */}
+                {/* IMPORTANTE: rota absoluta e sem "agendamentos" */}
                 <Link
                   href="/historico"
+                  prefetch={false}
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
                 >
                   Histórico de avaliações
