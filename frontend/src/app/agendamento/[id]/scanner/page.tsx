@@ -63,9 +63,8 @@ export default function AgendamentoPage() {
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
-        // ⚠️ IMPORTANTE: no backend as chaves são "contratante" e "prestador"
-        const isContratante = !!(user?.contratante || user?.Contratante);
-        const isPrestador = !!(user?.prestador || user?.Prestador);
+        const isContratante = !!user?.Contratante;
+        const isPrestador = !!user?.Prestador;
 
         const perfilDetectado: Perfil = isContratante
           ? 'Contratante'
@@ -127,10 +126,7 @@ export default function AgendamentoPage() {
                   Agendamentos
                 </h1>
                 <p className="text-sm text-gray-600 mt-1">
-                  Perfil:{' '}
-                  <span className="font-semibold">
-                    {perfil}
-                  </span>
+                  Perfil: <span className="font-semibold">{perfil}</span>
                 </p>
               </div>
 
@@ -142,7 +138,7 @@ export default function AgendamentoPage() {
                   ← Voltar para a home
                 </Link>
 
-                {/* 🔁 AGORA APONTA PARA /historico (não /agendamentos/historico) */}
+                {/* 🔴 IMPORTANTE: caminho ABSOLUTO para /historico */}
                 <Link
                   href="/historico"
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
