@@ -1,126 +1,181 @@
+// frontend/src/app/historico/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { apiFetch } from '../../utils/api';
-import { getToken } from '../../utils/auth';
+export const dynamic = 'force-dynamic';
 
-type Agendamento = {
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/utils/api';
+import { getToken } from '@/utils/auth';
+
+type HistoricoItem = {
   id: number;
-  tipoServico?: string;
-  data?: string;
-  hora?: string;
-  endereco?: string;
-  descricao?: string | null;
-  status?: string;
+  tipo_nome?: string | null;
+  data_servico?: string | null;
+  hora_servico?: string | null;
+  endereco?: string | null;
+  nota?: number | null;
+  comentario?: string | null;
+  status?: string | null;
 };
+
+function formatDateBR(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const [y, m, d] = parts;
+  return `${d}/${m}/${y}`;
+}
+
+function formatHora(h?: string | null): string {
+  if (!h) return '';
+  return h.slice(0, 5);
+}
 
 export default function HistoricoPage() {
   const router = useRouter();
+
+  const [itens, setItens] = useState<HistoricoItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [agendamentos, setAgendamentos] = useState<Agendamento[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [erro, setErro] = useState('');
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.replace('/login?next=/historico');
+    if (!getToken()) {
+      router.push('/login?next=/historico');
       return;
     }
 
-    const carregar = async () => {
+    let cancelado = false;
+
+    async function carregar() {
       try {
         setLoading(true);
-        setError(null);
+        setErro('');
 
-        // 🔁 AJUSTE AQUI PARA O ENDPOINT CORRETO DO SEU BACKEND
-        // Ex.: '/agendamentos/me', '/agendamentos/cliente', etc.
-        const data = await apiFetch('/agendamentos/me', {
-          method: 'GET',
-        });
-
-        setAgendamentos(Array.isArray(data) ? data : []);
+        // ✅ Bate na rota /api/historico/cliente
+        const data = await apiFetch('/historico/cliente');
+        if (!cancelado) {
+          console.log('[HISTÓRICO] itens =>', data);
+          setItens(Array.isArray(data) ? data : []);
+        }
       } catch (err: any) {
-        console.error('Erro ao carregar histórico:', err);
+        console.error('❌ Erro ao carregar histórico:', err);
         if (err?.status === 401) {
-          // token inválido/expirado: manda pro login
-          router.replace('/login?next=/historico');
-        } else {
-          setError(
-            err?.message || 'Não foi possível carregar seus agendamentos.'
+          router.push('/login?next=/historico');
+          return;
+        }
+        if (!cancelado) {
+          setErro(
+            err?.body?.message ||
+              err?.message ||
+              'Erro ao carregar o histórico de avaliações.'
           );
         }
       } finally {
-        setLoading(false);
+        if (!cancelado) setLoading(false);
       }
-    };
+    }
 
     carregar();
+
+    return () => {
+      cancelado = true;
+    };
   }, [router]);
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#f4f4f4] to-[#e9e3dc]">
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-6 text-red-800">
-          Meus agendamentos
-        </h1>
-
-        {loading && <p>Carregando...</p>}
-
-        {error && !loading && (
-          <p className="text-red-600 mb-4">{error}</p>
-        )}
-
-        {!loading && !error && agendamentos.length === 0 && (
-          <p>Você ainda não possui agendamentos.</p>
-        )}
-
-        <div className="space-y-4">
-          {agendamentos.map((ag) => (
-            <div
-              key={ag.id}
-              className="rounded-xl shadow-md bg-white p-4 border border-gray-200 flex flex-col gap-2"
-            >
-              <div className="flex justify-between items-center">
-                <span className="font-semibold text-red-800">
-                  {ag.tipoServico || 'Serviço'}
-                </span>
-                <span
-                  className={`text-xs font-bold px-2 py-1 rounded-full ${
-                    ag.status === 'AGUARDANDO'
-                      ? 'bg-yellow-100 text-yellow-800'
-                      : ag.status === 'CONFIRMADO'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-200 text-gray-700'
-                  }`}
-                >
-                  {ag.status || 'AGUARDANDO'}
-                </span>
+    <main className="min-h-screen bg-gradient-to-b from-[#4b2506] to-[#2b1304] pb-16">
+      <section className="pt-24">
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="bg-white/95 rounded-2xl shadow-lg p-6 md:p-8">
+            <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
+              <div>
+                <h1 className="text-2xl md:text-3xl font-extrabold text-[#8F1D14]">
+                  Histórico de avaliações
+                </h1>
+                <p className="text-sm text-gray-600 mt-1">
+                  Veja os serviços já atendidos e suas avaliações.
+                </p>
               </div>
 
-              <div className="text-sm text-gray-700">
-                {ag.data && (
-                  <p>
-                    <strong>Data:</strong>{' '}
-                    {new Date(ag.data).toLocaleDateString('pt-BR')}{' '}
-                    {ag.hora && `às ${ag.hora}`}
-                  </p>
-                )}
-                {ag.endereco && (
-                  <p>
-                    <strong>Endereço:</strong> {ag.endereco}
-                  </p>
-                )}
-                {ag.descricao && (
-                  <p>
-                    <strong>Descrição:</strong> {ag.descricao}
-                  </p>
-                )}
+              <Link
+                href="/agendamento"
+                className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                ← Voltar aos agendamentos
+              </Link>
+            </header>
+
+            {erro && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {erro}
               </div>
-            </div>
-          ))}
+            )}
+
+            {loading ? (
+              <div className="space-y-2">
+                {[...Array(3)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-16 rounded-xl bg-gray-100 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : itens.length === 0 ? (
+              <p className="text-sm text-gray-600">
+                Ainda não há avaliações registradas.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {itens.map((item) => (
+                  <article
+                    key={item.id}
+                    className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col gap-1"
+                  >
+                    <div className="flex justify-between items-center gap-2">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {item.tipo_nome ?? 'Serviço'}{' '}
+                          <span className="text-xs text-gray-500">
+                            #{item.id}
+                          </span>
+                        </p>
+                        <p className="text-xs text-gray-600 mt-0.5">
+                          {formatDateBR(item.data_servico)} às{' '}
+                          {formatHora(item.hora_servico)} — {item.endereco}
+                        </p>
+                      </div>
+
+                      {item.nota != null && (
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                          ⭐ {item.nota}/5
+                        </span>
+                      )}
+                    </div>
+
+                    {item.comentario && (
+                      <p className="text-xs text-gray-700 mt-1">
+                        <span className="font-semibold">Comentário: </span>
+                        {item.comentario}
+                      </p>
+                    )}
+
+                    {item.status && (
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Status:{' '}
+                        <span className="font-medium">
+                          {item.status.replace('_', ' ')}
+                        </span>
+                      </p>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </section>
     </main>
   );
 }

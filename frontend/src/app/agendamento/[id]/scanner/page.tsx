@@ -63,8 +63,6 @@ export default function AgendamentoPage() {
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
-        console.log('[AGENDAMENTO] user =>', user);
-
         const isContratante = !!user?.Contratante;
         const isPrestador = !!user?.Prestador;
 
@@ -80,16 +78,17 @@ export default function AgendamentoPage() {
         let lista: AgendamentoResumo[] = [];
 
         if (isContratante) {
+          // ✅ usa rota /api/agendamentos/cliente
           lista = await apiFetch('/agendamentos/cliente');
         } else if (isPrestador) {
+          // ✅ usa rota /api/agendamentos/prestador
           lista = await apiFetch('/agendamentos/prestador');
         } else {
           lista = [];
         }
 
-        console.log('[AGENDAMENTO] lista =>', lista);
-
         if (!cancelado) {
+          console.log('[AGENDAMENTOS] lista =>', lista);
           setAgendamentos(Array.isArray(lista) ? lista : []);
         }
       } catch (err: any) {
@@ -141,7 +140,7 @@ export default function AgendamentoPage() {
                   ← Voltar para a home
                 </Link>
 
-                {/* 👉 AQUI: link direto para /historico */}
+                {/* 🔴 IMPORTANTE: rota ABSOLUTA, não "historico" */}
                 <Link
                   href="/historico"
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
@@ -151,14 +150,14 @@ export default function AgendamentoPage() {
               </div>
             </header>
 
-            {/* Info / erro */}
+            {/* Aviso / erro */}
             {erro && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {erro}
               </div>
             )}
 
-            {/* Aviso + link para criar novo agendamento */}
+            {/* Info para novo agendamento */}
             <div className="mb-6 rounded-xl bg-[#F89D13]/10 border border-[#F89D13]/30 px-4 py-3 text-sm text-gray-800 flex flex-wrap items-center justify-between gap-2">
               <span>
                 Para criar um novo agendamento, escolha o serviço no catálogo.
@@ -199,7 +198,7 @@ export default function AgendamentoPage() {
                     >
                       <div>
                         <p className="text-sm font-semibold text-gray-900">
-                          {ag.tipo_nome || 'Serviço'}{' '}
+                          {ag.tipo_nome ?? 'Serviço'}{' '}
                           <span className="text-xs text-gray-500">
                             #{ag.id}
                           </span>
