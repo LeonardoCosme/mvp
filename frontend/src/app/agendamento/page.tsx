@@ -3,7 +3,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/utils/api';
@@ -45,12 +45,8 @@ export default function AgendamentoPage() {
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
 
-  // 🔹 função para ir pro histórico SEM usar <Link> (evita caminho relativo errado)
-  const handleGoHistorico = useCallback(() => {
-    router.push('/historico');
-  }, [router]);
-
   useEffect(() => {
+    // se não tiver token, manda para login
     if (!getToken()) {
       router.push('/login?next=/agendamento');
       return;
@@ -67,8 +63,18 @@ export default function AgendamentoPage() {
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
-        const isContratante = !!user?.Contratante;
-        const isPrestador = !!user?.Prestador;
+        // --- DETECÇÃO DE PERFIL MAIS ROBUSTA ---
+        const tipoRaw = (user?.tipo || '').toString().toLowerCase();
+
+        const isContratante =
+          tipoRaw === 'contratante' ||
+          tipoRaw === 'cliente' ||
+          !!user?.Contratante;
+
+        const isPrestador =
+          tipoRaw === 'prestador' ||
+          tipoRaw === 'fornecedor' ||
+          !!user?.Prestador;
 
         const perfilDetectado: Perfil = isContratante
           ? 'Contratante'
@@ -103,7 +109,7 @@ export default function AgendamentoPage() {
           setErro(
             err?.body?.message ||
               err?.message ||
-              'Erro ao carregar seus agendamentos.',
+              'Erro ao carregar seus agendamentos.'
           );
         }
       } finally {
@@ -142,14 +148,13 @@ export default function AgendamentoPage() {
                   ← Voltar para a home
                 </Link>
 
-                {/* 🔹 Botão chamando /historico via router.push */}
-                <button
-                  type="button"
-                  onClick={handleGoHistorico}
+                {/* Link correto para o histórico */}
+                <Link
+                  href="/historico"
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
                 >
                   Histórico de avaliações
-                </button>
+                </Link>
               </div>
             </header>
 
