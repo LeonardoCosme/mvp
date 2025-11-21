@@ -38,12 +38,16 @@ export default function LoginPage() {
       const data = (await apiFetch('/login', {
         method: 'POST',
         noAuth: true,
+        // 👇 Aqui era o ponto do erro de tipagem:
+        // o TS achava que "body" tinha que ser BodyInit.
+        // Mantemos o objeto (para o apiFetch tratar) e
+        // apenas anotamos como "any" para o TS aceitar.
         body: {
           email: email.trim(),
           senha: senha,    // compatível com backend (campo "senha")
           password: senha, // compatível com variantes futuras
           lembrar,
-        },
+        } as any,
       })) as LoginResponse;
 
       const token = data.token;
