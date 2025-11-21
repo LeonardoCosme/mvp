@@ -65,36 +65,11 @@ export default function AgendamentoPage() {
         setErro('');
 
         // 1) Descobre o usuário logado
-        const user: any = await apiFetch('/user/me');
+        const user = await apiFetch('/user/me');
         if (cancelado) return;
 
-        console.log('[AGENDAMENTO] user =>', user);
-
-        // tenta descobrir o tipo vindo da API
-        let rawTipo: string =
-          (user?.tipo as string) ||
-          (user?.tipoUsuario as string) ||
-          '';
-
-        // como fallback, tenta pegar do localStorage (mesma lógica do Header)
-        if (typeof window !== 'undefined' && !rawTipo) {
-          rawTipo =
-            window.localStorage.getItem('tipo') ||
-            window.localStorage.getItem('tipoUsuario') ||
-            '';
-        }
-
-        rawTipo = rawTipo.toLowerCase();
-
-        const isContratante =
-          !!user?.Contratante ||
-          !!user?.contratante ||
-          rawTipo === 'contratante';
-
-        const isPrestador =
-          !!user?.Prestador ||
-          !!user?.prestador ||
-          rawTipo === 'prestador';
+        const isContratante = !!user?.Contratante;
+        const isPrestador = !!user?.Prestador;
 
         const perfilDetectado: Perfil = isContratante
           ? 'Contratante'
@@ -109,15 +84,35 @@ export default function AgendamentoPage() {
           const lista = (await apiFetch(
             '/agendamentos/cliente'
           )) as AgendamentoResumo[];
+
           if (!cancelado) {
             setAgendamentos(Array.isArray(lista) ? lista : []);
             setDisponiveis([]); // contratante não vê "disponíveis"
           }
         } else if (perfilDetectado === 'Prestador') {
-          const [meus, disp] = (await Promise.all([
-            apiFetch('/agendamentos/prestador'),
-            apiFetch('/agendamentos/disponiveis'),
-          ])) as [AgendamentoResumo[], AgendamentoDisponivel[]];
+          // Meus agendamentos
+          const meus = (await apiFetch(
+            '/agendamentos/prestador'
+          )) as AgendamentoResumo[];
+
+          // Serviços disponíveis – se a rota não existir (404),
+          // tratamos como lista vazia sem mostrar erro
+          let disp: AgendamentoDisponivel[] = [];
+          try {
+            disp = (await apiFetch(
+              '/agendamentos/disponiveis'
+            )) as AgendamentoDisponivel[];
+          } catch (err: any) {
+            if (err?.status === 404) {
+              console.warn(
+                '[AGENDAMENTOS] Rota /agendamentos/disponiveis não existe no backend. Tratando como lista vazia.'
+              );
+              disp = [];
+            } else {
+              // outros erros devem aparecer na tela
+              throw err;
+            }
+          }
 
           if (!cancelado) {
             setAgendamentos(Array.isArray(meus) ? meus : []);
@@ -162,14 +157,12 @@ export default function AgendamentoPage() {
       });
 
       // Move o item de "disponíveis" para "meus agendamentos"
-      setDisponiveis((listaAnterior) =>
-        listaAnterior.filter((item) => item.id !== id)
-      );
-      setAgendamentos((listaAnterior) => {
+      setDisponiveis((lista) => lista.filter((item) => item.id !== id));
+      setAgendamentos((lista) => {
         const aceito = disponiveis.find((item) => item.id === id);
-        if (!aceito) return listaAnterior;
+        if (!aceito) return lista;
         return [
-          ...listaAnterior,
+          ...lista,
           {
             ...aceito,
             status: 'Aceita',
@@ -196,9 +189,7 @@ export default function AgendamentoPage() {
       });
 
       // Remove o item da lista de disponíveis
-      setDisponiveis((listaAnterior) =>
-        listaAnterior.filter((item) => item.id !== id)
-      );
+      setDisponiveis((lista) => lista.filter((item) => item.id !== id));
     } catch (err: any) {
       console.error('❌ Erro ao recusar agendamento:', err);
       alert(
@@ -247,7 +238,7 @@ export default function AgendamentoPage() {
               </div>
             </header>
 
-            {/* Mensagem de erro */}
+            {/* Mensagem de erro (somente para erros reais, não o 404 dos disponíveis) */}
             {erro && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {erro}
