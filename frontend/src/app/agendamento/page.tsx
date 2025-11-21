@@ -1,4 +1,3 @@
-// src/app/agendamento/page.tsx
 'use client';
 
 export const dynamic = 'force-dynamic';
@@ -46,7 +45,6 @@ export default function AgendamentoPage() {
   const [erro, setErro] = useState('');
 
   useEffect(() => {
-    // se não tiver token, manda para login
     if (!getToken()) {
       router.push('/login?next=/agendamento');
       return;
@@ -59,7 +57,6 @@ export default function AgendamentoPage() {
         setLoading(true);
         setErro('');
 
-        // 1) pega o usuário logado
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
@@ -74,7 +71,6 @@ export default function AgendamentoPage() {
 
         setPerfil(perfilDetectado);
 
-        // 2) busca os agendamentos conforme o perfil
         let lista: AgendamentoResumo[] = [];
 
         if (isContratante) {
@@ -119,7 +115,6 @@ export default function AgendamentoPage() {
       <section className="pt-24">
         <div className="max-w-5xl mx-auto px-4">
           <div className="bg-white/95 rounded-2xl shadow-lg p-6 md:p-8">
-            {/* Cabeçalho */}
             <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
               <div>
                 <h1 className="text-2xl md:text-3xl font-extrabold text-[#8F1D14]">
@@ -138,25 +133,21 @@ export default function AgendamentoPage() {
                   ← Voltar para a home
                 </Link>
 
-                {/* LINK ABSOLUTO para /historico */}
                 <Link
                   href="/historico"
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
-                  prefetch={false}
                 >
                   Histórico de avaliações
                 </Link>
               </div>
             </header>
 
-            {/* Info / erro */}
             {erro && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {erro}
               </div>
             )}
 
-            {/* Link para criar novo */}
             <div className="mb-6 rounded-xl bg-[#F89D13]/10 border border-[#F89D13]/30 px-4 py-3 text-sm text-gray-800 flex flex-wrap items-center justify-between gap-2">
               <span>
                 Para criar um novo agendamento, escolha o serviço no catálogo.
@@ -169,7 +160,6 @@ export default function AgendamentoPage() {
               </Link>
             </div>
 
-            {/* Lista de agendamentos */}
             <section>
               <h2 className="text-lg font-bold text-[#8F1D14] mb-3">
                 Meus agendamentos
