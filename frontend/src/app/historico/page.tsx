@@ -6,8 +6,8 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { apiFetch } from '../../utils/api';
-import { getToken } from '../../utils/auth';
+import { apiFetch } from '@/utils/api';
+import { getToken } from '@/utils/auth';
 
 type HistoricoItem = {
   id: number;
@@ -22,7 +22,9 @@ type HistoricoItem = {
 
 function formatDateBR(dateStr?: string | null): string {
   if (!dateStr) return '';
-  const parts = dateStr.split('-');
+  // se vier no formato ISO completo (2025-11-20T00:00:00.000Z), pega só a parte da data
+  const onlyDate = dateStr.split('T')[0];
+  const parts = onlyDate.split('-');
   if (parts.length !== 3) return dateStr;
   const [y, m, d] = parts;
   return `${d}/${m}/${y}`;
@@ -30,7 +32,10 @@ function formatDateBR(dateStr?: string | null): string {
 
 function formatHora(h?: string | null): string {
   if (!h) return '';
-  return h.slice(0, 5);
+  // se vier "16:40:00" ou "16:40:00.000Z", pega só "16:40"
+  const onlyTime = h.split(':');
+  if (onlyTime.length < 2) return h;
+  return `${onlyTime[0]}:${onlyTime[1]}`;
 }
 
 export default function HistoricoPage() {
@@ -41,6 +46,7 @@ export default function HistoricoPage() {
   const [erro, setErro] = useState('');
 
   useEffect(() => {
+    // se não tiver token, manda para login
     if (!getToken()) {
       router.push('/login?next=/historico');
       return;
@@ -53,18 +59,21 @@ export default function HistoricoPage() {
         setLoading(true);
         setErro('');
 
-        // ✅ Bate na rota /api/historico/cliente
+        // ✅ rota da API: /api/historico/cliente  (o apiFetch prefixa com /api)
         const data = await apiFetch('/historico/cliente');
+
         if (!cancelado) {
           console.log('[HISTÓRICO] itens =>', data);
           setItens(Array.isArray(data) ? data : []);
         }
       } catch (err: any) {
         console.error('❌ Erro ao carregar histórico:', err);
+
         if (err?.status === 401) {
           router.push('/login?next=/historico');
           return;
         }
+
         if (!cancelado) {
           setErro(
             err?.body?.message ||
@@ -73,7 +82,9 @@ export default function HistoricoPage() {
           );
         }
       } finally {
-        if (!cancelado) setLoading(false);
+        if (!cancelado) {
+          setLoading(false);
+        }
       }
     }
 
@@ -89,6 +100,7 @@ export default function HistoricoPage() {
       <section className="pt-24">
         <div className="max-w-5xl mx-auto px-4">
           <div className="bg-white/95 rounded-2xl shadow-lg p-6 md:p-8">
+            {/* Cabeçalho */}
             <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
               <div>
                 <h1 className="text-2xl md:text-3xl font-extrabold text-[#8F1D14]">
@@ -107,12 +119,14 @@ export default function HistoricoPage() {
               </Link>
             </header>
 
+            {/* Mensagem de erro */}
             {erro && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {erro}
               </div>
             )}
 
+            {/* Lista / loading */}
             {loading ? (
               <div className="space-y-2">
                 {[...Array(3)].map((_, i) => (
