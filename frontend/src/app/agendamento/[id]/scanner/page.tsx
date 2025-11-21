@@ -138,9 +138,10 @@ export default function AgendamentoPage() {
                   ← Voltar para a home
                 </Link>
 
-                {/* 👉 AQUI: link AGORA APONTA PARA /historico */}
+                {/* link CORRETO para /historico */}
                 <Link
                   href="/historico"
+                  prefetch={false}
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
                 >
                   Histórico de avaliações
