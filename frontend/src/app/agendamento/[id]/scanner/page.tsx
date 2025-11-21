@@ -143,7 +143,7 @@ export default function AgendamentoPage() {
 
                 {/* 🔴 IMPORTANTE: sempre /historico, nunca /agendamentos/historico */}
                 <Link
-                  href="historico"
+                  href="../historico"
                   prefetch={true}
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
                 >
