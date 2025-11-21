@@ -1,4 +1,4 @@
-// frontend/src/app/agendamento/page.tsx
+// src/app/agendamento/page.tsx
 'use client';
 
 export const dynamic = 'force-dynamic';
@@ -138,11 +138,11 @@ export default function AgendamentoPage() {
                   ← Voltar para a home
                 </Link>
 
-                {/* link CORRETO para /historico */}
+                {/* LINK ABSOLUTO para /historico */}
                 <Link
                   href="/historico"
-                  prefetch={false}
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
+                  prefetch={false}
                 >
                   Histórico de avaliações
                 </Link>
