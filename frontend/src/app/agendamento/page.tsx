@@ -24,6 +24,10 @@ type AgendamentoResumo = {
   } | null;
 };
 
+type AgendamentoDisponivel = AgendamentoResumo & {
+  contratante_nome?: string | null;
+};
+
 function formatDateBR(dateStr?: string | null): string {
   if (!dateStr) return '';
   const parts = dateStr.split('-');
@@ -42,6 +46,7 @@ export default function AgendamentoPage() {
 
   const [perfil, setPerfil] = useState<Perfil>('Usuário');
   const [agendamentos, setAgendamentos] = useState<AgendamentoResumo[]>([]);
+  const [disponiveis, setDisponiveis] = useState<AgendamentoDisponivel[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
   const [acaoCarregando, setAcaoCarregando] = useState<number | null>(null);
@@ -59,39 +64,70 @@ export default function AgendamentoPage() {
         setLoading(true);
         setErro('');
 
-        // 1) Descobre o usuário logado
-        const user = await apiFetch('/user/me');
+        // 1) Tenta descobrir o perfil pelo localStorage (fonte mais estável)
+        let perfilDetectado: Perfil = 'Usuário';
+
+        if (typeof window !== 'undefined') {
+          const storedTipo =
+            window.localStorage.getItem('tipo') ||
+            window.localStorage.getItem('tipoUsuario');
+
+          if (storedTipo) {
+            const t = storedTipo.toLowerCase();
+            if (t.includes('contrat')) perfilDetectado = 'Contratante';
+            else if (t.includes('prest')) perfilDetectado = 'Prestador';
+          }
+        }
+
+        // 2) Opcionalmente, refina usando /user/me (caso o backend mande relações)
+        try {
+          const user = await apiFetch('/user/me');
+          console.log('[AGENDAMENTOS] /user/me =>', user);
+
+          const hasContratante =
+            !!user?.Contratante || !!user?.contratante;
+          const hasPrestador =
+            !!user?.Prestador || !!user?.prestador;
+
+          if (hasContratante) perfilDetectado = 'Contratante';
+          else if (hasPrestador) perfilDetectado = 'Prestador';
+        } catch (innerErr) {
+          console.warn(
+            '[AGENDAMENTOS] Não foi possível ler /user/me, usando apenas localStorage',
+            innerErr
+          );
+        }
+
         if (cancelado) return;
-
-        const isContratante = !!user?.Contratante;
-        const isPrestador = !!user?.Prestador;
-
-        const perfilDetectado: Perfil = isContratante
-          ? 'Contratante'
-          : isPrestador
-          ? 'Prestador'
-          : 'Usuário';
 
         setPerfil(perfilDetectado);
 
-        // 2) Busca agendamentos conforme o perfil
-        let lista: AgendamentoResumo[] = [];
-
+        // 3) Busca agendamentos conforme o perfil
         if (perfilDetectado === 'Contratante') {
-          lista = (await apiFetch(
+          const lista = (await apiFetch(
             '/agendamentos/cliente'
           )) as AgendamentoResumo[];
-        } else if (perfilDetectado === 'Prestador') {
-          lista = (await apiFetch(
-            '/agendamentos/prestador'
-          )) as AgendamentoResumo[];
-        } else {
-          lista = [];
-        }
 
-        if (!cancelado) {
-          console.log('[AGENDAMENTOS] lista =>', lista);
-          setAgendamentos(Array.isArray(lista) ? lista : []);
+          if (!cancelado) {
+            setAgendamentos(Array.isArray(lista) ? lista : []);
+            setDisponiveis([]); // contratante não vê "disponíveis"
+          }
+        } else if (perfilDetectado === 'Prestador') {
+          const [meus, disp] = (await Promise.all([
+            apiFetch('/agendamentos/prestador'),
+            apiFetch('/agendamentos/disponiveis'),
+          ])) as [AgendamentoResumo[], AgendamentoDisponivel[]];
+
+          if (!cancelado) {
+            setAgendamentos(Array.isArray(meus) ? meus : []);
+            setDisponiveis(Array.isArray(disp) ? disp : []);
+          }
+        } else {
+          // Usuário genérico: não mostra nada
+          if (!cancelado) {
+            setAgendamentos([]);
+            setDisponiveis([]);
+          }
         }
       } catch (err: any) {
         console.error('❌ Erro ao carregar agendamentos:', err);
@@ -118,19 +154,6 @@ export default function AgendamentoPage() {
     };
   }, [router]);
 
-  // Para prestador: considera "disponíveis" os agendamentos com status de pendente/aguardando
-  const disponiveis: AgendamentoResumo[] =
-    perfil === 'Prestador'
-      ? agendamentos.filter((ag) => {
-          const s = (ag.status || '').toLowerCase();
-          return (
-            s.includes('pendente') ||
-            s.includes('aguard') || // aguardando, aguardando_prestador etc
-            s.includes('dispon') // disponível
-          );
-        })
-      : [];
-
   async function handleAceitar(id: number) {
     try {
       setAcaoCarregando(id);
@@ -138,12 +161,18 @@ export default function AgendamentoPage() {
         method: 'POST',
       });
 
-      // Atualiza status localmente
-      setAgendamentos((lista) =>
-        lista.map((ag) =>
-          ag.id === id ? { ...ag, status: 'Aceita' } : ag
-        )
-      );
+      setDisponiveis((lista) => lista.filter((item) => item.id !== id));
+      setAgendamentos((lista) => {
+        const aceito = disponiveis.find((item) => item.id === id);
+        if (!aceito) return lista;
+        return [
+          ...lista,
+          {
+            ...aceito,
+            status: 'Aceita',
+          },
+        ];
+      });
     } catch (err: any) {
       console.error('❌ Erro ao aceitar agendamento:', err);
       alert(
@@ -163,12 +192,7 @@ export default function AgendamentoPage() {
         method: 'POST',
       });
 
-      // Atualiza status localmente (aqui usei "Recusada", ajuste se o backend usar outro texto)
-      setAgendamentos((lista) =>
-        lista.map((ag) =>
-          ag.id === id ? { ...ag, status: 'Recusada' } : ag
-        )
-      );
+      setDisponiveis((lista) => lista.filter((item) => item.id !== id));
     } catch (err: any) {
       console.error('❌ Erro ao recusar agendamento:', err);
       alert(
@@ -217,14 +241,14 @@ export default function AgendamentoPage() {
               </div>
             </header>
 
-            {/* Mensagem de erro */}
+            {/* Erro */}
             {erro && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {erro}
               </div>
             )}
 
-            {/* Aviso para criar novo agendamento (cliente) */}
+            {/* Aviso para contratante */}
             {perfil === 'Contratante' && (
               <div className="mb-6 rounded-xl bg-[#F89D13]/10 border border-[#F89D13]/30 px-4 py-3 text-sm text-gray-800 flex flex-wrap items-center justify-between gap-2">
                 <span>
@@ -239,7 +263,7 @@ export default function AgendamentoPage() {
               </div>
             )}
 
-            {/* Prestador: serviços disponíveis (pendentes) */}
+            {/* Prestador: serviços disponíveis */}
             {perfil === 'Prestador' && (
               <section className="mb-8">
                 <h2 className="text-lg font-bold text-[#8F1D14] mb-3">
@@ -278,12 +302,14 @@ export default function AgendamentoPage() {
                               {formatDateBR(ag.data_servico)} às{' '}
                               {formatHora(ag.hora_servico)} — {ag.endereco}
                             </p>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              Status:{' '}
-                              <span className="font-medium text-gray-800">
-                                {ag.status.replace('_', ' ')}
-                              </span>
-                            </p>
+                            {ag.contratante_nome && (
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Cliente:{' '}
+                                <span className="font-medium">
+                                  {ag.contratante_nome}
+                                </span>
+                              </p>
+                            )}
                           </div>
 
                           <div className="flex flex-col gap-2 min-w-[160px] items-stretch">
@@ -316,7 +342,7 @@ export default function AgendamentoPage() {
               </section>
             )}
 
-            {/* Meus agendamentos (cliente ou prestador) */}
+            {/* Meus agendamentos */}
             <section>
               <h2 className="text-lg font-bold text-[#8F1D14] mb-3">
                 Meus agendamentos
@@ -361,13 +387,11 @@ export default function AgendamentoPage() {
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-3">
-                        {ag.avaliacao?.nota != null && (
-                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                            ⭐ Avaliado ({ag.avaliacao.nota}/5)
-                          </span>
-                        )}
-                      </div>
+                      {ag.avaliacao?.nota != null && (
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                          ⭐ Avaliado ({ag.avaliacao.nota}/5)
+                        </span>
+                      )}
                     </article>
                   ))}
                 </div>
