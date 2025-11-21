@@ -1,9 +1,8 @@
-// frontend/src/app/agendamento/page.tsx
 'use client';
 
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/utils/api';
@@ -24,6 +23,10 @@ type AgendamentoResumo = {
   } | null;
 };
 
+type AgendamentoDisponivel = AgendamentoResumo & {
+  contratante_nome?: string | null;
+};
+
 function formatDateBR(dateStr?: string | null): string {
   if (!dateStr) return '';
   const parts = dateStr.split('-');
@@ -37,24 +40,12 @@ function formatHora(h?: string | null): string {
   return h.slice(0, 5);
 }
 
-// considera “disponível” tudo que ainda não está claramente aceito/recusado/cancelado
-function ehDisponivelParaPrestador(ag: AgendamentoResumo): boolean {
-  const s = (ag.status || '').toLowerCase();
-
-  if (!s) return false;
-  if (s.includes('aceit')) return false;    // Aceita / aceita
-  if (s.includes('recus')) return false;    // Recusada / recusado
-  if (s.includes('cancel')) return false;   // Cancelada / cancelado
-
-  // qualquer outro status é tratado como disponível
-  return true;
-}
-
 export default function AgendamentoPage() {
   const router = useRouter();
 
   const [perfil, setPerfil] = useState<Perfil>('Usuário');
   const [agendamentos, setAgendamentos] = useState<AgendamentoResumo[]>([]);
+  const [disponiveis, setDisponiveis] = useState<AgendamentoDisponivel[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
   const [acaoCarregando, setAcaoCarregando] = useState<number | null>(null);
@@ -72,48 +63,85 @@ export default function AgendamentoPage() {
         setLoading(true);
         setErro('');
 
-        // 1) Detecta o perfil a partir do localStorage
+        // 1) Descobrir o perfil a partir do localStorage
         let perfilDetectado: Perfil = 'Usuário';
 
         if (typeof window !== 'undefined') {
-          const tipo =
+          const tipoSalvo =
             window.localStorage.getItem('tipo') ||
-            window.localStorage.getItem('tipoUsuario');
+            window.localStorage.getItem('tipoUsuario') ||
+            '';
 
-          if (tipo === 'prestador') perfilDetectado = 'Prestador';
-          else if (tipo === 'contratante') perfilDetectado = 'Contratante';
+          const t = tipoSalvo.toLowerCase();
+
+          if (t.includes('contrat')) {
+            perfilDetectado = 'Contratante';
+          } else if (t.includes('prest')) {
+            perfilDetectado = 'Prestador';
+          }
         }
 
-        if (cancelado) return;
+        if (!cancelado) {
+          setPerfil(perfilDetectado);
+        }
 
-        setPerfil(perfilDetectado);
-
-        // 2) Busca agendamentos conforme o perfil
+        // 2) Carregar "meus agendamentos" conforme o perfil
         let lista: AgendamentoResumo[] = [];
 
-        if (perfilDetectado === 'Contratante') {
-          lista = await apiFetch('/agendamentos/cliente');
-        } else if (perfilDetectado === 'Prestador') {
-          lista = await apiFetch('/agendamentos/prestador');
-        } else {
-          lista = [];
+        try {
+          if (perfilDetectado === 'Contratante') {
+            lista = await apiFetch('/agendamentos/cliente');
+          } else if (perfilDetectado === 'Prestador') {
+            lista = await apiFetch('/agendamentos/prestador');
+          } else {
+            // Fallback: tenta como cliente
+            lista = await apiFetch('/agendamentos/cliente');
+          }
+        } catch (err: any) {
+          // Se der erro AQUI, mostramos na tela
+          const status = err?.status;
+          const msgBase =
+            err?.body?.message ||
+            err?.message ||
+            'Erro ao carregar seus agendamentos.';
+
+          if (!cancelado) {
+            setErro(
+              status ? `Erro na API (${status}): ${msgBase}` : msgBase
+            );
+          }
         }
 
         if (!cancelado) {
           setAgendamentos(Array.isArray(lista) ? lista : []);
         }
-      } catch (err: any) {
-        console.error('❌ Erro ao carregar agendamentos:', err);
-        if (err?.status === 401) {
-          router.push('/login?next=/agendamento');
-          return;
-        }
-        if (!cancelado) {
-          setErro(
-            err?.body?.message ||
-              err?.message ||
-              'Erro ao carregar seus agendamentos.'
-          );
+
+        // 3) Se for prestador, tenta carregar serviços disponíveis
+        if (perfilDetectado === 'Prestador') {
+          const rotasTentativas = [
+            // tente colocar aqui a rota REAL de disponíveis, se souber
+            '/agendamentos/prestador/disponiveis',
+            '/agendamentos/disponiveis',
+          ];
+
+          for (const rota of rotasTentativas) {
+            try {
+              const dados = await apiFetch(rota);
+              if (!cancelado && Array.isArray(dados) && dados.length > 0) {
+                setDisponiveis(dados as AgendamentoDisponivel[]);
+                break; // achou uma rota válida, sai do loop
+              }
+            } catch (err: any) {
+              const status = err?.status;
+              // 404 aqui não é crítico: só significa que essa rota não existe
+              if (status && status !== 404) {
+                console.warn('Erro ao carregar disponíveis na rota', rota, err);
+              }
+              // continua tentando a próxima rota
+            }
+          }
+        } else {
+          if (!cancelado) setDisponiveis([]);
         }
       } finally {
         if (!cancelado) setLoading(false);
@@ -127,14 +155,6 @@ export default function AgendamentoPage() {
     };
   }, [router]);
 
-  const disponiveisPrestador = useMemo(
-    () =>
-      perfil === 'Prestador'
-        ? agendamentos.filter(ehDisponivelParaPrestador)
-        : [],
-    [perfil, agendamentos]
-  );
-
   async function handleAceitar(id: number) {
     try {
       setAcaoCarregando(id);
@@ -142,16 +162,19 @@ export default function AgendamentoPage() {
         method: 'POST',
       });
 
-      setAgendamentos((lista) =>
-        lista.map((ag) =>
-          ag.id === id
-            ? {
-                ...ag,
-                status: 'Aceita',
-              }
-            : ag
-        )
-      );
+      // Move o item de "disponíveis" para "meus agendamentos"
+      setDisponiveis((lista) => lista.filter((item) => item.id !== id));
+      setAgendamentos((lista) => {
+        const aceito = disponiveis.find((item) => item.id === id);
+        if (!aceito) return lista;
+        return [
+          ...lista,
+          {
+            ...aceito,
+            status: 'Aceita',
+          },
+        ];
+      });
     } catch (err: any) {
       console.error('❌ Erro ao aceitar agendamento:', err);
       alert(
@@ -171,16 +194,8 @@ export default function AgendamentoPage() {
         method: 'POST',
       });
 
-      setAgendamentos((lista) =>
-        lista.map((ag) =>
-          ag.id === id
-            ? {
-                ...ag,
-                status: 'Recusada',
-              }
-            : ag
-        )
-      );
+      // Remove o item da lista de disponíveis
+      setDisponiveis((lista) => lista.filter((item) => item.id !== id));
     } catch (err: any) {
       console.error('❌ Erro ao recusar agendamento:', err);
       alert(
@@ -229,7 +244,7 @@ export default function AgendamentoPage() {
               </div>
             </header>
 
-            {/* Mensagem de erro */}
+            {/* Mensagem de erro (somente para "meus agendamentos") */}
             {erro && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {erro}
@@ -251,7 +266,7 @@ export default function AgendamentoPage() {
               </div>
             )}
 
-            {/* Prestador: serviços disponíveis (pendentes) */}
+            {/* Prestador: serviços disponíveis */}
             {perfil === 'Prestador' && (
               <section className="mb-8">
                 <h2 className="text-lg font-bold text-[#8F1D14] mb-3">
@@ -267,13 +282,13 @@ export default function AgendamentoPage() {
                       />
                     ))}
                   </div>
-                ) : disponiveisPrestador.length === 0 ? (
+                ) : disponiveis.length === 0 ? (
                   <p className="text-sm text-gray-600">
                     Não há serviços disponíveis no momento.
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {disponiveisPrestador.map((ag) => (
+                    {disponiveis.map((ag) => (
                       <article
                         key={ag.id}
                         className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col gap-2"
@@ -290,6 +305,14 @@ export default function AgendamentoPage() {
                               {formatDateBR(ag.data_servico)} às{' '}
                               {formatHora(ag.hora_servico)} — {ag.endereco}
                             </p>
+                            {ag.contratante_nome && (
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Cliente:{' '}
+                                <span className="font-medium">
+                                  {ag.contratante_nome}
+                                </span>
+                              </p>
+                            )}
                           </div>
 
                           <div className="flex flex-col gap-2 min-w-[160px] items-stretch">

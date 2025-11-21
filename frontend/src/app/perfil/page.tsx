@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiFetch } from '@/utils/api';
-import { getToken, removeToken } from '@/utils/auth';
+import { apiFetch } from '../../utils/api';
+import { getToken, removeToken } from '../../utils/auth';
 
 type User = {
   id: number;
