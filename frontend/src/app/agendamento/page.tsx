@@ -65,11 +65,36 @@ export default function AgendamentoPage() {
         setErro('');
 
         // 1) Descobre o usuário logado
-        const user = await apiFetch('/user/me');
+        const user: any = await apiFetch('/user/me');
         if (cancelado) return;
 
-        const isContratante = !!user?.Contratante;
-        const isPrestador = !!user?.Prestador;
+        console.log('[AGENDAMENTO] user =>', user);
+
+        // tenta descobrir o tipo vindo da API
+        let rawTipo: string =
+          (user?.tipo as string) ||
+          (user?.tipoUsuario as string) ||
+          '';
+
+        // como fallback, tenta pegar do localStorage (mesma lógica do Header)
+        if (typeof window !== 'undefined' && !rawTipo) {
+          rawTipo =
+            window.localStorage.getItem('tipo') ||
+            window.localStorage.getItem('tipoUsuario') ||
+            '';
+        }
+
+        rawTipo = rawTipo.toLowerCase();
+
+        const isContratante =
+          !!user?.Contratante ||
+          !!user?.contratante ||
+          rawTipo === 'contratante';
+
+        const isPrestador =
+          !!user?.Prestador ||
+          !!user?.prestador ||
+          rawTipo === 'prestador';
 
         const perfilDetectado: Perfil = isContratante
           ? 'Contratante'
@@ -137,12 +162,14 @@ export default function AgendamentoPage() {
       });
 
       // Move o item de "disponíveis" para "meus agendamentos"
-      setDisponiveis((lista) => lista.filter((item) => item.id !== id));
-      setAgendamentos((lista) => {
+      setDisponiveis((listaAnterior) =>
+        listaAnterior.filter((item) => item.id !== id)
+      );
+      setAgendamentos((listaAnterior) => {
         const aceito = disponiveis.find((item) => item.id === id);
-        if (!aceito) return lista;
+        if (!aceito) return listaAnterior;
         return [
-          ...lista,
+          ...listaAnterior,
           {
             ...aceito,
             status: 'Aceita',
@@ -169,7 +196,9 @@ export default function AgendamentoPage() {
       });
 
       // Remove o item da lista de disponíveis
-      setDisponiveis((lista) => lista.filter((item) => item.id !== id));
+      setDisponiveis((listaAnterior) =>
+        listaAnterior.filter((item) => item.id !== id)
+      );
     } catch (err: any) {
       console.error('❌ Erro ao recusar agendamento:', err);
       alert(
