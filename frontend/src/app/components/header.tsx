@@ -1,16 +1,10 @@
+// frontend/src/components/Header/index.tsx
 'use client';
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import { getToken, removeToken } from '@/utils/auth';
-
-type TipoUsuario = 'contratante' | 'prestador' | null;
-
-function isActive(pathname: string, href: string) {
-  if (href === '/') return pathname === '/';
-  return pathname.startsWith(href);
-}
+import { useRouter, usePathname } from 'next/navigation';
+import { getToken, removeToken } from '../../utils/auth';
 
 export default function Header() {
   const router = useRouter();
@@ -18,25 +12,26 @@ export default function Header() {
 
   const [logged, setLogged] = useState(false);
   const [nome, setNome] = useState<string | null>(null);
-  const [tipo, setTipo] = useState<TipoUsuario>(null);
+  const [tipo, setTipo] = useState<string | null>(null);
 
-  // sincroniza estado de autenticação sempre que a rota muda
-  useEffect(() => {
-    const token = getToken();
-    setLogged(!!token);
+  const syncAuthState = () => {
+    const hasToken = !!getToken();
+    setLogged(hasToken);
 
     if (typeof window !== 'undefined') {
-      const nomeLocal = window.localStorage.getItem('nomeUsuario');
-      const tipoLocal =
-        (window.localStorage.getItem('tipo') ||
-          window.localStorage.getItem('tipoUsuario')) as TipoUsuario | null;
-
-      setNome(nomeLocal);
-      setTipo(tipoLocal);
+      setNome(window.localStorage.getItem('nomeUsuario') || null);
+      const t =
+        window.localStorage.getItem('tipo') ||
+        window.localStorage.getItem('tipoUsuario');
+      setTipo(t);
     }
+  };
+
+  useEffect(() => {
+    syncAuthState();
   }, [pathname]);
 
-  function handleLogout() {
+  const handleLogout = () => {
     removeToken();
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('nomeUsuario');
@@ -44,95 +39,92 @@ export default function Header() {
       window.localStorage.removeItem('tipoUsuario');
     }
     setLogged(false);
+    setNome(null);
+    setTipo(null);
     router.push('/login');
-  }
+  };
 
-  const perfilHref =
-    tipo === 'prestador'
-      ? '/perfil/prestador'
-      : tipo === 'contratante'
-      ? '/perfil/contratante'
-      : '/perfil';
+  const goToPerfil = () => {
+    router.push('/perfil');
+  };
+
+  const isActive = (href: string) =>
+    pathname === href ? 'text-[#8F1D14] font-semibold' : 'text-gray-700';
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur border-b border-gray-100">
-      <nav className="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
-        <Link href="/" className="font-bold text-[#8F1D14]">
-          Marido de <span className="font-extrabold">Aluguel</span>
+    <header className="w-full bg-white/95 shadow-sm fixed top-0 left-0 right-0 z-30">
+      <div className="max-w-6xl mx-auto flex items-center justify-between px-4 py-3">
+        {/* Logo / nome do sistema */}
+        <Link href="/home" className="flex items-center gap-2">
+          <span className="text-lg font-extrabold text-[#8F1D14] leading-tight">
+            Marido de
+            <span className="block text-sm text-gray-800">Aluguel</span>
+          </span>
         </Link>
 
-        <div className="flex items-center gap-4 text-sm">
-          <Link
-            href="/"
-            className={
-              isActive(pathname, '/')
-                ? 'font-semibold text-[#8F1D14]'
-                : 'text-gray-700 hover:text-[#8F1D14]'
-            }
-          >
+        {/* Navegação */}
+        <nav className="flex items-center gap-4 text-sm">
+          <Link href="/home" className={isActive('/home')}>
             Home
           </Link>
-
-          <Link
-            href="/agendamento"
-            className={
-              isActive(pathname, '/agendamento')
-                ? 'font-semibold text-[#8F1D14]'
-                : 'text-gray-700 hover:text-[#8F1D14]'
-            }
-          >
+          <Link href="/agendamento" className={isActive('/agendamento')}>
             Agendamentos
           </Link>
-
-          <Link
-            href="/servicos"
-            className={
-              isActive(pathname, '/servicos')
-                ? 'font-semibold text-[#8F1D14]'
-                : 'text-gray-700 hover:text-[#8F1D14]'
-            }
-          >
+          <Link href="/servicos" className={isActive('/servicos')}>
             Serviços
           </Link>
+        </nav>
 
+        {/* Usuário / login */}
+        <div className="flex items-center gap-3">
           {!logged ? (
             <>
               <Link
                 href="/login"
-                className="px-3 py-1 rounded-lg border border-[#8F1D14] text-[#8F1D14] hover:bg-[#8F1D14]/5"
+                className="px-3 py-1.5 rounded-lg border border-[#8F1D14]/40 text-[#8F1D14] text-sm hover:bg-[#8F1D14]/5"
               >
                 Entrar
               </Link>
               <Link
                 href="/cadastro"
-                className="px-3 py-1 rounded-lg bg-[#8F1D14] text-white hover:bg-[#a2261b]"
+                className="px-3 py-1.5 rounded-lg bg-[#8F1D14] text-white text-sm hover:bg-[#a2261b]"
               >
-                Cadastrar
+                Cadastre-se
               </Link>
             </>
           ) : (
             <>
-              {/* LINK PARA PERFIL – NÃO DESLOGA */}
-              <Link
-                href={perfilHref}
-                className="px-3 py-1 rounded-full bg-[#F89D13]/15 text-[#8F1D14] font-medium max-w-[180px] truncate"
+              <button
+                type="button"
+                onClick={goToPerfil}
+                className="flex items-center gap-2 text-sm text-gray-800 hover:text-[#8F1D14]"
               >
-                {nome || 'Meu perfil'}
-                {tipo ? ` • ${tipo}` : ''}
-              </Link>
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#F89D13]/20 text-[#8F1D14] font-semibold">
+                  {nome?.[0]?.toUpperCase() || 'U'}
+                </span>
+                <div className="text-left leading-tight">
+                  <div className="font-semibold">
+                    {nome || 'Meu perfil'}
+                  </div>
+                  {tipo && (
+                    <div className="text-xs text-gray-500 capitalize">
+                      {tipo.toLowerCase()}
+                    </div>
+                  )}
+                </div>
+              </button>
 
-              {/* BOTÃO SAIR – ÚNICO QUE CHAMA LOGOUT */}
               <button
                 type="button"
                 onClick={handleLogout}
-                className="px-3 py-1 rounded-lg bg-[#8F1D14] text-white hover:bg-[#a2261b]"
+                className="px-3 py-1.5 rounded-lg bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600"
               >
                 Sair
               </button>
             </>
           )}
         </div>
-      </nav>
+      </div>
     </header>
   );
 }
