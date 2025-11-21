@@ -1,8 +1,8 @@
-// src/app/agendamentos/historico/page.tsx
+// frontend/src/app/agendamentos/historico/page.tsx
 import { redirect } from 'next/navigation';
 
-export default function HistoricoAlias() {
+export default function AgendamentosHistoricoRedirect() {
   // sempre que alguém tentar acessar /agendamentos/historico,
-  // o Next redireciona imediatamente para /historico
+  // manda direto para /historico
   redirect('/historico');
 }
