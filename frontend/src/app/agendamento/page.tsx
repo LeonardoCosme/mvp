@@ -11,22 +11,24 @@ import { getToken } from '@/utils/auth';
 
 type Perfil = 'Contratante' | 'Prestador' | 'Usuário';
 
-type AgendamentoResumo = {
-  id: number;
-  status: string;
-  tipo_nome: string | null;
-  data_servico: string;
-  hora_servico: string;
-  endereco: string;
-  avaliacao?: {
-    nota?: number | null;
-    comentario?: string | null;
-  } | null;
-};
+type Avaliacao = {
+  nota?: number | null;
+  comentario?: string | null;
+} | null;
 
-type AgendamentoDisponivel = AgendamentoResumo & {
+type AgendamentoBase = {
+  id: number;
+  status?: string | null;
+  tipo_nome?: string | null;
+  data_servico?: string | null;
+  hora_servico?: string | null;
+  endereco?: string | null;
+  avaliacao?: Avaliacao;
   contratante_nome?: string | null;
 };
+
+type AgendamentoResumo = AgendamentoBase;
+type AgendamentoDisponivel = AgendamentoBase;
 
 function formatDateBR(dateStr?: string | null): string {
   if (!dateStr) return '';
@@ -39,6 +41,18 @@ function formatDateBR(dateStr?: string | null): string {
 function formatHora(h?: string | null): string {
   if (!h) return '';
   return h.slice(0, 5);
+}
+
+// decide se um agendamento é "disponível" para o prestador
+function ehDisponivel(a: AgendamentoBase): boolean {
+  const s = (a.status || '').toLowerCase();
+
+  // ajuste aqui se no seu banco os status forem outros
+  return (
+    s.includes('pend') || // Pendente
+    s.includes('dispon') || // Disponível
+    s.includes('aguard') // Aguardando
+  );
 }
 
 export default function AgendamentoPage() {
@@ -68,8 +82,17 @@ export default function AgendamentoPage() {
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
-        const isContratante = !!user?.Contratante;
-        const isPrestador = !!user?.Prestador;
+        const rawTipo = (
+          user?.tipoUsuario ||
+          user?.tipo ||
+          user?.perfil ||
+          ''
+        )
+          .toString()
+          .toLowerCase();
+
+        const isContratante = !!user?.Contratante || rawTipo.includes('contrat');
+        const isPrestador = !!user?.Prestador || rawTipo.includes('prestador');
 
         const perfilDetectado: Perfil = isContratante
           ? 'Contratante'
@@ -81,42 +104,31 @@ export default function AgendamentoPage() {
 
         // 2) Busca agendamentos conforme o perfil
         if (perfilDetectado === 'Contratante') {
+          // aqui uso a rota de cliente; se a sua for outra, é só trocar
           const lista = (await apiFetch(
             '/agendamentos/cliente'
           )) as AgendamentoResumo[];
 
           if (!cancelado) {
-            setAgendamentos(Array.isArray(lista) ? lista : []);
-            setDisponiveis([]); // contratante não vê "disponíveis"
+            const arr = Array.isArray(lista) ? lista : [];
+            console.log('[AGENDAMENTOS CLIENTE]', arr);
+            setAgendamentos(arr);
+            setDisponiveis([]);
           }
         } else if (perfilDetectado === 'Prestador') {
-          // Meus agendamentos
-          const meus = (await apiFetch(
+          // pega TODOS os agendamentos do prestador
+          const lista = (await apiFetch(
             '/agendamentos/prestador'
           )) as AgendamentoResumo[];
 
-          // Serviços disponíveis – se a rota não existir (404),
-          // tratamos como lista vazia sem mostrar erro
-          let disp: AgendamentoDisponivel[] = [];
-          try {
-            disp = (await apiFetch(
-              '/agendamentos/disponiveis'
-            )) as AgendamentoDisponivel[];
-          } catch (err: any) {
-            if (err?.status === 404) {
-              console.warn(
-                '[AGENDAMENTOS] Rota /agendamentos/disponiveis não existe no backend. Tratando como lista vazia.'
-              );
-              disp = [];
-            } else {
-              // outros erros devem aparecer na tela
-              throw err;
-            }
-          }
-
           if (!cancelado) {
-            setAgendamentos(Array.isArray(meus) ? meus : []);
-            setDisponiveis(Array.isArray(disp) ? disp : []);
+            const arr = Array.isArray(lista) ? lista : [];
+            console.log('[AGENDAMENTOS PRESTADOR]', arr);
+
+            // separa os pendentes / disponíveis
+            const pendentes = arr.filter(ehDisponivel);
+            setDisponiveis(pendentes);
+            setAgendamentos(arr);
           }
         } else {
           if (!cancelado) {
@@ -156,19 +168,12 @@ export default function AgendamentoPage() {
         method: 'POST',
       });
 
-      // Move o item de "disponíveis" para "meus agendamentos"
       setDisponiveis((lista) => lista.filter((item) => item.id !== id));
-      setAgendamentos((lista) => {
-        const aceito = disponiveis.find((item) => item.id === id);
-        if (!aceito) return lista;
-        return [
-          ...lista,
-          {
-            ...aceito,
-            status: 'Aceita',
-          },
-        ];
-      });
+      setAgendamentos((lista) =>
+        lista.map((item) =>
+          item.id === id ? { ...item, status: 'Aceita' } : item
+        )
+      );
     } catch (err: any) {
       console.error('❌ Erro ao aceitar agendamento:', err);
       alert(
@@ -188,8 +193,8 @@ export default function AgendamentoPage() {
         method: 'POST',
       });
 
-      // Remove o item da lista de disponíveis
       setDisponiveis((lista) => lista.filter((item) => item.id !== id));
+      // se quiser, também pode atualizar o status em "Meus agendamentos"
     } catch (err: any) {
       console.error('❌ Erro ao recusar agendamento:', err);
       alert(
@@ -238,7 +243,7 @@ export default function AgendamentoPage() {
               </div>
             </header>
 
-            {/* Mensagem de erro (somente para erros reais, não o 404 dos disponíveis) */}
+            {/* Mensagem de erro */}
             {erro && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {erro}
@@ -339,7 +344,7 @@ export default function AgendamentoPage() {
               </section>
             )}
 
-            {/* Meus agendamentos (cliente ou prestador) */}
+            {/* Meus agendamentos */}
             <section>
               <h2 className="text-lg font-bold text-[#8F1D14] mb-3">
                 Meus agendamentos
@@ -376,12 +381,14 @@ export default function AgendamentoPage() {
                           {formatDateBR(ag.data_servico)} às{' '}
                           {formatHora(ag.hora_servico)} — {ag.endereco}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5 capitalize">
-                          Status:{' '}
-                          <span className="font-medium text-gray-800">
-                            {ag.status.replace('_', ' ')}
-                          </span>
-                        </p>
+                        {ag.status && (
+                          <p className="text-xs text-gray-500 mt-0.5 capitalize">
+                            Status:{' '}
+                            <span className="font-medium text-gray-800">
+                              {ag.status.replace('_', ' ')}
+                            </span>
+                          </p>
+                        )}
                       </div>
 
                       {ag.avaliacao?.nota != null && (
