@@ -64,78 +64,80 @@ export default function AgendamentoPage() {
         setLoading(true);
         setErro('');
 
-        // 1) Tenta descobrir o perfil pelo localStorage (fonte mais estável)
-        let perfilDetectado: Perfil = 'Usuário';
-
-        if (typeof window !== 'undefined') {
-          const storedTipo =
-            window.localStorage.getItem('tipo') ||
-            window.localStorage.getItem('tipoUsuario');
-
-          if (storedTipo) {
-            const t = storedTipo.toLowerCase();
-            if (t.includes('contrat')) perfilDetectado = 'Contratante';
-            else if (t.includes('prest')) perfilDetectado = 'Prestador';
-          }
-        }
-
-        // 2) Opcionalmente, refina usando /user/me (caso o backend mande relações)
-        try {
-          const user = await apiFetch('/user/me');
-          console.log('[AGENDAMENTOS] /user/me =>', user);
-
-          const hasContratante =
-            !!user?.Contratante || !!user?.contratante;
-          const hasPrestador =
-            !!user?.Prestador || !!user?.prestador;
-
-          if (hasContratante) perfilDetectado = 'Contratante';
-          else if (hasPrestador) perfilDetectado = 'Prestador';
-        } catch (innerErr) {
-          console.warn(
-            '[AGENDAMENTOS] Não foi possível ler /user/me, usando apenas localStorage',
-            innerErr
-          );
-        }
-
+        // 1) Descobre o usuário logado
+        const user = await apiFetch('/user/me');
         if (cancelado) return;
+
+        const isContratante = !!user?.Contratante;
+        const isPrestador = !!user?.Prestador;
+
+        const perfilDetectado: Perfil = isContratante
+          ? 'Contratante'
+          : isPrestador
+          ? 'Prestador'
+          : 'Usuário';
 
         setPerfil(perfilDetectado);
 
-        // 3) Busca agendamentos conforme o perfil
+        let meus: AgendamentoResumo[] = [];
+        let disp: AgendamentoDisponivel[] = [];
+
         if (perfilDetectado === 'Contratante') {
-          const lista = (await apiFetch(
+          meus = (await apiFetch(
             '/agendamentos/cliente'
           )) as AgendamentoResumo[];
-
-          if (!cancelado) {
-            setAgendamentos(Array.isArray(lista) ? lista : []);
-            setDisponiveis([]); // contratante não vê "disponíveis"
-          }
         } else if (perfilDetectado === 'Prestador') {
-          const [meus, disp] = (await Promise.all([
-            apiFetch('/agendamentos/prestador'),
-            apiFetch('/agendamentos/disponiveis'),
-          ])) as [AgendamentoResumo[], AgendamentoDisponivel[]];
+          // Meus agendamentos como prestador
+          meus = (await apiFetch(
+            '/agendamentos/prestador'
+          )) as AgendamentoResumo[];
 
-          if (!cancelado) {
-            setAgendamentos(Array.isArray(meus) ? meus : []);
-            setDisponiveis(Array.isArray(disp) ? disp : []);
+          // Tenta buscar serviços disponíveis em rotas possíveis
+          try {
+            // 1ª tentativa: rota mais provável
+            disp = (await apiFetch(
+              '/agendamentos/prestador/disponiveis'
+            )) as AgendamentoDisponivel[];
+          } catch (err: any) {
+            if (err?.status === 404) {
+              // 2ª tentativa: rota alternativa
+              try {
+                disp = (await apiFetch(
+                  '/agendamentos/disponiveis'
+                )) as AgendamentoDisponivel[];
+              } catch (err2: any) {
+                if (err2?.status && err2.status !== 404) {
+                  console.error(
+                    '❌ Erro alternativo ao buscar serviços disponíveis:',
+                    err2
+                  );
+                }
+              }
+            } else if (!err?.status || err.status !== 404) {
+              // se não for 404, deixa o catch externo tratar
+              throw err;
+            }
           }
         } else {
-          // Usuário genérico: não mostra nada
-          if (!cancelado) {
-            setAgendamentos([]);
-            setDisponiveis([]);
-          }
+          // Usuário "genérico" não tem agendamentos no momento
+          meus = [];
+          disp = [];
+        }
+
+        if (!cancelado) {
+          setAgendamentos(Array.isArray(meus) ? meus : []);
+          setDisponiveis(Array.isArray(disp) ? disp : []);
         }
       } catch (err: any) {
         console.error('❌ Erro ao carregar agendamentos:', err);
+
         if (err?.status === 401) {
           router.push('/login?next=/agendamento');
           return;
         }
-        if (!cancelado) {
+
+        // Só mostra erro se NÃO for 404 de alguma rota opcional
+        if (!cancelado && err?.status !== 404) {
           setErro(
             err?.body?.message ||
               err?.message ||
@@ -161,6 +163,7 @@ export default function AgendamentoPage() {
         method: 'POST',
       });
 
+      // Move o item de "disponíveis" para "meus agendamentos"
       setDisponiveis((lista) => lista.filter((item) => item.id !== id));
       setAgendamentos((lista) => {
         const aceito = disponiveis.find((item) => item.id === id);
@@ -241,14 +244,14 @@ export default function AgendamentoPage() {
               </div>
             </header>
 
-            {/* Erro */}
+            {/* Mensagem de erro (quando não é 404 opcional) */}
             {erro && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {erro}
               </div>
             )}
 
-            {/* Aviso para contratante */}
+            {/* Aviso para criar novo agendamento (cliente) */}
             {perfil === 'Contratante' && (
               <div className="mb-6 rounded-xl bg-[#F89D13]/10 border border-[#F89D13]/30 px-4 py-3 text-sm text-gray-800 flex flex-wrap items-center justify-between gap-2">
                 <span>
@@ -342,7 +345,7 @@ export default function AgendamentoPage() {
               </section>
             )}
 
-            {/* Meus agendamentos */}
+            {/* Meus agendamentos (cliente ou prestador) */}
             <section>
               <h2 className="text-lg font-bold text-[#8F1D14] mb-3">
                 Meus agendamentos
