@@ -126,7 +126,10 @@ export default function AgendamentoPage() {
                   Agendamentos
                 </h1>
                 <p className="text-sm text-gray-600 mt-1">
-                  Perfil: <span className="font-semibold">{perfil}</span>
+                  Perfil:{' '}
+                  <span className="font-semibold">
+                    {perfil}
+                  </span>
                 </p>
               </div>
 
@@ -138,10 +141,10 @@ export default function AgendamentoPage() {
                   ← Voltar para a home
                 </Link>
 
-                {/* IMPORTANTE: rota absoluta e sem "agendamentos" */}
+                {/* 🔴 IMPORTANTE: sempre /historico, nunca /agendamentos/historico */}
                 <Link
                   href="/historico"
-                  prefetch={false}
+                  prefetch={true}
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
                 >
                   Histórico de avaliações
@@ -156,7 +159,7 @@ export default function AgendamentoPage() {
               </div>
             )}
 
-            {/* Link para criar novo */}
+            {/* Aviso para criar novo */}
             <div className="mb-6 rounded-xl bg-[#F89D13]/10 border border-[#F89D13]/30 px-4 py-3 text-sm text-gray-800 flex flex-wrap items-center justify-between gap-2">
               <span>
                 Para criar um novo agendamento, escolha o serviço no catálogo.
@@ -209,7 +212,7 @@ export default function AgendamentoPage() {
                         <p className="text-xs text-gray-500 mt-0.5 capitalize">
                           Status:{' '}
                           <span className="font-medium text-gray-800">
-                            {ag.status.replace('_', ' ')}
+                            {ag.status?.replace('_', ' ')}
                           </span>
                         </p>
                       </div>
