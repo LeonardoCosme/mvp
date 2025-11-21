@@ -24,6 +24,10 @@ type AgendamentoResumo = {
   } | null;
 };
 
+type AgendamentoDisponivel = AgendamentoResumo & {
+  contratante_nome?: string | null;
+};
+
 function formatDateBR(dateStr?: string | null): string {
   if (!dateStr) return '';
   const parts = dateStr.split('-');
@@ -42,10 +46,10 @@ export default function AgendamentoPage() {
 
   const [perfil, setPerfil] = useState<Perfil>('Usuário');
   const [agendamentos, setAgendamentos] = useState<AgendamentoResumo[]>([]);
+  const [disponiveis, setDisponiveis] = useState<AgendamentoDisponivel[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
-  const [acaoErro, setAcaoErro] = useState('');
-  const [acaoLoadingId, setAcaoLoadingId] = useState<number | null>(null);
+  const [acaoCarregando, setAcaoCarregando] = useState<number | null>(null);
 
   useEffect(() => {
     if (!getToken()) {
@@ -60,7 +64,7 @@ export default function AgendamentoPage() {
         setLoading(true);
         setErro('');
 
-        // 1) pega o usuário logado
+        // 1) Descobre o usuário logado
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
@@ -75,20 +79,30 @@ export default function AgendamentoPage() {
 
         setPerfil(perfilDetectado);
 
-        // 2) busca agendamentos conforme o perfil
-        let lista: AgendamentoResumo[] = [];
+        // 2) Busca agendamentos conforme o perfil
+        if (perfilDetectado === 'Contratante') {
+          const lista = (await apiFetch(
+            '/agendamentos/cliente'
+          )) as AgendamentoResumo[];
+          if (!cancelado) {
+            setAgendamentos(Array.isArray(lista) ? lista : []);
+            setDisponiveis([]); // contratante não vê "disponíveis"
+          }
+        } else if (perfilDetectado === 'Prestador') {
+          const [meus, disp] = (await Promise.all([
+            apiFetch('/agendamentos/prestador'),
+            apiFetch('/agendamentos/disponiveis'),
+          ])) as [AgendamentoResumo[], AgendamentoDisponivel[]];
 
-        if (isContratante) {
-          lista = await apiFetch('/agendamentos/cliente');
-        } else if (isPrestador) {
-          lista = await apiFetch('/agendamentos/prestador');
+          if (!cancelado) {
+            setAgendamentos(Array.isArray(meus) ? meus : []);
+            setDisponiveis(Array.isArray(disp) ? disp : []);
+          }
         } else {
-          lista = [];
-        }
-
-        if (!cancelado) {
-          console.log('[AGENDAMENTOS] lista =>', lista);
-          setAgendamentos(Array.isArray(lista) ? lista : []);
+          if (!cancelado) {
+            setAgendamentos([]);
+            setDisponiveis([]);
+          }
         }
       } catch (err: any) {
         console.error('❌ Erro ao carregar agendamentos:', err);
@@ -115,43 +129,56 @@ export default function AgendamentoPage() {
     };
   }, [router]);
 
-  const isPrestador = perfil === 'Prestador';
-
-  async function atualizarStatus(
-    id: number,
-    acao: 'aceitar' | 'recusar'
-  ) {
+  async function handleAceitar(id: number) {
     try {
-      setAcaoErro('');
-      setAcaoLoadingId(id);
-
-      // ⚠️ Se o backend usar PUT, troque o método aqui.
-      await apiFetch(`/agendamentos/${id}/${acao}`, {
-        method: 'PATCH',
+      setAcaoCarregando(id);
+      await apiFetch(`/agendamentos/${id}/aceitar`, {
+        method: 'POST',
       });
 
-      // Atualiza a lista na tela
-      setAgendamentos(prev =>
-        prev.map(ag =>
-          ag.id === id
-            ? {
-                ...ag,
-                status: acao === 'aceitar' ? 'Aceita' : 'Recusada',
-              }
-            : ag
-        )
-      );
+      // Move o item de "disponíveis" para "meus agendamentos"
+      setDisponiveis((lista) => lista.filter((item) => item.id !== id));
+      setAgendamentos((lista) => {
+        const aceito = disponiveis.find((item) => item.id === id);
+        if (!aceito) return lista;
+        return [
+          ...lista,
+          {
+            ...aceito,
+            status: 'Aceita',
+          },
+        ];
+      });
     } catch (err: any) {
-      console.error(`❌ Erro ao ${acao} agendamento:`, err);
-      const body = err?.body || {};
-      setAcaoErro(
-        body.message ||
-          body.error ||
-          err.message ||
-          `Erro ao tentar ${acao} o agendamento.`
+      console.error('❌ Erro ao aceitar agendamento:', err);
+      alert(
+        err?.body?.message ||
+          err?.message ||
+          'Não foi possível aceitar este serviço.'
       );
     } finally {
-      setAcaoLoadingId(null);
+      setAcaoCarregando(null);
+    }
+  }
+
+  async function handleRecusar(id: number) {
+    try {
+      setAcaoCarregando(id);
+      await apiFetch(`/agendamentos/${id}/recusar`, {
+        method: 'POST',
+      });
+
+      // Remove o item da lista de disponíveis
+      setDisponiveis((lista) => lista.filter((item) => item.id !== id));
+    } catch (err: any) {
+      console.error('❌ Erro ao recusar agendamento:', err);
+      alert(
+        err?.body?.message ||
+          err?.message ||
+          'Não foi possível recusar este serviço.'
+      );
+    } finally {
+      setAcaoCarregando(null);
     }
   }
 
@@ -167,7 +194,10 @@ export default function AgendamentoPage() {
                   Agendamentos
                 </h1>
                 <p className="text-sm text-gray-600 mt-1">
-                  Perfil: <span className="font-semibold">{perfil}</span>
+                  Perfil:{' '}
+                  <span className="font-semibold">
+                    {perfil}
+                  </span>
                 </p>
               </div>
 
@@ -188,24 +218,18 @@ export default function AgendamentoPage() {
               </div>
             </header>
 
-            {/* Mensagens de erro */}
+            {/* Mensagem de erro */}
             {erro && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {erro}
               </div>
             )}
-            {acaoErro && (
-              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {acaoErro}
-              </div>
-            )}
 
-            {/* Info / novo agendamento (para contratante) */}
+            {/* Aviso para criar novo agendamento (cliente) */}
             {perfil === 'Contratante' && (
               <div className="mb-6 rounded-xl bg-[#F89D13]/10 border border-[#F89D13]/30 px-4 py-3 text-sm text-gray-800 flex flex-wrap items-center justify-between gap-2">
                 <span>
-                  Para criar um novo agendamento, escolha o serviço no
-                  catálogo.
+                  Para criar um novo agendamento, escolha o serviço no catálogo.
                 </span>
                 <Link
                   href="/servicos"
@@ -216,7 +240,86 @@ export default function AgendamentoPage() {
               </div>
             )}
 
-            {/* Lista de agendamentos */}
+            {/* Prestador: serviços disponíveis */}
+            {perfil === 'Prestador' && (
+              <section className="mb-8">
+                <h2 className="text-lg font-bold text-[#8F1D14] mb-3">
+                  Serviços disponíveis para você
+                </h2>
+
+                {loading ? (
+                  <div className="space-y-2">
+                    {[...Array(3)].map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-16 rounded-xl bg-gray-100 animate-pulse"
+                      />
+                    ))}
+                  </div>
+                ) : disponiveis.length === 0 ? (
+                  <p className="text-sm text-gray-600">
+                    Não há serviços disponíveis no momento.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {disponiveis.map((ag) => (
+                      <article
+                        key={ag.id}
+                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col gap-2"
+                      >
+                        <div className="flex justify-between items-start gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {ag.tipo_nome || 'Serviço'}{' '}
+                              <span className="text-xs text-gray-500">
+                                #{ag.id}
+                              </span>
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5">
+                              {formatDateBR(ag.data_servico)} às{' '}
+                              {formatHora(ag.hora_servico)} — {ag.endereco}
+                            </p>
+                            {ag.contratante_nome && (
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Cliente:{' '}
+                                <span className="font-medium">
+                                  {ag.contratante_nome}
+                                </span>
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex flex-col gap-2 min-w-[160px] items-stretch">
+                            <button
+                              type="button"
+                              onClick={() => handleAceitar(ag.id)}
+                              disabled={acaoCarregando === ag.id}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-60"
+                            >
+                              {acaoCarregando === ag.id
+                                ? 'Aceitando...'
+                                : 'Aceitar serviço'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRecusar(ag.id)}
+                              disabled={acaoCarregando === ag.id}
+                              className="px-3 py-1.5 rounded-lg border border-red-300 text-red-700 text-xs font-semibold hover:bg-red-50 disabled:opacity-60"
+                            >
+                              {acaoCarregando === ag.id
+                                ? 'Recusando...'
+                                : 'Recusar'}
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            {/* Meus agendamentos (cliente ou prestador) */}
             <section>
               <h2 className="text-lg font-bold text-[#8F1D14] mb-3">
                 Meus agendamentos
@@ -237,73 +340,37 @@ export default function AgendamentoPage() {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {agendamentos.map((ag) => {
-                    const podeResponder =
-                      isPrestador && ag.status === 'Pendente';
+                  {agendamentos.map((ag) => (
+                    <article
+                      key={ag.id}
+                      className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {ag.tipo_nome || 'Serviço'}{' '}
+                          <span className="text-xs text-gray-500">
+                            #{ag.id}
+                          </span>
+                        </p>
+                        <p className="text-xs text-gray-600 mt-0.5">
+                          {formatDateBR(ag.data_servico)} às{' '}
+                          {formatHora(ag.hora_servico)} — {ag.endereco}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5 capitalize">
+                          Status:{' '}
+                          <span className="font-medium text-gray-800">
+                            {ag.status.replace('_', ' ')}
+                          </span>
+                        </p>
+                      </div>
 
-                    return (
-                      <article
-                        key={ag.id}
-                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
-                      >
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">
-                            {ag.tipo_nome || 'Serviço'}{' '}
-                            <span className="text-xs text-gray-500">
-                              #{ag.id}
-                            </span>
-                          </p>
-                          <p className="text-xs text-gray-600 mt-0.5">
-                            {formatDateBR(ag.data_servico)} às{' '}
-                            {formatHora(ag.hora_servico)} — {ag.endereco}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-0.5 capitalize">
-                            Status:{' '}
-                            <span className="font-medium text-gray-800">
-                              {ag.status.replace('_', ' ')}
-                            </span>
-                          </p>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          {ag.avaliacao?.nota != null && (
-                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                              ⭐ Avaliado ({ag.avaliacao.nota}/5)
-                            </span>
-                          )}
-
-                          {podeResponder && (
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                disabled={acaoLoadingId === ag.id}
-                                onClick={() =>
-                                  atualizarStatus(ag.id, 'aceitar')
-                                }
-                                className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-60"
-                              >
-                                {acaoLoadingId === ag.id
-                                  ? 'Aceitando...'
-                                  : 'Aceitar'}
-                              </button>
-                              <button
-                                type="button"
-                                disabled={acaoLoadingId === ag.id}
-                                onClick={() =>
-                                  atualizarStatus(ag.id, 'recusar')
-                                }
-                                className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-semibold hover:bg-red-700 disabled:opacity-60"
-                              >
-                                {acaoLoadingId === ag.id
-                                  ? 'Recusando...'
-                                  : 'Recusar'}
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </article>
-                    );
-                  })}
+                      {ag.avaliacao?.nota != null && (
+                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                          ⭐ Avaliado ({ag.avaliacao.nota}/5)
+                        </span>
+                      )}
+                    </article>
+                  ))}
                 </div>
               )}
             </section>
