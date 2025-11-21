@@ -44,9 +44,9 @@ export default function AgendamentoPage() {
   const [agendamentos, setAgendamentos] = useState<AgendamentoResumo[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState('');
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   useEffect(() => {
-    // se não tiver token, manda para login
     if (!getToken()) {
       router.push('/login?next=/agendamento');
       return;
@@ -63,7 +63,6 @@ export default function AgendamentoPage() {
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
-        // --- DETECÇÃO DE PERFIL MAIS ROBUSTA ---
         const tipoRaw = (user?.tipo || '').toString().toLowerCase();
 
         const isContratante =
@@ -84,7 +83,7 @@ export default function AgendamentoPage() {
 
         setPerfil(perfilDetectado);
 
-        // 2) busca os agendamentos conforme o perfil
+        // 2) busca agendamentos conforme o perfil
         let lista: AgendamentoResumo[] = [];
 
         if (isContratante) {
@@ -124,6 +123,51 @@ export default function AgendamentoPage() {
     };
   }, [router]);
 
+  // --- ações de ACEITAR / RECUSAR (para prestador) ---
+  async function atualizarStatus(id: number, acao: 'aceitar' | 'recusar') {
+    try {
+      setUpdatingId(id);
+      setErro('');
+
+      // 🟡 CONFERE SE AS ROTAS BATEM COM O TEU BACKEND:
+      // aqui estou assumindo:
+      //   PATCH /agendamentos/:id/aceitar
+      //   PATCH /agendamentos/:id/recusar
+      await apiFetch(`/agendamentos/${id}/${acao}`, {
+        method: 'PATCH',
+      });
+
+      // atualiza a lista em memória
+      setAgendamentos((prev) =>
+        prev.map((ag) =>
+          ag.id === id
+            ? {
+                ...ag,
+                status: acao === 'aceitar' ? 'ACEITO' : 'RECUSADO',
+              }
+            : ag
+        )
+      );
+    } catch (err: any) {
+      console.error('❌ Erro ao atualizar status:', err);
+      const body = err?.body || {};
+      setErro(
+        body.message ||
+          body.error ||
+          err.message ||
+          'Erro ao atualizar o status do agendamento.'
+      );
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
+  // status que consideramos "pendente" para mostrar os botões ao prestador
+  function podeResponder(status: string) {
+    const s = status.toUpperCase();
+    return s === 'PENDENTE' || s === 'AGUARDANDO_CONFIRMACAO';
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#4b2506] to-[#2b1304] pb-16">
       <section className="pt-24">
@@ -148,7 +192,6 @@ export default function AgendamentoPage() {
                   ← Voltar para a home
                 </Link>
 
-                {/* Link correto para o histórico */}
                 <Link
                   href="/historico"
                   className="px-4 py-2 rounded-lg bg-[#8F1D14] text-white text-sm font-semibold hover:bg-[#a2261b]"
@@ -165,18 +208,20 @@ export default function AgendamentoPage() {
               </div>
             )}
 
-            {/* Link para criar novo */}
-            <div className="mb-6 rounded-xl bg-[#F89D13]/10 border border-[#F89D13]/30 px-4 py-3 text-sm text-gray-800 flex flex-wrap items-center justify-between gap-2">
-              <span>
-                Para criar um novo agendamento, escolha o serviço no catálogo.
-              </span>
-              <Link
-                href="/servicos"
-                className="px-3 py-1.5 rounded-lg bg-[#F89D13] text-white text-xs font-semibold hover:opacity-90"
-              >
-                Ir para Catálogo de Serviços
-              </Link>
-            </div>
+            {/* Link para criar novo (relevante pro contratante) */}
+            {perfil === 'Contratante' && (
+              <div className="mb-6 rounded-xl bg-[#F89D13]/10 border border-[#F89D13]/30 px-4 py-3 text-sm text-gray-800 flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  Para criar um novo agendamento, escolha o serviço no catálogo.
+                </span>
+                <Link
+                  href="/servicos"
+                  className="px-3 py-1.5 rounded-lg bg-[#F89D13] text-white text-xs font-semibold hover:opacity-90"
+                >
+                  Ir para Catálogo de Serviços
+                </Link>
+              </div>
+            )}
 
             {/* Lista de agendamentos */}
             <section>
@@ -221,15 +266,38 @@ export default function AgendamentoPage() {
                             {ag.status.replace('_', ' ')}
                           </span>
                         </p>
-                      </div>
 
-                      <div className="flex items-center gap-3">
+                        {/* se já tiver avaliação, mostra um resuminho */}
                         {ag.avaliacao?.nota != null && (
-                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                            ⭐ Avaliado ({ag.avaliacao.nota}/5)
-                          </span>
+                          <p className="text-xs text-emerald-700 mt-0.5">
+                            ⭐ Avaliação: {ag.avaliacao.nota}/5
+                          </p>
                         )}
                       </div>
+
+                      {/* Ações do prestador */}
+                      {perfil === 'Prestador' && podeResponder(ag.status) && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={updatingId === ag.id}
+                            onClick={() => atualizarStatus(ag.id, 'aceitar')}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-60"
+                          >
+                            {updatingId === ag.id && '...'}
+                            {updatingId !== ag.id && 'Aceitar'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={updatingId === ag.id}
+                            onClick={() => atualizarStatus(ag.id, 'recusar')}
+                            className="px-3 py-1.5 rounded-lg bg-red-500 text-white text-xs font-semibold hover:bg-red-600 disabled:opacity-60"
+                          >
+                            {updatingId === ag.id && '...'}
+                            {updatingId !== ag.id && 'Recusar'}
+                          </button>
+                        </div>
+                      )}
                     </article>
                   ))}
                 </div>
