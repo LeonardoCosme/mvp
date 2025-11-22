@@ -83,9 +83,19 @@ router.get("/agendamentos/disponiveis", authenticate, Ag.listDisponiveis);
 router.post("/agendamentos/:id/aceitar", authenticate, Ag.accept);
 router.post("/agendamentos/:id/recusar", authenticate, Ag.reject);
 
-// Editar / Cancelar (contratante)
-router.put("/agendamentos/:id", authenticate, Ag.update);
-router.delete("/agendamentos/:id", authenticate, Ag.destroy);
+// Editar agendamento (contratante)
+if (typeof Ag.update === "function") {
+  router.put("/agendamentos/:id", authenticate, Ag.update);
+} else {
+  console.warn("⚠️ Rota Ag.update não registrada (função ausente no controller).");
+}
+
+// Cancelar agendamento (contratante)
+if (typeof Ag.remove === "function") {
+  router.delete("/agendamentos/:id", authenticate, Ag.remove);
+} else {
+  console.warn("⚠️ Rota Ag.remove não registrada (função ausente no controller).");
+}
 
 // QRCode / Scan – só registra se existirem no controller atual
 if (typeof Ag.qrcode === "function") {
