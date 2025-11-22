@@ -1,3 +1,4 @@
+// src/routes/index.js
 import express from "express";
 import authenticate from "../middleware/authenticate.js";
 
@@ -13,7 +14,6 @@ import * as Aval from "../controllers/avaliacao_controller.js";
 import * as Historico from "../controllers/historico_controller.js";
 
 const router = express.Router();
-
 
 /* ==========================================================
    🔹 LOG DE ROTAS — apenas em desenvolvimento
@@ -72,17 +72,75 @@ router.get("/tipos-servico", Cat.listTipos);
 /* ==========================================================
    📅 AGENDAMENTOS
 ========================================================== */
-router.post("/agendamentos", authenticate, Ag.create);
-router.get("/agendamentos/cliente", authenticate, Ag.listCliente);
-router.get("/agendamentos/pendentes", authenticate, Ag.listPrestadorPendentes);
 
-if (typeof Ag.listPrestador === "function") {
+// 🔹 Criar agendamento (só registra se a função existir)
+if (typeof Ag.create === "function") {
+  router.post("/agendamentos", authenticate, Ag.create);
+}
+
+// 🔹 Agendamentos do cliente (tela do contratante)
+if (typeof Ag.getAgendamentosCliente === "function") {
+  router.get(
+    "/agendamentos/cliente",
+    authenticate,
+    Ag.getAgendamentosCliente
+  );
+} else if (typeof Ag.listCliente === "function") {
+  // fallback caso esteja usando controller antigo em algum ambiente
+  router.get("/agendamentos/cliente", authenticate, Ag.listCliente);
+}
+
+// 🔹 Agendamentos do prestador (meus agendamentos)
+if (typeof Ag.getAgendamentosPrestador === "function") {
+  router.get(
+    "/agendamentos/prestador",
+    authenticate,
+    Ag.getAgendamentosPrestador
+  );
+} else if (typeof Ag.listPrestador === "function") {
   router.get("/agendamentos/prestador", authenticate, Ag.listPrestador);
 }
 
-router.post("/agendamentos/:id/aceitar", authenticate, Ag.accept);
+// 🔹 Agendamentos pendentes (se ainda existir no controller antigo)
+if (typeof Ag.listPrestadorPendentes === "function") {
+  router.get(
+    "/agendamentos/pendentes",
+    authenticate,
+    Ag.listPrestadorPendentes
+  );
+}
 
-/* ✅ QR Code / Scan */
+// 🔹 Serviços disponíveis para o prestador aceitar
+if (typeof Ag.getAgendamentosDisponiveis === "function") {
+  router.get(
+    "/agendamentos/disponiveis",
+    authenticate,
+    Ag.getAgendamentosDisponiveis
+  );
+}
+
+// 🔹 Aceitar agendamento
+if (typeof Ag.aceitarAgendamento === "function") {
+  router.post(
+    "/agendamentos/:id/aceitar",
+    authenticate,
+    Ag.aceitarAgendamento
+  );
+} else if (typeof Ag.accept === "function") {
+  // fallback para nome antigo
+  router.post("/agendamentos/:id/aceitar", authenticate, Ag.accept);
+}
+
+// 🔹 Recusar agendamento
+if (typeof Ag.recusarAgendamento === "function") {
+  router.post(
+    "/agendamentos/:id/recusar",
+    authenticate,
+    Ag.recusarAgendamento
+  );
+}
+
+/* ✅ QR Code / Scan – mantidos só se existirem no controller atual */
 if (typeof Ag.qrcode === "function") {
   router.get("/agendamentos/:id/qrcode", authenticate, Ag.qrcode);
 } else {
