@@ -27,30 +27,6 @@ function getField(instance, ...names) {
 }
 
 /**
- * Helper para escrever campo considerando possíveis nomes (prestador_id, prestadorId, etc.)
- */
-function setField(instance, value, ...names) {
-  if (!instance) return;
-
-  for (const name of names) {
-    // se a propriedade existir no objeto JS, usa ela
-    if (name in instance) {
-      instance[name] = value;
-      return;
-    }
-    // tenta via Sequelize .set()
-    if (typeof instance.set === "function") {
-      try {
-        instance.set(name, value);
-        return;
-      } catch {
-        // ignora e tenta o próximo nome
-      }
-    }
-  }
-}
-
-/**
  * DTO enviado para o frontend
  */
 function mapAgendamentoDto(a) {
@@ -73,7 +49,7 @@ function mapAgendamentoDto(a) {
 }
 
 /* ==========================================================
-   🆕 CRIAR AGENDAMENTO (CONTRATANTE)
+   📌 CRIAR NOVO AGENDAMENTO (CONTRATANTE)
    POST /api/agendamentos
 ========================================================== */
 export async function create(req, res) {
@@ -96,20 +72,14 @@ export async function create(req, res) {
     const body = req.body || {};
 
     const tipoServicoId =
-      body.tipo_servico_id ??
-      body.tipoServicoId ??
-      body.tipoId ??
-      body.servico_id ??
-      null;
-
+      body.tipo_servico_id || body.tipoServicoId || body.tipoId || null;
     const dataServico =
-      body.data_servico ?? body.dataServico ?? body.data ?? null;
-
+      body.data_servico || body.dataServico || body.data || null;
     const horaServico =
-      body.hora_servico ?? body.horaServico ?? body.hora ?? null;
-
-    const endereco = body.endereco ?? "";
-    const descricao = body.descricao ?? body.observacao ?? "";
+      body.hora_servico || body.horaServico || body.hora || null;
+    const endereco = body.endereco || "";
+    const descricao = body.descricao || body.observacao || "";
+    const duracao = body.duracao || null;
 
     if (!tipoServicoId || !dataServico || !horaServico || !endereco) {
       return res.status(400).json({
@@ -124,26 +94,22 @@ export async function create(req, res) {
       descricao,
       data_servico: dataServico,
       hora_servico: horaServico,
+      duracao,
       endereco,
       status: "pendente",
     });
 
     console.log("[AGENDAMENTOS][CREATE]", {
       id: novo.id,
-      contratanteId: contratante.id,
-      tipoServicoId,
-      dataServico,
-      horaServico,
-      endereco,
+      contratante_id: novo.contratante_id,
+      tipo_servico_id: novo.tipo_servico_id,
       status: novo.status,
     });
 
     return res.status(201).json(mapAgendamentoDto(novo));
   } catch (err) {
     console.error("❌ Erro ao criar agendamento:", err);
-    return res
-      .status(500)
-      .json({ error: "Erro ao criar o agendamento." });
+    return res.status(500).json({ error: "Erro ao criar agendamento." });
   }
 }
 
@@ -253,6 +219,7 @@ export async function listPrestador(req, res) {
    🧰 PRESTADOR – SERVIÇOS DISPONÍVEIS
    GET /api/agendamentos/disponiveis
    - Mostra agendamentos ainda não assumidos por nenhum prestador
+     com status pendente/aguardando/disponível
 ========================================================== */
 export async function listDisponiveis(req, res) {
   try {
@@ -286,6 +253,7 @@ export async function listDisponiveis(req, res) {
     const filtrados = todos.filter((a) => {
       const status = (getField(a, "status") || "").toLowerCase().trim();
       const pid = getField(a, "prestador_id", "prestadorId");
+      // só serviços SEM prestador e com status "aberto"
       return pid == null && status && statusAbertos.includes(status);
     });
 
@@ -349,9 +317,18 @@ export async function accept(req, res) {
       });
     }
 
-    // vincula ao prestador logado (cobre 'prestador_id' ou 'prestadorId')
-    setField(ag, prestador.id, "prestador_id", "prestadorId");
-    setField(ag, "aceita", "status");
+    // vincula ao prestador logado (tentando os dois nomes de atributo)
+    if ("prestador_id" in ag) ag.prestador_id = prestador.id;
+    if ("prestadorId" in ag) ag.prestadorId = prestador.id;
+    if (typeof ag.set === "function") {
+      ag.set("prestador_id", prestador.id);
+      ag.set("prestadorId", prestador.id);
+    }
+
+    ag.status = "aceita";
+    if (typeof ag.set === "function") {
+      ag.set("status", "aceita");
+    }
 
     await ag.save();
 
@@ -384,7 +361,10 @@ export async function reject(req, res) {
       return res.status(404).json({ error: "Agendamento não encontrado." });
     }
 
-    setField(ag, "recusada", "status");
+    ag.status = "recusada";
+    if (typeof ag.set === "function") {
+      ag.set("status", "recusada");
+    }
 
     await ag.save();
 
