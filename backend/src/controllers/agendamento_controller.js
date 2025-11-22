@@ -1,7 +1,7 @@
 // src/controllers/agendamento_controller.js
 import db from "../models/index.js";
 
-const { Agendamento, ServicoDisponivel, Contratante, Prestador } = db;
+const { Agendamento, Contratante, Prestador } = db;
 
 /**
  * Helper genérico para tentar ler um campo com vários nomes possíveis.
@@ -32,6 +32,7 @@ function mapAgendamentoDto(a) {
   const hora = getField(a, "hora_servico", "horaServico", "hora");
   const tipoNome = getField(a, "tipo_nome", "tipoNome", "nome_tipo");
   const endereco = getField(a, "endereco");
+  const observacao = getField(a, "observacao", "obs", "descricao");
 
   const status =
     getField(a, "status") ||
@@ -44,6 +45,7 @@ function mapAgendamentoDto(a) {
     data_servico: data || null,
     hora_servico: hora || null,
     endereco: endereco || "",
+    observacao: observacao ?? null,
   };
 }
 
@@ -52,7 +54,7 @@ function mapAgendamentoDto(a) {
    GET /api/agendamentos/cliente
    - Lista só agendamentos do contratante logado
 ========================================================== */
-export async function getAgendamentosCliente(req, res) {
+export async function listCliente(req, res) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -76,7 +78,8 @@ export async function getAgendamentosCliente(req, res) {
     // filtra somente os agendamentos desse contratante
     const filtrados = registros.filter((a) => {
       const cid =
-        getField(a, "contratante_id", "contratanteId") ?? undefined;
+        getField(a, "contratante_id", "contratanteId", "cliente_id") ??
+        undefined;
       return cid === contratante.id;
     });
 
@@ -90,12 +93,15 @@ export async function getAgendamentosCliente(req, res) {
   }
 }
 
+// alias com nome antigo, caso ainda seja usado em algum lugar
+export const getAgendamentosCliente = listCliente;
+
 /* ==========================================================
    🧰 PRESTADOR – MEUS AGENDAMENTOS
    GET /api/agendamentos/prestador
    - Lista só agendamentos ligados a esse prestador
 ========================================================== */
-export async function getAgendamentosPrestador(req, res) {
+export async function listPrestador(req, res) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -118,7 +124,9 @@ export async function getAgendamentosPrestador(req, res) {
 
     // filtra só agendamentos desse prestador
     const filtrados = registros.filter((a) => {
-      const pid = getField(a, "prestador_id", "prestadorId") ?? undefined;
+      const pid =
+        getField(a, "prestador_id", "prestadorId") ??
+        undefined;
       return pid === prestador.id;
     });
 
@@ -132,13 +140,16 @@ export async function getAgendamentosPrestador(req, res) {
   }
 }
 
+// alias antigo
+export const getAgendamentosPrestador = listPrestador;
+
 /* ==========================================================
    🧰 PRESTADOR – SERVIÇOS DISPONÍVEIS
+   GET /api/agendamentos/pendentes
    GET /api/agendamentos/disponiveis
    - Mostra só agendamentos com status "aberto"
-   - A lógica é toda em cima do campo "status"
 ========================================================== */
-export async function getAgendamentosDisponiveis(req, res) {
+export async function listPrestadorPendentes(req, res) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -155,17 +166,26 @@ export async function getAgendamentosDisponiveis(req, res) {
         .json({ error: "Perfil de prestador não encontrado." });
     }
 
-    // pegamos todos e filtramos em memória (garante que não quebra mesmo
-    // se nomes de colunas forem um pouco diferentes)
     const registros = await Agendamento.findAll({
       order: [["id", "ASC"]],
     });
 
-    const statusAbertos = ["aguardando", "aguardando confirmação", "disponivel", "disponível", "pendente"];
+    const statusAbertos = [
+      "aguardando",
+      "aguardando confirmação",
+      "disponivel",
+      "disponível",
+      "pendente",
+    ];
 
     const filtrados = registros.filter((a) => {
       const status = (getField(a, "status") || "").toLowerCase().trim();
-      return statusAbertos.includes(status);
+      const pid =
+        getField(a, "prestador_id", "prestadorId") ??
+        undefined;
+
+      // só considera "disponível" se ainda NÃO está ligado a outro prestador
+      return statusAbertos.includes(status) && !pid;
     });
 
     const resposta = filtrados.map(mapAgendamentoDto);
@@ -178,13 +198,16 @@ export async function getAgendamentosDisponiveis(req, res) {
   }
 }
 
+// alias antigo
+export const getAgendamentosDisponiveis = listPrestadorPendentes;
+
 /* ==========================================================
    ✅ ACEITAR AGENDAMENTO
    POST /api/agendamentos/:id/aceitar
    - Marca como "Aceita"
    - Se existir coluna de prestador, amarra ao prestador logado
 ========================================================== */
-export async function aceitarAgendamento(req, res) {
+export async function accept(req, res) {
   try {
     const { id } = req.params;
 
@@ -200,7 +223,6 @@ export async function aceitarAgendamento(req, res) {
         where: { usuario_id: userId },
       });
       if (prestador) {
-        // se a coluna existir, ótimo; se não existir, isso é ignorado pelo Sequelize
         ag.prestador_id = prestador.id;
       }
     }
@@ -217,12 +239,15 @@ export async function aceitarAgendamento(req, res) {
   }
 }
 
+// aliases antigos
+export const aceitarAgendamento = accept;
+
 /* ==========================================================
    ❌ RECUSAR AGENDAMENTO
    POST /api/agendamentos/:id/recusar
    - Marca como "Recusada"
 ========================================================== */
-export async function recusarAgendamento(req, res) {
+export async function reject(req, res) {
   try {
     const { id } = req.params;
 
@@ -243,11 +268,78 @@ export async function recusarAgendamento(req, res) {
   }
 }
 
-// Export default para compatibilidade, se em algum lugar ainda usarem import default
+// alias antigo
+export const recusarAgendamento = reject;
+
+/* ==========================================================
+   ✏️ Edição de agendamento pelo CONTRATANTE
+   PUT /api/agendamentos/:id
+========================================================== */
+export async function updateAgendamentoContratante(req, res) {
+  try {
+    const { id } = req.params;
+    const { data_servico, hora_servico, observacao } = req.body;
+
+    const agendamento = await Agendamento.findByPk(id);
+    if (!agendamento) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
+
+    // garante que o usuário logado é o dono (se houver relacionamento)
+    const usuarioId = req.user?.id;
+
+    if (usuarioId) {
+      const contratante = await Contratante.findOne({
+        where: { usuario_id: usuarioId },
+      });
+
+      if (contratante) {
+        const cid =
+          getField(
+            agendamento,
+            "contratante_id",
+            "contratanteId",
+            "cliente_id"
+          ) ?? null;
+
+        if (cid && cid !== contratante.id) {
+          return res
+            .status(403)
+            .json({ error: "Você não pode editar este agendamento." });
+        }
+      }
+    }
+
+    if (data_servico) agendamento.data_servico = data_servico;
+    if (hora_servico) agendamento.hora_servico = hora_servico;
+    if (observacao !== undefined) agendamento.observacao = observacao;
+
+    // Sempre que editar, volta a ficar pendente para novo aceite
+    agendamento.status = "Pendente";
+
+    await agendamento.save();
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Erro ao editar agendamento:", err);
+    return res
+      .status(500)
+      .json({ error: "Erro ao editar o agendamento. Tente novamente." });
+  }
+}
+
+// Export default para compatibilidade com import default
 export default {
-  getAgendamentosCliente,
-  getAgendamentosPrestador,
-  getAgendamentosDisponiveis,
-  aceitarAgendamento,
-  recusarAgendamento,
+  listCliente,
+  listPrestador,
+  listPrestadorPendentes,
+  accept,
+  reject,
+  updateAgendamentoContratante,
+  // aliases antigos
+  getAgendamentosCliente: listCliente,
+  getAgendamentosPrestador: listPrestador,
+  getAgendamentosDisponiveis: listPrestadorPendentes,
+  aceitarAgendamento: accept,
+  recusarAgendamento: reject,
 };

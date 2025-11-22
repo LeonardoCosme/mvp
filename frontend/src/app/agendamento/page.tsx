@@ -1,15 +1,15 @@
 // frontend/src/app/agendamento/page.tsx
-'use client';
+"use client";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { apiFetch } from '@/utils/api';
-import { getToken } from '@/utils/auth';
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { apiFetch } from "@/utils/api";
+import { getToken } from "@/utils/auth";
 
-type Perfil = 'Contratante' | 'Prestador' | 'Usuário';
+type Perfil = "Contratante" | "Prestador" | "Usuário";
 
 type AgendamentoResumo = {
   id: number;
@@ -18,6 +18,7 @@ type AgendamentoResumo = {
   data_servico: string;
   hora_servico: string;
   endereco: string;
+  observacao?: string | null;
   avaliacao?: {
     nota?: number | null;
     comentario?: string | null;
@@ -29,147 +30,140 @@ type AgendamentoDisponivel = AgendamentoResumo & {
 };
 
 function formatDateBR(dateStr?: string | null): string {
-  if (!dateStr) return '';
-  const parts = dateStr.split('-');
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
   if (parts.length !== 3) return dateStr;
   const [y, m, d] = parts;
   return `${d}/${m}/${y}`;
 }
 
 function formatHora(h?: string | null): string {
-  if (!h) return '';
+  if (!h) return "";
   return h.slice(0, 5);
 }
 
 export default function AgendamentoPage() {
   const router = useRouter();
 
-  const [perfil, setPerfil] = useState<Perfil>('Usuário');
+  const [perfil, setPerfil] = useState<Perfil>("Usuário");
   const [agendamentos, setAgendamentos] = useState<AgendamentoResumo[]>([]);
   const [disponiveis, setDisponiveis] = useState<AgendamentoDisponivel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [erro, setErro] = useState('');
+  const [erro, setErro] = useState("");
   const [acaoCarregando, setAcaoCarregando] = useState<number | null>(null);
 
-  useEffect(() => {
+  // estado da edição (CONTRATANTE)
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editData, setEditData] = useState<{
+    data_servico: string;
+    hora_servico: string;
+    observacao: string;
+  }>({
+    data_servico: "",
+    hora_servico: "",
+    observacao: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  async function carregar() {
     if (!getToken()) {
-      router.push('/login?next=/agendamento');
+      router.push("/login?next=/agendamento");
       return;
     }
 
     let cancelado = false;
 
-    async function carregar() {
-      try {
-        setLoading(true);
-        setErro('');
+    try {
+      setLoading(true);
+      setErro("");
 
-        // 1) Descobre o usuário logado
-        const user = await apiFetch('/user/me');
-        if (cancelado) return;
+      // 1) Descobre o usuário logado
+      const user = await apiFetch("/user/me");
+      if (cancelado) return;
 
-        console.log('DEBUG /user/me =>', user);
+      console.log("DEBUG /user/me =>", user);
 
-        // tenta usar o campo "tipo" que vem do backend
-        const tipoRaw = (user?.tipo || user?.Tipo || '').toString().toLowerCase();
+      const isContratante = !!user?.contratanteId || !!user?.Contratante;
+      const isPrestador = !!user?.prestadorId || !!user?.Prestador;
 
-        let perfilDetectado: Perfil = 'Usuário';
+      const perfilDetectado: Perfil = isContratante
+        ? "Contratante"
+        : isPrestador
+        ? "Prestador"
+        : "Usuário";
 
-        if (tipoRaw === 'contratante') {
-          perfilDetectado = 'Contratante';
-        } else if (tipoRaw === 'prestador') {
-          perfilDetectado = 'Prestador';
-        } else if (user?.Contratante) {
-          // fallback caso o backend envie o relacionamento
-          perfilDetectado = 'Contratante';
-        } else if (user?.Prestador) {
-          perfilDetectado = 'Prestador';
-        }
+      console.log("DEBUG perfilDetectado =>", perfilDetectado);
+      setPerfil(perfilDetectado);
 
-        console.log('DEBUG perfilDetectado =>', perfilDetectado);
-        setPerfil(perfilDetectado);
-
-        // 2) Busca agendamentos conforme o perfil
-        if (perfilDetectado === 'Contratante') {
-          // CONTRATANTE: agendamentos feitos por ele
-          const lista = (await apiFetch(
-            '/agendamentos/cliente'
-          )) as AgendamentoResumo[];
-          if (!cancelado) {
-            setAgendamentos(Array.isArray(lista) ? lista : []);
-            setDisponiveis([]); // contratante não vê "disponíveis"
-          }
-        } else if (perfilDetectado === 'Prestador') {
-          // PRESTADOR: agendamentos dele + serviços disponíveis
-          const [meus, disp] = (await Promise.all([
-            apiFetch('/agendamentos/prestador'),
-            apiFetch('/agendamentos/disponiveis'),
-          ])) as [AgendamentoResumo[], AgendamentoDisponivel[]];
-
-          if (!cancelado) {
-            setAgendamentos(Array.isArray(meus) ? meus : []);
-            setDisponiveis(Array.isArray(disp) ? disp : []);
-          }
-        } else {
-          // Usuário sem perfil configurado
-          if (!cancelado) {
-            setAgendamentos([]);
-            setDisponiveis([]);
-          }
-        }
-      } catch (err: any) {
-        console.error('❌ Erro ao carregar agendamentos:', err);
-
-        if (err?.status === 401) {
-          router.push('/login?next=/agendamento');
-          return;
-        }
+      // 2) Busca agendamentos conforme o perfil
+      if (perfilDetectado === "Contratante") {
+        const lista = (await apiFetch(
+          "/agendamentos/cliente"
+        )) as AgendamentoResumo[];
 
         if (!cancelado) {
-          setErro(
-            err?.body?.message ||
-              err?.message ||
-              'Erro ao carregar seus agendamentos.'
-          );
+          setAgendamentos(Array.isArray(lista) ? lista : []);
+          setDisponiveis([]);
         }
-      } finally {
-        if (!cancelado) setLoading(false);
-      }
-    }
+      } else if (perfilDetectado === "Prestador") {
+        const [meus, disp] = (await Promise.all([
+          apiFetch("/agendamentos/prestador"),
+          apiFetch("/agendamentos/disponiveis"),
+        ])) as [AgendamentoResumo[], AgendamentoDisponivel[]];
 
-    carregar();
+        if (!cancelado) {
+          setAgendamentos(Array.isArray(meus) ? meus : []);
+          setDisponiveis(Array.isArray(disp) ? disp : []);
+        }
+      } else {
+        if (!cancelado) {
+          setAgendamentos([]);
+          setDisponiveis([]);
+        }
+      }
+    } catch (err: any) {
+      console.error("❌ Erro ao carregar agendamentos:", err);
+      if (err?.status === 401) {
+        router.push("/login?next=/agendamento");
+        return;
+      }
+      setErro(
+        err?.body?.message ||
+          err?.message ||
+          "Erro ao carregar seus agendamentos."
+      );
+    } finally {
+      setLoading(false);
+    }
 
     return () => {
       cancelado = true;
     };
-  }, [router]);
+  }
 
+  useEffect(() => {
+    carregar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ============================
+  // PRESTADOR – aceitar / recusar
+  // ============================
   async function handleAceitar(id: number) {
     try {
       setAcaoCarregando(id);
       await apiFetch(`/agendamentos/${id}/aceitar`, {
-        method: 'POST',
+        method: "POST",
       });
 
-      // Move o item de "disponíveis" para "meus agendamentos"
-      setDisponiveis((lista) => lista.filter((item) => item.id !== id));
-      setAgendamentos((lista) => {
-        const aceito = disponiveis.find((item) => item.id === id);
-        if (!aceito) return lista;
-        return [
-          ...lista,
-          {
-            ...aceito,
-            status: 'Aceita',
-          },
-        ];
-      });
+      // Recarrega listas para refletir tudo certinho
+      await carregar();
     } catch (err: any) {
-      console.error('❌ Erro ao aceitar agendamento:', err);
+      console.error("❌ Erro ao aceitar agendamento:", err);
       alert(
         err?.body?.message ||
           err?.message ||
-          'Não foi possível aceitar este serviço.'
+          "Não foi possível aceitar este serviço."
       );
     } finally {
       setAcaoCarregando(null);
@@ -180,22 +174,79 @@ export default function AgendamentoPage() {
     try {
       setAcaoCarregando(id);
       await apiFetch(`/agendamentos/${id}/recusar`, {
-        method: 'POST',
+        method: "POST",
       });
 
-      // Remove o item da lista de disponíveis
-      setDisponiveis((lista) => lista.filter((item) => item.id !== id));
+      await carregar();
     } catch (err: any) {
-      console.error('❌ Erro ao recusar agendamento:', err);
+      console.error("❌ Erro ao recusar agendamento:", err);
       alert(
         err?.body?.message ||
           err?.message ||
-          'Não foi possível recusar este serviço.'
+          "Não foi possível recusar este serviço."
       );
     } finally {
       setAcaoCarregando(null);
     }
   }
+
+  // ============================
+  // CONTRATANTE – iniciar edição
+  // ============================
+  function startEdit(ag: AgendamentoResumo) {
+    setEditingId(ag.id);
+    setEditData({
+      data_servico: ag.data_servico || "",
+      hora_servico: ag.hora_servico ? ag.hora_servico.slice(0, 5) : "",
+      observacao: ag.observacao || "",
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditData({
+      data_servico: "",
+      hora_servico: "",
+      observacao: "",
+    });
+  }
+
+  async function handleSalvarEdicao() {
+    if (!editingId) return;
+
+    try {
+      setSavingEdit(true);
+      setErro("");
+
+      await apiFetch(`/agendamentos/${editingId}`, {
+        method: "PUT",
+        body: {
+          data_servico: editData.data_servico || null,
+          hora_servico: editData.hora_servico || null,
+          observacao: editData.observacao || null,
+        },
+      });
+
+      // Recarrega lista do cliente
+      await carregar();
+      cancelEdit();
+    } catch (err: any) {
+      console.error("❌ Erro ao salvar edição:", err);
+      setErro(
+        err?.body?.message ||
+          err?.message ||
+          "Erro ao salvar as alterações do agendamento."
+      );
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  // ordenação dos agendamentos do PRESTADOR (mais recentes em cima)
+  const agendamentosParaListar: AgendamentoResumo[] =
+    perfil === "Prestador"
+      ? [...agendamentos].sort((a, b) => b.id - a.id)
+      : agendamentos;
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#4b2506] to-[#2b1304] pb-16">
@@ -209,7 +260,7 @@ export default function AgendamentoPage() {
                   Agendamentos
                 </h1>
                 <p className="text-sm text-gray-600 mt-1">
-                  Perfil:{' '}
+                  Perfil:{" "}
                   <span className="font-semibold">
                     {perfil}
                   </span>
@@ -241,7 +292,7 @@ export default function AgendamentoPage() {
             )}
 
             {/* Aviso para criar novo agendamento (cliente) */}
-            {perfil === 'Contratante' && (
+            {perfil === "Contratante" && (
               <div className="mb-6 rounded-xl bg-[#F89D13]/10 border border-[#F89D13]/30 px-4 py-3 text-sm text-gray-800 flex flex-wrap items-center justify-between gap-2">
                 <span>
                   Para criar um novo agendamento, escolha o serviço no catálogo.
@@ -256,7 +307,7 @@ export default function AgendamentoPage() {
             )}
 
             {/* Prestador: serviços disponíveis */}
-            {perfil === 'Prestador' && (
+            {perfil === "Prestador" && (
               <section className="mb-8">
                 <h2 className="text-lg font-bold text-[#8F1D14] mb-3">
                   Serviços disponíveis para você
@@ -285,18 +336,18 @@ export default function AgendamentoPage() {
                         <div className="flex justify-between items-start gap-2">
                           <div>
                             <p className="text-sm font-semibold text-gray-900">
-                              {ag.tipo_nome || 'Serviço'}{' '}
+                              {ag.tipo_nome || "Serviço"}{" "}
                               <span className="text-xs text-gray-500">
                                 #{ag.id}
                               </span>
                             </p>
                             <p className="text-xs text-gray-600 mt-0.5">
-                              {formatDateBR(ag.data_servico)} às{' '}
+                              {formatDateBR(ag.data_servico)} às{" "}
                               {formatHora(ag.hora_servico)} — {ag.endereco}
                             </p>
                             {ag.contratante_nome && (
                               <p className="text-xs text-gray-500 mt-0.5">
-                                Cliente:{' '}
+                                Cliente:{" "}
                                 <span className="font-medium">
                                   {ag.contratante_nome}
                                 </span>
@@ -312,8 +363,8 @@ export default function AgendamentoPage() {
                               className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-60"
                             >
                               {acaoCarregando === ag.id
-                                ? 'Aceitando...'
-                                : 'Aceitar serviço'}
+                                ? "Aceitando..."
+                                : "Aceitar serviço"}
                             </button>
                             <button
                               type="button"
@@ -322,8 +373,8 @@ export default function AgendamentoPage() {
                               className="px-3 py-1.5 rounded-lg border border-red-300 text-red-700 text-xs font-semibold hover:bg-red-50 disabled:opacity-60"
                             >
                               {acaoCarregando === ag.id
-                                ? 'Recusando...'
-                                : 'Recusar'}
+                                ? "Recusando..."
+                                : "Recusar"}
                             </button>
                           </div>
                         </div>
@@ -349,43 +400,141 @@ export default function AgendamentoPage() {
                     />
                   ))}
                 </div>
-              ) : agendamentos.length === 0 ? (
+              ) : agendamentosParaListar.length === 0 ? (
                 <p className="text-sm text-gray-600">
                   Você ainda não possui agendamentos cadastrados.
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {agendamentos.map((ag) => (
-                    <article
-                      key={ag.id}
-                      className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {ag.tipo_nome || 'Serviço'}{' '}
-                          <span className="text-xs text-gray-500">
-                            #{ag.id}
-                          </span>
-                        </p>
-                        <p className="text-xs text-gray-600 mt-0.5">
-                          {formatDateBR(ag.data_servico)} às{' '}
-                          {formatHora(ag.hora_servico)} — {ag.endereco}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-0.5 capitalize">
-                          Status:{' '}
-                          <span className="font-medium text-gray-800">
-                            {ag.status.replace('_', ' ')}
-                          </span>
-                        </p>
-                      </div>
+                  {agendamentosParaListar.map((ag) => {
+                    const isEditing = editingId === ag.id;
 
-                      {ag.avaliacao?.nota != null && (
-                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                          ⭐ Avaliado ({ag.avaliacao.nota}/5)
-                        </span>
-                      )}
-                    </article>
-                  ))}
+                    return (
+                      <article
+                        key={ag.id}
+                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col gap-2"
+                      >
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">
+                              {ag.tipo_nome || "Serviço"}{" "}
+                              <span className="text-xs text-gray-500">
+                                #{ag.id}
+                              </span>
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5">
+                              {formatDateBR(ag.data_servico)} às{" "}
+                              {formatHora(ag.hora_servico)} — {ag.endereco}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-0.5 capitalize">
+                              Status:{" "}
+                              <span className="font-medium text-gray-800">
+                                {ag.status.replace("_", " ")}
+                              </span>
+                              {perfil === "Contratante" &&
+                                ag.status.toLowerCase() === "pendente" && (
+                                  <span className="text-[11px] text-orange-600 ml-1">
+                                    (aguardando novo aceite do prestador)
+                                  </span>
+                                )}
+                            </p>
+                            {ag.observacao && (
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Observação: {ag.observacao}
+                              </p>
+                            )}
+                          </div>
+
+                          {perfil === "Contratante" && (
+                            <div className="flex gap-2 self-start md:self-center">
+                              <button
+                                type="button"
+                                onClick={() => startEdit(ag)}
+                                className="px-3 py-1.5 rounded-lg border border-[#F89D13] text-[#F89D13] text-xs font-semibold hover:bg-[#F89D13]/10"
+                              >
+                                Editar
+                              </button>
+                            </div>
+                          )}
+
+                          {ag.avaliacao?.nota != null && (
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                              ⭐ Avaliado ({ag.avaliacao.nota}/5)
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Formulário de edição (CONTRATANTE) */}
+                        {perfil === "Contratante" && isEditing && (
+                          <div className="mt-3 border-t border-gray-200 pt-3 space-y-2">
+                            <div className="flex flex-wrap gap-2">
+                              <div className="flex flex-col text-xs text-gray-700">
+                                <label className="mb-1">Nova data</label>
+                                <input
+                                  type="date"
+                                  className="border rounded-lg px-2 py-1 text-sm"
+                                  value={editData.data_servico}
+                                  onChange={(e) =>
+                                    setEditData((old) => ({
+                                      ...old,
+                                      data_servico: e.target.value,
+                                    }))
+                                  }
+                                />
+                              </div>
+                              <div className="flex flex-col text-xs text-gray-700">
+                                <label className="mb-1">Novo horário</label>
+                                <input
+                                  type="time"
+                                  className="border rounded-lg px-2 py-1 text-sm"
+                                  value={editData.hora_servico}
+                                  onChange={(e) =>
+                                    setEditData((old) => ({
+                                      ...old,
+                                      hora_servico: e.target.value,
+                                    }))
+                                  }
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col text-xs text-gray-700">
+                              <label className="mb-1">Observação</label>
+                              <textarea
+                                className="border rounded-lg px-2 py-1 text-sm min-h-[60px]"
+                                value={editData.observacao}
+                                onChange={(e) =>
+                                  setEditData((old) => ({
+                                    ...old,
+                                    observacao: e.target.value,
+                                  }))
+                                }
+                              />
+                            </div>
+
+                            <div className="flex gap-2 justify-end">
+                              <button
+                                type="button"
+                                onClick={cancelEdit}
+                                disabled={savingEdit}
+                                className="px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleSalvarEdicao}
+                                disabled={savingEdit}
+                                className="px-3 py-1.5 rounded-lg bg-[#8F1D14] text-white text-xs font-semibold hover:bg-[#a2261b] disabled:opacity-60"
+                              >
+                                {savingEdit ? "Salvando..." : "Salvar alterações"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
                 </div>
               )}
             </section>

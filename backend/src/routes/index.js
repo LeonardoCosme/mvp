@@ -140,6 +140,13 @@ if (typeof Ag.recusarAgendamento === "function") {
   );
 }
 
+// ✅ NOVA ROTA PARA EDIÇÃO PELO CONTRATANTE
+router.put(
+  "/agendamentos/:id",
+  authenticate,
+  Ag.updateAgendamentoContratante
+);
+
 /* ✅ QR Code / Scan – mantidos só se existirem no controller atual */
 if (typeof Ag.qrcode === "function") {
   router.get("/agendamentos/:id/qrcode", authenticate, Ag.qrcode);
