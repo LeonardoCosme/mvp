@@ -5,6 +5,7 @@ const { Agendamento, Contratante, Prestador } = db;
 
 /**
  * Helper genérico para ler campos com nomes diferentes (data_servico, dataServico, etc.)
+ * em instâncias Sequelize
  */
 function getField(instance, ...names) {
   if (!instance) return null;
@@ -27,13 +28,29 @@ function getField(instance, ...names) {
 }
 
 /**
+ * Helper parecido, mas para o corpo da requisição (objeto plano)
+ */
+function getBodyField(body = {}, ...names) {
+  for (const name of names) {
+    if (
+      Object.prototype.hasOwnProperty.call(body, name) &&
+      body[name] != null &&
+      body[name] !== ""
+    ) {
+      return body[name];
+    }
+  }
+  return null;
+}
+
+/**
  * DTO enviado para o frontend
  */
 function mapAgendamentoDto(a) {
   if (!a) return null;
 
-  const data = getField(a, "data_servico", "dataServico", "data");
-  const hora = getField(a, "hora_servico", "horaServico", "hora");
+  const data = getField(a, "dataServico", "data_servico", "data");
+  const hora = getField(a, "horaServico", "hora_servico", "hora");
   const tipoNome = getField(a, "tipo_nome", "tipoNome", "nome_tipo");
   const endereco = getField(a, "endereco");
   const status = (getField(a, "status") || "").toString();
@@ -49,7 +66,7 @@ function mapAgendamentoDto(a) {
 }
 
 /* ==========================================================
-   📌 CRIAR NOVO AGENDAMENTO (CONTRATANTE)
+   🆕 CRIAR AGENDAMENTO (CONTRATANTE)
    POST /api/agendamentos
 ========================================================== */
 export async function create(req, res) {
@@ -71,52 +88,79 @@ export async function create(req, res) {
 
     const body = req.body || {};
 
-    const tipoServicoId =
-      body.tipo_servico_id || body.tipoServicoId || body.tipoId || null;
-    const dataServico =
-      body.data_servico || body.dataServico || body.data || null;
-    const horaServico =
-      body.hora_servico || body.horaServico || body.hora || null;
-    const endereco = body.endereco || "";
-    const descricao = body.descricao || body.observacao || "";
-    const duracao = body.duracao || null;
+    // Aceita várias formas de nome dos campos vindos do frontend
+    const tipoServicoId = getBodyField(
+      body,
+      "tipoServicoId",
+      "tipo_servico_id",
+      "tipoServico",
+      "tipo"
+    );
+    const dataServico = getBodyField(
+      body,
+      "dataServico",
+      "data_servico",
+      "data"
+    );
+    const horaServico = getBodyField(
+      body,
+      "horaServico",
+      "hora_servico",
+      "hora"
+    );
+    const endereco = getBodyField(body, "endereco", "address") || "";
+    const descricao =
+      getBodyField(body, "descricao", "descricao_servico", "description") || "";
 
-    if (!tipoServicoId || !dataServico || !horaServico || !endereco) {
+    if (!tipoServicoId || !dataServico || !horaServico) {
       return res.status(400).json({
         error:
-          "Campos obrigatórios: tipo de serviço, data, hora e endereço.",
+          "Campos obrigatórios não informados (tipo de serviço, data e hora).",
       });
     }
 
+    console.log("[AGENDAMENTOS][CREATE] body recebido =>", body);
+
     const novo = await Agendamento.create({
-      contratante_id: contratante.id,
-      tipo_servico_id: tipoServicoId,
-      descricao,
-      data_servico: dataServico,
-      hora_servico: horaServico,
-      duracao,
+      // nomes camelCase que o Sequelize está cobrando (ver erro do Railway)
+      contratanteId: contratante.id,
+      tipoServicoId,
+      dataServico,
+      horaServico,
       endereco,
+      descricao,
       status: "pendente",
     });
 
-    console.log("[AGENDAMENTOS][CREATE]", {
+    console.log("[AGENDAMENTOS][CREATE][OK]", {
       id: novo.id,
-      contratante_id: novo.contratante_id,
-      tipo_servico_id: novo.tipo_servico_id,
-      status: novo.status,
+      contratanteId: novo.contratanteId,
+      tipoServicoId: novo.tipoServicoId,
+      dataServico: novo.dataServico,
+      horaServico: novo.horaServico,
     });
 
     return res.status(201).json(mapAgendamentoDto(novo));
   } catch (err) {
     console.error("❌ Erro ao criar agendamento:", err);
-    return res.status(500).json({ error: "Erro ao criar agendamento." });
+
+    // Se for erro de validação do Sequelize, retorna mensagem mais amigável
+    if (err.name === "SequelizeValidationError") {
+      return res.status(400).json({
+        error: "Dados inválidos ao criar agendamento.",
+        detalhes: err.errors?.map((e) => e.message) ?? [],
+      });
+    }
+
+    return res
+      .status(500)
+      .json({ error: "Erro ao criar agendamento. Tente novamente." });
   }
 }
 
 /* ==========================================================
    👤 CLIENTE (CONTRATANTE)
    GET /api/agendamentos/cliente
-   - Lista só agendamentos do contratante logado
 ========================================================== */
 export async function listCliente(req, res) {
   try {
@@ -140,7 +184,7 @@ export async function listCliente(req, res) {
     });
 
     const filtrados = todos.filter((a) => {
-      const cid = getField(a, "contratante_id", "contratanteId");
+      const cid = getField(a, "contratanteId", "contratante_id");
       return cid != null && String(cid) === String(contratante.id);
     });
 
@@ -150,7 +194,7 @@ export async function listCliente(req, res) {
       total: todos.length,
       filtrados: filtrados.map((x) => ({
         id: x.id,
-        contratante_id: getField(x, "contratante_id", "contratanteId"),
+        contratanteId: getField(x, "contratanteId", "contratante_id"),
         status: getField(x, "status"),
       })),
     });
@@ -167,7 +211,6 @@ export async function listCliente(req, res) {
 /* ==========================================================
    🧰 PRESTADOR – MEUS AGENDAMENTOS
    GET /api/agendamentos/prestador
-   - Lista agendamentos que foram aceitos por este prestador
 ========================================================== */
 export async function listPrestador(req, res) {
   try {
@@ -191,7 +234,7 @@ export async function listPrestador(req, res) {
     });
 
     const filtrados = todos.filter((a) => {
-      const pid = getField(a, "prestador_id", "prestadorId");
+      const pid = getField(a, "prestadorId", "prestador_id");
       return pid != null && String(pid) === String(prestador.id);
     });
 
@@ -201,7 +244,7 @@ export async function listPrestador(req, res) {
       total: todos.length,
       filtrados: filtrados.map((x) => ({
         id: x.id,
-        prestador_id: getField(x, "prestador_id", "prestadorId"),
+        prestadorId: getField(x, "prestadorId", "prestador_id"),
         status: getField(x, "status"),
       })),
     });
@@ -218,8 +261,6 @@ export async function listPrestador(req, res) {
 /* ==========================================================
    🧰 PRESTADOR – SERVIÇOS DISPONÍVEIS
    GET /api/agendamentos/disponiveis
-   - Mostra agendamentos ainda não assumidos por nenhum prestador
-     com status pendente/aguardando/disponível
 ========================================================== */
 export async function listDisponiveis(req, res) {
   try {
@@ -252,9 +293,8 @@ export async function listDisponiveis(req, res) {
 
     const filtrados = todos.filter((a) => {
       const status = (getField(a, "status") || "").toLowerCase().trim();
-      const pid = getField(a, "prestador_id", "prestadorId");
-      // só serviços SEM prestador e com status "aberto"
-      return pid == null && status && statusAbertos.includes(status);
+      const pid = getField(a, "prestadorId", "prestador_id");
+      return pid == null && status && statusAbertos.includes(status); // ainda sem prestador
     });
 
     console.log("[AGENDAMENTOS][DISPONIVEIS]", {
@@ -264,7 +304,7 @@ export async function listDisponiveis(req, res) {
       filtrados: filtrados.map((x) => ({
         id: x.id,
         status: getField(x, "status"),
-        prestador_id: getField(x, "prestador_id", "prestadorId"),
+        prestadorId: getField(x, "prestadorId", "prestador_id"),
       })),
     });
 
@@ -280,7 +320,6 @@ export async function listDisponiveis(req, res) {
 /* ==========================================================
    ✅ ACEITAR AGENDAMENTO
    POST /api/agendamentos/:id/aceitar
-   - Marca como "aceita" e vincula ao prestador logado
 ========================================================== */
 export async function accept(req, res) {
   try {
@@ -307,7 +346,7 @@ export async function accept(req, res) {
     }
 
     // Se já tiver prestador associado e não for este, não deixa assumir
-    const jaTemPrestador = getField(ag, "prestador_id", "prestadorId");
+    const jaTemPrestador = getField(ag, "prestadorId", "prestador_id");
     if (
       jaTemPrestador != null &&
       String(jaTemPrestador) !== String(prestador.id)
@@ -317,11 +356,9 @@ export async function accept(req, res) {
       });
     }
 
-    // vincula ao prestador logado (tentando os dois nomes de atributo)
-    if ("prestador_id" in ag) ag.prestador_id = prestador.id;
-    if ("prestadorId" in ag) ag.prestadorId = prestador.id;
+    // vincula ao prestador logado (camelCase!)
+    ag.prestadorId = prestador.id;
     if (typeof ag.set === "function") {
-      ag.set("prestador_id", prestador.id);
       ag.set("prestadorId", prestador.id);
     }
 
@@ -334,7 +371,7 @@ export async function accept(req, res) {
 
     console.log("[AGENDAMENTOS][ACEITAR]", {
       id: ag.id,
-      prestadorId: prestador.id,
+      prestadorId: getField(ag, "prestadorId", "prestador_id"),
       status: ag.status,
     });
 
@@ -350,7 +387,6 @@ export async function accept(req, res) {
 /* ==========================================================
    ❌ RECUSAR AGENDAMENTO
    POST /api/agendamentos/:id/recusar
-   - Marca como "recusada" (não vincula prestador)
 ========================================================== */
 export async function reject(req, res) {
   try {
