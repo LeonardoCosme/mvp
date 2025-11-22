@@ -718,6 +718,168 @@ export async function scan(req, res) {
   }
 }
 
+/* ==========================================================
+   ✏️ EDITAR AGENDAMENTO (CONTRATANTE)
+   PUT /api/agendamentos/:id
+========================================================== */
+export async function update(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado." });
+    }
+
+    const { id } = req.params;
+
+    const contratante = await Contratante.findOne({
+      where: { usuario_id: userId },
+    });
+
+    if (!contratante) {
+      return res
+        .status(403)
+        .json({ error: "Perfil de contratante não encontrado." });
+    }
+
+    const ag = await Agendamento.findByPk(id);
+    if (!ag) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
+
+    const agContratanteId = getField(ag, "contratante_id", "contratanteId");
+    if (!agContratanteId || String(agContratanteId) !== String(contratante.id)) {
+      return res.status(403).json({
+        error: "Você não tem permissão para editar este agendamento.",
+      });
+    }
+
+    // Só deixa editar se ainda estiver em aberto
+    const statusAtual = (getField(ag, "status") || "").toLowerCase();
+    const editaveis = [
+      "pendente",
+      "aguardando",
+      "aguardando confirmação",
+      "disponivel",
+      "disponível",
+    ];
+    if (!editaveis.includes(statusAtual)) {
+      return res.status(400).json({
+        error: "Este agendamento não pode mais ser editado.",
+      });
+    }
+
+    const body = req.body || {};
+    const novaData = getField(body, "data_servico", "dataServico", "data");
+    const novaHora = getField(body, "hora_servico", "horaServico", "hora");
+    const novoEndereco = getField(body, "endereco");
+    const observacao = getField(body, "observacao", "descricao");
+
+    if (novaData) {
+      ag.set?.("dataServico", novaData);
+      ag.set?.("data_servico", novaData);
+    }
+    if (novaHora) {
+      ag.set?.("horaServico", novaHora);
+      ag.set?.("hora_servico", novaHora);
+    }
+    if (novoEndereco) {
+      ag.set?.("endereco", novoEndereco);
+    }
+    if (observacao) {
+      ag.set?.("descricao", observacao);
+    }
+
+    await ag.save();
+
+    console.log("[AGENDAMENTOS][UPDATE]", {
+      id: ag.id,
+      data_servico: getField(ag, "data_servico", "dataServico"),
+      hora_servico: getField(ag, "hora_servico", "horaServico"),
+      endereco: getField(ag, "endereco"),
+    });
+
+    return res.json(mapAgendamentoDto(ag));
+  } catch (err) {
+    console.error("❌ Erro ao atualizar agendamento:", err);
+    return res
+      .status(500)
+      .json({ error: "Erro ao atualizar o agendamento." });
+  }
+}
+
+/* ==========================================================
+   🗑️ CANCELAR / EXCLUIR AGENDAMENTO (CONTRATANTE)
+   DELETE /api/agendamentos/:id
+========================================================== */
+export async function remove(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado." });
+    }
+
+    const { id } = req.params;
+
+    const contratante = await Contratante.findOne({
+      where: { usuario_id: userId },
+    });
+
+    if (!contratante) {
+      return res
+        .status(403)
+        .json({ error: "Perfil de contratante não encontrado." });
+    }
+
+    const ag = await Agendamento.findByPk(id);
+    if (!ag) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
+
+    const agContratanteId = getField(ag, "contratante_id", "contratanteId");
+    if (!agContratanteId || String(agContratanteId) !== String(contratante.id)) {
+      return res.status(403).json({
+        error: "Você não tem permissão para cancelar este agendamento.",
+      });
+    }
+
+    const statusAtual = (getField(ag, "status") || "").toLowerCase();
+    const cancelaveis = [
+      "pendente",
+      "aguardando",
+      "aguardando confirmação",
+      "disponivel",
+      "disponível",
+    ];
+    if (!cancelaveis.includes(statusAtual)) {
+      return res.status(400).json({
+        error: "Este agendamento não pode mais ser cancelado.",
+      });
+    }
+
+    // Marca como cancelada (mantém registro para histórico)
+    if (typeof ag.set === "function") {
+      ag.set("status", "cancelada");
+    } else {
+      ag.status = "cancelada";
+    }
+
+    await ag.save();
+
+    console.log("[AGENDAMENTOS][REMOVE]", {
+      id: ag.id,
+      contratanteId: contratante.id,
+      status: ag.status,
+    });
+
+    return res.json(mapAgendamentoDto(ag));
+  } catch (err) {
+    console.error("❌ Erro ao cancelar/excluir agendamento:", err);
+    return res
+      .status(500)
+      .json({ error: "Erro ao cancelar o agendamento." });
+  }
+}
+
 // Export default para compatibilidade (import Ag from ...)
 export default {
   create,
@@ -728,4 +890,6 @@ export default {
   reject,
   qrcode,
   scan,
+  update,
+  remove,
 };
