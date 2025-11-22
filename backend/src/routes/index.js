@@ -83,6 +83,10 @@ router.get("/agendamentos/disponiveis", authenticate, Ag.listDisponiveis);
 router.post("/agendamentos/:id/aceitar", authenticate, Ag.accept);
 router.post("/agendamentos/:id/recusar", authenticate, Ag.reject);
 
+// Editar / Cancelar (contratante)
+router.put("/agendamentos/:id", authenticate, Ag.update);
+router.delete("/agendamentos/:id", authenticate, Ag.destroy);
+
 // QRCode / Scan – só registra se existirem no controller atual
 if (typeof Ag.qrcode === "function") {
   router.get("/agendamentos/:id/qrcode", authenticate, Ag.qrcode);

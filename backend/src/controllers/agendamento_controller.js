@@ -5,7 +5,6 @@ const { Agendamento, Contratante, Prestador } = db;
 
 /**
  * Helper genérico para ler campos com nomes diferentes (data_servico, dataServico, etc.)
- * em instâncias Sequelize
  */
 function getField(instance, ...names) {
   if (!instance) return null;
@@ -28,19 +27,21 @@ function getField(instance, ...names) {
 }
 
 /**
- * Helper parecido, mas para o corpo da requisição (objeto plano)
+ * Helper para ler campos do body com vários nomes possíveis
  */
-function getBodyField(body = {}, ...names) {
+function getBodyField(body, ...names) {
+  if (!body) return undefined;
   for (const name of names) {
     if (
       Object.prototype.hasOwnProperty.call(body, name) &&
-      body[name] != null &&
+      body[name] !== undefined &&
+      body[name] !== null &&
       body[name] !== ""
     ) {
       return body[name];
     }
   }
-  return null;
+  return undefined;
 }
 
 /**
@@ -49,8 +50,8 @@ function getBodyField(body = {}, ...names) {
 function mapAgendamentoDto(a) {
   if (!a) return null;
 
-  const data = getField(a, "dataServico", "data_servico", "data");
-  const hora = getField(a, "horaServico", "hora_servico", "hora");
+  const data = getField(a, "data_servico", "dataServico", "data");
+  const hora = getField(a, "hora_servico", "horaServico", "hora");
   const tipoNome = getField(a, "tipo_nome", "tipoNome", "nome_tipo");
   const endereco = getField(a, "endereco");
   const status = (getField(a, "status") || "").toString();
@@ -66,7 +67,7 @@ function mapAgendamentoDto(a) {
 }
 
 /* ==========================================================
-   🆕 CRIAR AGENDAMENTO (CONTRATANTE)
+   📌 CRIAR AGENDAMENTO (CONTRATANTE)
    POST /api/agendamentos
 ========================================================== */
 export async function create(req, res) {
@@ -88,41 +89,35 @@ export async function create(req, res) {
 
     const body = req.body || {};
 
-    // Aceita várias formas de nome dos campos vindos do frontend
-    const tipoServicoId = getBodyField(
-      body,
-      "tipoServicoId",
-      "tipo_servico_id",
-      "tipoServico",
-      "tipo"
-    );
-    const dataServico = getBodyField(
-      body,
-      "dataServico",
-      "data_servico",
-      "data"
-    );
-    const horaServico = getBodyField(
-      body,
-      "horaServico",
-      "hora_servico",
-      "hora"
-    );
-    const endereco = getBodyField(body, "endereco", "address") || "";
-    const descricao =
-      getBodyField(body, "descricao", "descricao_servico", "description") || "";
+    const tipoServicoId =
+      getBodyField(
+        body,
+        "tipo_servico_id",
+        "tipoServicoId",
+        "tipo_servico",
+        "tipoId",
+        "tipo"
+      ) ?? null;
 
-    if (!tipoServicoId || !dataServico || !horaServico) {
+    const dataServico =
+      getBodyField(body, "data_servico", "dataServico", "data") ?? null;
+
+    const horaServico =
+      getBodyField(body, "hora_servico", "horaServico", "hora") ?? null;
+
+    const endereco = getBodyField(body, "endereco", "address") ?? null;
+
+    const descricao =
+      getBodyField(body, "descricao", "observacao", "description") ?? null;
+
+    if (!tipoServicoId || !dataServico || !horaServico || !endereco) {
       return res.status(400).json({
         error:
-          "Campos obrigatórios não informados (tipo de serviço, data e hora).",
+          "Campos obrigatórios: tipo de serviço, data, hora e endereço devem ser informados.",
       });
     }
 
-    console.log("[AGENDAMENTOS][CREATE] body recebido =>", body);
-
     const novo = await Agendamento.create({
-      // nomes camelCase que o Sequelize está cobrando (ver erro do Railway)
       contratanteId: contratante.id,
       tipoServicoId,
       dataServico,
@@ -132,34 +127,30 @@ export async function create(req, res) {
       status: "pendente",
     });
 
-    console.log("[AGENDAMENTOS][CREATE][OK]", {
+    console.log("[AGENDAMENTOS][CREATE]", {
       id: novo.id,
-      contratanteId: novo.contratanteId,
-      tipoServicoId: novo.tipoServicoId,
-      dataServico: novo.dataServico,
-      horaServico: novo.horaServico,
+      contratanteId: contratante.id,
+      tipoServicoId,
+      dataServico,
+      horaServico,
+      endereco,
     });
 
     return res.status(201).json(mapAgendamentoDto(novo));
   } catch (err) {
     console.error("❌ Erro ao criar agendamento:", err);
-
-    // Se for erro de validação do Sequelize, retorna mensagem mais amigável
     if (err.name === "SequelizeValidationError") {
       return res.status(400).json({
-        error: "Dados inválidos ao criar agendamento.",
-        detalhes: err.errors?.map((e) => e.message) ?? [],
+        error: "Erro de validação ao criar agendamento.",
+        details: err.errors?.map((e) => e.message) || [],
       });
     }
-
-    return res
-      .status(500)
-      .json({ error: "Erro ao criar agendamento. Tente novamente." });
+    return res.status(500).json({ error: "Erro ao criar agendamento." });
   }
 }
 
 /* ==========================================================
-   👤 CLIENTE (CONTRATANTE)
+   👤 CLIENTE (CONTRATANTE) – LISTAR
    GET /api/agendamentos/cliente
 ========================================================== */
 export async function listCliente(req, res) {
@@ -184,7 +175,7 @@ export async function listCliente(req, res) {
     });
 
     const filtrados = todos.filter((a) => {
-      const cid = getField(a, "contratanteId", "contratante_id");
+      const cid = getField(a, "contratante_id", "contratanteId");
       return cid != null && String(cid) === String(contratante.id);
     });
 
@@ -194,7 +185,7 @@ export async function listCliente(req, res) {
       total: todos.length,
       filtrados: filtrados.map((x) => ({
         id: x.id,
-        contratanteId: getField(x, "contratanteId", "contratante_id"),
+        contratante_id: getField(x, "contratante_id", "contratanteId"),
         status: getField(x, "status"),
       })),
     });
@@ -234,7 +225,7 @@ export async function listPrestador(req, res) {
     });
 
     const filtrados = todos.filter((a) => {
-      const pid = getField(a, "prestadorId", "prestador_id");
+      const pid = getField(a, "prestador_id", "prestadorId");
       return pid != null && String(pid) === String(prestador.id);
     });
 
@@ -244,7 +235,7 @@ export async function listPrestador(req, res) {
       total: todos.length,
       filtrados: filtrados.map((x) => ({
         id: x.id,
-        prestadorId: getField(x, "prestadorId", "prestador_id"),
+        prestador_id: getField(x, "prestador_id", "prestadorId"),
         status: getField(x, "status"),
       })),
     });
@@ -293,8 +284,8 @@ export async function listDisponiveis(req, res) {
 
     const filtrados = todos.filter((a) => {
       const status = (getField(a, "status") || "").toLowerCase().trim();
-      const pid = getField(a, "prestadorId", "prestador_id");
-      return pid == null && status && statusAbertos.includes(status); // ainda sem prestador
+      const pid = getField(a, "prestador_id", "prestadorId");
+      return pid == null && status && statusAbertos.includes(status);
     });
 
     console.log("[AGENDAMENTOS][DISPONIVEIS]", {
@@ -304,7 +295,7 @@ export async function listDisponiveis(req, res) {
       filtrados: filtrados.map((x) => ({
         id: x.id,
         status: getField(x, "status"),
-        prestadorId: getField(x, "prestadorId", "prestador_id"),
+        prestador_id: getField(x, "prestador_id", "prestadorId"),
       })),
     });
 
@@ -346,7 +337,7 @@ export async function accept(req, res) {
     }
 
     // Se já tiver prestador associado e não for este, não deixa assumir
-    const jaTemPrestador = getField(ag, "prestadorId", "prestador_id");
+    const jaTemPrestador = getField(ag, "prestador_id", "prestadorId");
     if (
       jaTemPrestador != null &&
       String(jaTemPrestador) !== String(prestador.id)
@@ -356,31 +347,21 @@ export async function accept(req, res) {
       });
     }
 
-    // vincula ao prestador logado (camelCase!)
     ag.prestadorId = prestador.id;
-    if (typeof ag.set === "function") {
-      ag.set("prestadorId", prestador.id);
-    }
-
     ag.status = "aceita";
-    if (typeof ag.set === "function") {
-      ag.set("status", "aceita");
-    }
 
     await ag.save();
 
     console.log("[AGENDAMENTOS][ACEITAR]", {
       id: ag.id,
-      prestadorId: getField(ag, "prestadorId", "prestador_id"),
+      prestadorId: prestador.id,
       status: ag.status,
     });
 
     return res.json(mapAgendamentoDto(ag));
   } catch (err) {
     console.error("❌ Erro ao aceitar agendamento:", err);
-    return res
-      .status(500)
-      .json({ error: "Erro ao aceitar o agendamento." });
+    return res.status(500).json({ error: "Erro ao aceitar o agendamento." });
   }
 }
 
@@ -398,10 +379,6 @@ export async function reject(req, res) {
     }
 
     ag.status = "recusada";
-    if (typeof ag.set === "function") {
-      ag.set("status", "recusada");
-    }
-
     await ag.save();
 
     console.log("[AGENDAMENTOS][RECUSAR]", {
@@ -412,13 +389,145 @@ export async function reject(req, res) {
     return res.json(mapAgendamentoDto(ag));
   } catch (err) {
     console.error("❌ Erro ao recusar agendamento:", err);
-    return res
-      .status(500)
-      .json({ error: "Erro ao recusar o agendamento." });
+    return res.status(500).json({ error: "Erro ao recusar o agendamento." });
   }
 }
 
-// Export default para compatibilidade (import Ag from ...)
+/* ==========================================================
+   ✏️ EDITAR AGENDAMENTO (CONTRATANTE)
+   PUT /api/agendamentos/:id
+========================================================== */
+export async function update(req, res) {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado." });
+    }
+
+    const contratante = await Contratante.findOne({
+      where: { usuario_id: userId },
+    });
+
+    if (!contratante) {
+      return res
+        .status(403)
+        .json({ error: "Perfil de contratante não encontrado." });
+    }
+
+    const ag = await Agendamento.findByPk(id);
+    if (!ag) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
+
+    const agContratanteId = getField(ag, "contratante_id", "contratanteId");
+    if (String(agContratanteId) !== String(contratante.id)) {
+      return res
+        .status(403)
+        .json({ error: "Você não pode editar este agendamento." });
+    }
+
+    const statusAtual = (getField(ag, "status") || "").toLowerCase();
+    const podeEditar =
+      statusAtual.includes("pendente") ||
+      statusAtual.includes("aguardando") ||
+      statusAtual.includes("disponivel") ||
+      statusAtual.includes("disponível");
+
+    if (!podeEditar) {
+      return res.status(400).json({
+        error:
+          "Este agendamento não pode mais ser editado (já foi aceito, concluído ou cancelado).",
+      });
+    }
+
+    const body = req.body || {};
+
+    const novaData =
+      getBodyField(body, "data_servico", "dataServico", "data") ?? null;
+    const novaHora =
+      getBodyField(body, "hora_servico", "horaServico", "hora") ?? null;
+    const novoEndereco =
+      getBodyField(body, "endereco", "address") ?? undefined;
+    const observacao =
+      getBodyField(body, "observacao", "descricao", "description") ?? undefined;
+
+    if (novaData) ag.dataServico = novaData;
+    if (novaHora) ag.horaServico = novaHora;
+    if (novoEndereco !== undefined) ag.endereco = novoEndereco;
+    if (observacao !== undefined) ag.descricao = observacao;
+
+    await ag.save();
+
+    console.log("[AGENDAMENTOS][UPDATE]", {
+      id: ag.id,
+      dataServico: ag.dataServico,
+      horaServico: ag.horaServico,
+      endereco: ag.endereco,
+    });
+
+    return res.json(mapAgendamentoDto(ag));
+  } catch (err) {
+    console.error("❌ Erro ao editar agendamento:", err);
+    return res.status(500).json({ error: "Erro ao editar o agendamento." });
+  }
+}
+
+/* ==========================================================
+   🗑️ CANCELAR / APAGAR AGENDAMENTO (CONTRATANTE)
+   DELETE /api/agendamentos/:id
+========================================================== */
+export async function destroy(req, res) {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado." });
+    }
+
+    const contratante = await Contratante.findOne({
+      where: { usuario_id: userId },
+    });
+
+    if (!contratante) {
+      return res
+        .status(403)
+        .json({ error: "Perfil de contratante não encontrado." });
+    }
+
+    const ag = await Agendamento.findByPk(id);
+    if (!ag) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
+
+    const agContratanteId = getField(ag, "contratante_id", "contratanteId");
+    if (String(agContratanteId) !== String(contratante.id)) {
+      return res
+        .status(403)
+        .json({ error: "Você não pode cancelar este agendamento." });
+    }
+
+    await ag.destroy(); // remove do banco (combina com o front que tira o card da tela)
+
+    console.log("[AGENDAMENTOS][DESTROY]", {
+      id,
+      contratanteId: contratante.id,
+    });
+
+    return res.status(204).send();
+  } catch (err) {
+    console.error("❌ Erro ao cancelar agendamento:", err);
+    return res
+      .status(500)
+      .json({ error: "Erro ao cancelar (apagar) o agendamento." });
+  }
+}
+
+/* ==========================================================
+   ✅ EXPORT DEFAULT (compatibilidade)
+========================================================== */
 export default {
   create,
   listCliente,
@@ -426,4 +535,6 @@ export default {
   listDisponiveis,
   accept,
   reject,
+  update,
+  destroy,
 };
