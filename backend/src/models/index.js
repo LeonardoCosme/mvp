@@ -10,8 +10,8 @@ const __dirname = path.dirname(__filename);
 
 const isProduction = process.env.NODE_ENV === "production";
 
-// ✅ Carrega .env local apenas fora da produção
-if (isProduction) {
+// ✅ Carrega .env local APENAS fora da produção
+if (!isProduction) {
   const localEnv = path.resolve(__dirname, "../../.env");
   dotenv.config({ path: localEnv });
   console.log("🧩 Ambiente local: .env carregado de", localEnv);
@@ -66,7 +66,7 @@ const {
   Agendamento,
   Avaliacao,
   Historico,
-  PasswordResetToken, // 👈 ADICIONADO AQUI
+  PasswordResetToken,
 } = db;
 
 // ✅ Exportações nomeadas
@@ -80,7 +80,7 @@ export {
   Agendamento,
   Avaliacao,
   Historico,
-  PasswordResetToken, // 👈 ADICIONADO AQUI
+  PasswordResetToken,
 };
 
 // ✅ Exportação default usada em imports dinâmicos
