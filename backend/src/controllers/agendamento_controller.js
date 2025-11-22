@@ -11,7 +11,10 @@ function getField(instance, ...names) {
 
   for (const name of names) {
     // acesso direto (a.campo)
-    if (Object.prototype.hasOwnProperty.call(instance, name) && instance[name] != null) {
+    if (
+      Object.prototype.hasOwnProperty.call(instance, name) &&
+      instance[name] != null
+    ) {
       return instance[name];
     }
     // acesso via .get() do Sequelize
@@ -186,9 +189,8 @@ export async function listDisponiveis(req, res) {
     const filtrados = todos.filter((a) => {
       const status = (getField(a, "status") || "").toLowerCase().trim();
       const pid = getField(a, "prestador_id", "prestadorId");
-      return (
-        pid == null && status && statusAbertos.includes(status)
-      ); // ainda sem prestador
+      // disponível = sem prestador vinculado e status aberto
+      return pid == null && status && statusAbertos.includes(status);
     });
 
     console.log("[AGENDAMENTOS][DISPONIVEIS]", {
@@ -214,7 +216,7 @@ export async function listDisponiveis(req, res) {
 /* ==========================================================
    ✅ ACEITAR AGENDAMENTO
    POST /api/agendamentos/:id/aceitar
-   - Marca como "Aceita" e vincula ao prestador logado
+   - Marca como "aceita" e vincula ao prestador logado
 ========================================================== */
 export async function accept(req, res) {
   try {
@@ -251,12 +253,19 @@ export async function accept(req, res) {
       });
     }
 
-    // vincula ao prestador logado
-    ag.prestador_id = prestador.id;
+    // vincula ao prestador logado — tentamos ambos os nomes de atributo
+    if ("prestador_id" in ag) {
+      ag.prestador_id = prestador.id;
+    }
+    if ("prestadorId" in ag) {
+      ag.prestadorId = prestador.id;
+    }
     if (typeof ag.set === "function") {
       ag.set("prestador_id", prestador.id);
+      ag.set("prestadorId", prestador.id);
     }
 
+    // status padronizado em minúsculo, como está no banco
     ag.status = "aceita";
     if (typeof ag.set === "function") {
       ag.set("status", "aceita");
@@ -268,6 +277,7 @@ export async function accept(req, res) {
       id: ag.id,
       prestadorId: prestador.id,
       status: ag.status,
+      prestador_id_salvo: getField(ag, "prestador_id", "prestadorId"),
     });
 
     return res.json(mapAgendamentoDto(ag));
@@ -282,7 +292,7 @@ export async function accept(req, res) {
 /* ==========================================================
    ❌ RECUSAR AGENDAMENTO
    POST /api/agendamentos/:id/recusar
-   - Marca como "Recusada" (não vincula prestador)
+   - Marca como "recusada" (não vincula prestador)
 ========================================================== */
 export async function reject(req, res) {
   try {
