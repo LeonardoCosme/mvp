@@ -3,36 +3,35 @@ import db from "../models/index.js";
 
 const { Agendamento, ServicoDisponivel } = db;
 
+// ---------------------------------------------------------------------
 // Função utilitária para montar o objeto que o frontend espera
+// ---------------------------------------------------------------------
 function mapAgendamentoDto(a) {
   if (!a) return null;
 
-  // Como não temos 100% de certeza dos nomes dos campos,
-  // tentamos várias opções seguras (se não existir, fica undefined).
+  const safeGet = (obj, field) =>
+    obj?.[field] ?? (obj?.get ? obj.get(field) : undefined);
+
   const data =
-    a.data_servico ||
-    a.dataServico ||
-    a.data ||
-    (a.get ? a.get("data_servico") : undefined);
+    safeGet(a, "data_servico") ||
+    safeGet(a, "dataServico") ||
+    safeGet(a, "data");
 
   const hora =
-    a.hora_servico ||
-    a.horaServico ||
-    a.hora ||
-    (a.get ? a.get("hora_servico") : undefined);
+    safeGet(a, "hora_servico") ||
+    safeGet(a, "horaServico") ||
+    safeGet(a, "hora");
 
   const tipoNome =
-    a.tipo_nome ||
-    a.tipoNome ||
-    a.nome_tipo ||
-    (a.get ? a.get("tipo_nome") : undefined);
+    safeGet(a, "tipo_nome") ||
+    safeGet(a, "tipoNome") ||
+    safeGet(a, "nome_tipo");
 
-  const endereco =
-    a.endereco || (a.get ? a.get("endereco") : undefined);
+  const endereco = safeGet(a, "endereco");
 
   return {
     id: a.id,
-    status: a.status || (a.get ? a.get("status") : undefined) || "",
+    status: safeGet(a, "status") || "",
     tipo_nome: tipoNome || null,
     data_servico: data || null,
     hora_servico: hora || null,
@@ -40,11 +39,10 @@ function mapAgendamentoDto(a) {
   };
 }
 
-/**
- * GET /api/agendamentos/cliente
- * Por enquanto retorna TODOS os agendamentos cadastrados.
- * (Depois podemos filtrar por usuário/contratante se quisermos.)
- */
+// ---------------------------------------------------------------------
+// GET /api/agendamentos/cliente
+// (por enquanto, todos os agendamentos)
+// ---------------------------------------------------------------------
 export async function getAgendamentosCliente(req, res) {
   try {
     const registros = await Agendamento.findAll({
@@ -61,11 +59,10 @@ export async function getAgendamentosCliente(req, res) {
   }
 }
 
-/**
- * GET /api/agendamentos/prestador
- * Por enquanto também retorna TODOS os agendamentos.
- * (Depois podemos filtrar por prestador.)
- */
+// ---------------------------------------------------------------------
+// GET /api/agendamentos/prestador
+// (por enquanto, todos os agendamentos)
+// ---------------------------------------------------------------------
 export async function getAgendamentosPrestador(req, res) {
   try {
     const registros = await Agendamento.findAll({
@@ -82,15 +79,13 @@ export async function getAgendamentosPrestador(req, res) {
   }
 }
 
-/**
- * GET /api/agendamentos/disponiveis
- * Usa a tabela ServicoDisponivel para montar os "serviços disponíveis".
- * Se a estrutura for diferente, pelo menos não dá erro – só devolve campos em branco.
- */
-export async function getAgendamentosDisponiveis(req, res) {
+// ---------------------------------------------------------------------
+// GET /api/agendamentos/disponiveis
+// Usa a tabela ServicoDisponivel como fonte base
+// ---------------------------------------------------------------------
+export async function getAgendamentosDisponiveis(_req, res) {
   try {
     if (!ServicoDisponivel) {
-      // Se por algum motivo o model não existir
       return res.json([]);
     }
 
@@ -98,12 +93,11 @@ export async function getAgendamentosDisponiveis(req, res) {
       order: [["id", "ASC"]],
     });
 
-    // Tentamos mapear campos de forma genérica
     const resposta = registros.map((s) => {
       const base = mapAgendamentoDto(s);
       return {
         ...base,
-        // Se o ServicoDisponivel tiver algum campo específico, dá para aproveitar aqui depois
+        // depois podemos incluir mais campos específicos do serviço
       };
     });
 
@@ -116,10 +110,9 @@ export async function getAgendamentosDisponiveis(req, res) {
   }
 }
 
-/**
- * POST /api/agendamentos/:id/aceitar
- * Marca o agendamento como "Aceita".
- */
+// ---------------------------------------------------------------------
+// POST /api/agendamentos/:id/aceitar
+// ---------------------------------------------------------------------
 export async function aceitarAgendamento(req, res) {
   try {
     const { id } = req.params;
@@ -141,10 +134,9 @@ export async function aceitarAgendamento(req, res) {
   }
 }
 
-/**
- * POST /api/agendamentos/:id/recusar
- * Marca o agendamento como "Recusada".
- */
+// ---------------------------------------------------------------------
+// POST /api/agendamentos/:id/recusar
+// ---------------------------------------------------------------------
 export async function recusarAgendamento(req, res) {
   try {
     const { id } = req.params;
@@ -166,11 +158,71 @@ export async function recusarAgendamento(req, res) {
   }
 }
 
-// Export default para continuar compatível com import default nos routes
+// ---------------------------------------------------------------------
+// GET /api/agendamentos/:id/qrcode
+// (versão simples / placeholder – depois colocamos a lógica real)
+// ---------------------------------------------------------------------
+export async function qrcode(req, res) {
+  try {
+    const { id } = req.params;
+
+    const ag = await Agendamento.findByPk(id);
+    if (!ag) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
+
+    // Aqui no futuro podemos gerar um QR code de verdade.
+    // Por enquanto devolvemos um payload simples para teste.
+    return res.json({
+      agendamentoId: ag.id,
+      status: ag.status,
+      message: "Endpoint de QRCode em desenvolvimento.",
+    });
+  } catch (err) {
+    console.error("❌ Erro ao gerar QRCode:", err);
+    return res
+      .status(500)
+      .json({ error: "Erro ao gerar QRCode do agendamento." });
+  }
+}
+
+// ---------------------------------------------------------------------
+// POST /api/agendamentos/:id/scan
+// (versão simples / placeholder)
+// ---------------------------------------------------------------------
+export async function scan(req, res) {
+  try {
+    const { id } = req.params;
+
+    const ag = await Agendamento.findByPk(id);
+    if (!ag) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
+
+    // Exemplo: marcar que o QR foi escaneado (check-in/check-out)
+    // Por enquanto só retornamos uma mensagem.
+    return res.json({
+      agendamentoId: ag.id,
+      status: ag.status,
+      message: "Scan de QRCode recebido (lógica em desenvolvimento).",
+    });
+  } catch (err) {
+    console.error("❌ Erro ao processar scan de QRCode:", err);
+    return res
+      .status(500)
+      .json({ error: "Erro ao processar scan de QRCode." });
+  }
+}
+
+// ---------------------------------------------------------------------
+// Export default (para compatibilidade)
+// ---------------------------------------------------------------------
 export default {
   getAgendamentosCliente,
   getAgendamentosPrestador,
   getAgendamentosDisponiveis,
   aceitarAgendamento,
   recusarAgendamento,
+  qrcode,
+  scan,
 };
