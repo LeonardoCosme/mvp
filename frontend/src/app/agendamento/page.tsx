@@ -1,3 +1,4 @@
+// frontend/src/app/agendamento/page.tsx
 'use client';
 
 export const dynamic = 'force-dynamic';
@@ -63,85 +64,73 @@ export default function AgendamentoPage() {
         setLoading(true);
         setErro('');
 
-        // 1) Descobrir o perfil a partir do localStorage
+        // 1) Descobre o usuário logado
+        const user = await apiFetch('/user/me');
+        if (cancelado) return;
+
+        console.log('DEBUG /user/me =>', user);
+
+        // tenta usar o campo "tipo" que vem do backend
+        const tipoRaw = (user?.tipo || user?.Tipo || '').toString().toLowerCase();
+
         let perfilDetectado: Perfil = 'Usuário';
 
-        if (typeof window !== 'undefined') {
-          const tipoSalvo =
-            window.localStorage.getItem('tipo') ||
-            window.localStorage.getItem('tipoUsuario') ||
-            '';
-
-          const t = tipoSalvo.toLowerCase();
-
-          if (t.includes('contrat')) {
-            perfilDetectado = 'Contratante';
-          } else if (t.includes('prest')) {
-            perfilDetectado = 'Prestador';
-          }
+        if (tipoRaw === 'contratante') {
+          perfilDetectado = 'Contratante';
+        } else if (tipoRaw === 'prestador') {
+          perfilDetectado = 'Prestador';
+        } else if (user?.Contratante) {
+          // fallback caso o backend envie o relacionamento
+          perfilDetectado = 'Contratante';
+        } else if (user?.Prestador) {
+          perfilDetectado = 'Prestador';
         }
 
-        if (!cancelado) {
-          setPerfil(perfilDetectado);
-        }
+        console.log('DEBUG perfilDetectado =>', perfilDetectado);
+        setPerfil(perfilDetectado);
 
-        // 2) Carregar "meus agendamentos" conforme o perfil
-        let lista: AgendamentoResumo[] = [];
-
-        try {
-          if (perfilDetectado === 'Contratante') {
-            lista = await apiFetch('/agendamentos/cliente');
-          } else if (perfilDetectado === 'Prestador') {
-            lista = await apiFetch('/agendamentos/prestador');
-          } else {
-            // Fallback: tenta como cliente
-            lista = await apiFetch('/agendamentos/cliente');
+        // 2) Busca agendamentos conforme o perfil
+        if (perfilDetectado === 'Contratante') {
+          // CONTRATANTE: agendamentos feitos por ele
+          const lista = (await apiFetch(
+            '/agendamentos/cliente'
+          )) as AgendamentoResumo[];
+          if (!cancelado) {
+            setAgendamentos(Array.isArray(lista) ? lista : []);
+            setDisponiveis([]); // contratante não vê "disponíveis"
           }
-        } catch (err: any) {
-          // Se der erro AQUI, mostramos na tela
-          const status = err?.status;
-          const msgBase =
-            err?.body?.message ||
-            err?.message ||
-            'Erro ao carregar seus agendamentos.';
+        } else if (perfilDetectado === 'Prestador') {
+          // PRESTADOR: agendamentos dele + serviços disponíveis
+          const [meus, disp] = (await Promise.all([
+            apiFetch('/agendamentos/prestador'),
+            apiFetch('/agendamentos/disponiveis'),
+          ])) as [AgendamentoResumo[], AgendamentoDisponivel[]];
 
           if (!cancelado) {
-            setErro(
-              status ? `Erro na API (${status}): ${msgBase}` : msgBase
-            );
+            setAgendamentos(Array.isArray(meus) ? meus : []);
+            setDisponiveis(Array.isArray(disp) ? disp : []);
           }
+        } else {
+          // Usuário sem perfil configurado
+          if (!cancelado) {
+            setAgendamentos([]);
+            setDisponiveis([]);
+          }
+        }
+      } catch (err: any) {
+        console.error('❌ Erro ao carregar agendamentos:', err);
+
+        if (err?.status === 401) {
+          router.push('/login?next=/agendamento');
+          return;
         }
 
         if (!cancelado) {
-          setAgendamentos(Array.isArray(lista) ? lista : []);
-        }
-
-        // 3) Se for prestador, tenta carregar serviços disponíveis
-        if (perfilDetectado === 'Prestador') {
-          const rotasTentativas = [
-            // tente colocar aqui a rota REAL de disponíveis, se souber
-            '/agendamentos/prestador/disponiveis',
-            '/agendamentos/disponiveis',
-          ];
-
-          for (const rota of rotasTentativas) {
-            try {
-              const dados = await apiFetch(rota);
-              if (!cancelado && Array.isArray(dados) && dados.length > 0) {
-                setDisponiveis(dados as AgendamentoDisponivel[]);
-                break; // achou uma rota válida, sai do loop
-              }
-            } catch (err: any) {
-              const status = err?.status;
-              // 404 aqui não é crítico: só significa que essa rota não existe
-              if (status && status !== 404) {
-                console.warn('Erro ao carregar disponíveis na rota', rota, err);
-              }
-              // continua tentando a próxima rota
-            }
-          }
-        } else {
-          if (!cancelado) setDisponiveis([]);
+          setErro(
+            err?.body?.message ||
+              err?.message ||
+              'Erro ao carregar seus agendamentos.'
+          );
         }
       } finally {
         if (!cancelado) setLoading(false);
@@ -244,7 +233,7 @@ export default function AgendamentoPage() {
               </div>
             </header>
 
-            {/* Mensagem de erro (somente para "meus agendamentos") */}
+            {/* Mensagem de erro */}
             {erro && (
               <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {erro}
