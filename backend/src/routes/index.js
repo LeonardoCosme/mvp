@@ -67,7 +67,10 @@ router.get("/tipos-servico", Cat.listTipos);
 /* ==========================================================
    📅 AGENDAMENTOS
 ========================================================== */
-// Cliente (contratante)
+// Criar agendamento (contratante)
+router.post("/agendamentos", authenticate, Ag.create);
+
+// Cliente (contratante) – listar meus agendamentos
 router.get("/agendamentos/cliente", authenticate, Ag.listCliente);
 
 // Prestador – meus agendamentos

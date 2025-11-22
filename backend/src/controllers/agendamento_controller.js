@@ -27,6 +27,30 @@ function getField(instance, ...names) {
 }
 
 /**
+ * Helper para escrever campo considerando possíveis nomes (prestador_id, prestadorId, etc.)
+ */
+function setField(instance, value, ...names) {
+  if (!instance) return;
+
+  for (const name of names) {
+    // se a propriedade existir no objeto JS, usa ela
+    if (name in instance) {
+      instance[name] = value;
+      return;
+    }
+    // tenta via Sequelize .set()
+    if (typeof instance.set === "function") {
+      try {
+        instance.set(name, value);
+        return;
+      } catch {
+        // ignora e tenta o próximo nome
+      }
+    }
+  }
+}
+
+/**
  * DTO enviado para o frontend
  */
 function mapAgendamentoDto(a) {
@@ -46,6 +70,81 @@ function mapAgendamentoDto(a) {
     hora_servico: hora || null,
     endereco: endereco || "",
   };
+}
+
+/* ==========================================================
+   🆕 CRIAR AGENDAMENTO (CONTRATANTE)
+   POST /api/agendamentos
+========================================================== */
+export async function create(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado." });
+    }
+
+    const contratante = await Contratante.findOne({
+      where: { usuario_id: userId },
+    });
+
+    if (!contratante) {
+      return res
+        .status(403)
+        .json({ error: "Perfil de contratante não encontrado." });
+    }
+
+    const body = req.body || {};
+
+    const tipoServicoId =
+      body.tipo_servico_id ??
+      body.tipoServicoId ??
+      body.tipoId ??
+      body.servico_id ??
+      null;
+
+    const dataServico =
+      body.data_servico ?? body.dataServico ?? body.data ?? null;
+
+    const horaServico =
+      body.hora_servico ?? body.horaServico ?? body.hora ?? null;
+
+    const endereco = body.endereco ?? "";
+    const descricao = body.descricao ?? body.observacao ?? "";
+
+    if (!tipoServicoId || !dataServico || !horaServico || !endereco) {
+      return res.status(400).json({
+        error:
+          "Campos obrigatórios: tipo de serviço, data, hora e endereço.",
+      });
+    }
+
+    const novo = await Agendamento.create({
+      contratante_id: contratante.id,
+      tipo_servico_id: tipoServicoId,
+      descricao,
+      data_servico: dataServico,
+      hora_servico: horaServico,
+      endereco,
+      status: "pendente",
+    });
+
+    console.log("[AGENDAMENTOS][CREATE]", {
+      id: novo.id,
+      contratanteId: contratante.id,
+      tipoServicoId,
+      dataServico,
+      horaServico,
+      endereco,
+      status: novo.status,
+    });
+
+    return res.status(201).json(mapAgendamentoDto(novo));
+  } catch (err) {
+    console.error("❌ Erro ao criar agendamento:", err);
+    return res
+      .status(500)
+      .json({ error: "Erro ao criar o agendamento." });
+  }
 }
 
 /* ==========================================================
@@ -79,7 +178,6 @@ export async function listCliente(req, res) {
       return cid != null && String(cid) === String(contratante.id);
     });
 
-    // DEBUG no log do Railway para conferirmos
     console.log("[AGENDAMENTOS][CLIENTE]", {
       userId,
       contratanteId: contratante.id,
@@ -155,7 +253,6 @@ export async function listPrestador(req, res) {
    🧰 PRESTADOR – SERVIÇOS DISPONÍVEIS
    GET /api/agendamentos/disponiveis
    - Mostra agendamentos ainda não assumidos por nenhum prestador
-     com status pendente/aguardando/disponível
 ========================================================== */
 export async function listDisponiveis(req, res) {
   try {
@@ -189,7 +286,6 @@ export async function listDisponiveis(req, res) {
     const filtrados = todos.filter((a) => {
       const status = (getField(a, "status") || "").toLowerCase().trim();
       const pid = getField(a, "prestador_id", "prestadorId");
-      // disponível = sem prestador vinculado e status aberto
       return pid == null && status && statusAbertos.includes(status);
     });
 
@@ -253,23 +349,9 @@ export async function accept(req, res) {
       });
     }
 
-    // vincula ao prestador logado — tentamos ambos os nomes de atributo
-    if ("prestador_id" in ag) {
-      ag.prestador_id = prestador.id;
-    }
-    if ("prestadorId" in ag) {
-      ag.prestadorId = prestador.id;
-    }
-    if (typeof ag.set === "function") {
-      ag.set("prestador_id", prestador.id);
-      ag.set("prestadorId", prestador.id);
-    }
-
-    // status padronizado em minúsculo, como está no banco
-    ag.status = "aceita";
-    if (typeof ag.set === "function") {
-      ag.set("status", "aceita");
-    }
+    // vincula ao prestador logado (cobre 'prestador_id' ou 'prestadorId')
+    setField(ag, prestador.id, "prestador_id", "prestadorId");
+    setField(ag, "aceita", "status");
 
     await ag.save();
 
@@ -277,7 +359,6 @@ export async function accept(req, res) {
       id: ag.id,
       prestadorId: prestador.id,
       status: ag.status,
-      prestador_id_salvo: getField(ag, "prestador_id", "prestadorId"),
     });
 
     return res.json(mapAgendamentoDto(ag));
@@ -303,10 +384,7 @@ export async function reject(req, res) {
       return res.status(404).json({ error: "Agendamento não encontrado." });
     }
 
-    ag.status = "recusada";
-    if (typeof ag.set === "function") {
-      ag.set("status", "recusada");
-    }
+    setField(ag, "recusada", "status");
 
     await ag.save();
 
@@ -326,6 +404,7 @@ export async function reject(req, res) {
 
 // Export default para compatibilidade (import Ag from ...)
 export default {
+  create,
   listCliente,
   listPrestador,
   listDisponiveis,
