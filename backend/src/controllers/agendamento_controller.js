@@ -1,37 +1,45 @@
 // src/controllers/agendamento_controller.js
 import db from "../models/index.js";
 
-const { Agendamento, ServicoDisponivel } = db;
+const { Agendamento, ServicoDisponivel, Contratante, Prestador } = db;
 
-// ---------------------------------------------------------------------
-// Função utilitária para montar o objeto que o frontend espera
-// ---------------------------------------------------------------------
+/**
+ * Helper genérico para tentar ler um campo com vários nomes possíveis.
+ * Se não achar, devolve null.
+ */
+function getField(instance, ...names) {
+  if (!instance) return null;
+
+  for (const name of names) {
+    if (name in instance && instance[name] != null) {
+      return instance[name];
+    }
+    if (typeof instance.get === "function") {
+      const v = instance.get(name);
+      if (v != null) return v;
+    }
+  }
+  return null;
+}
+
+/**
+ * Monta o objeto no formato que o frontend espera.
+ */
 function mapAgendamentoDto(a) {
   if (!a) return null;
 
-  const safeGet = (obj, field) =>
-    obj?.[field] ?? (obj?.get ? obj.get(field) : undefined);
+  const data = getField(a, "data_servico", "dataServico", "data");
+  const hora = getField(a, "hora_servico", "horaServico", "hora");
+  const tipoNome = getField(a, "tipo_nome", "tipoNome", "nome_tipo");
+  const endereco = getField(a, "endereco");
 
-  const data =
-    safeGet(a, "data_servico") ||
-    safeGet(a, "dataServico") ||
-    safeGet(a, "data");
-
-  const hora =
-    safeGet(a, "hora_servico") ||
-    safeGet(a, "horaServico") ||
-    safeGet(a, "hora");
-
-  const tipoNome =
-    safeGet(a, "tipo_nome") ||
-    safeGet(a, "tipoNome") ||
-    safeGet(a, "nome_tipo");
-
-  const endereco = safeGet(a, "endereco");
+  const status =
+    getField(a, "status") ||
+    ""; // ex.: "Aguardando", "Aceita", "Concluida" etc.
 
   return {
     id: a.id,
-    status: safeGet(a, "status") || "",
+    status,
     tipo_nome: tipoNome || null,
     data_servico: data || null,
     hora_servico: hora || null,
@@ -39,17 +47,40 @@ function mapAgendamentoDto(a) {
   };
 }
 
-// ---------------------------------------------------------------------
-// GET /api/agendamentos/cliente
-// (por enquanto, todos os agendamentos)
-// ---------------------------------------------------------------------
+/* ==========================================================
+   👤 CLIENTE (CONTRATANTE)
+   GET /api/agendamentos/cliente
+   - Lista só agendamentos do contratante logado
+========================================================== */
 export async function getAgendamentosCliente(req, res) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado." });
+    }
+
+    const contratante = await Contratante.findOne({
+      where: { usuario_id: userId },
+    });
+
+    if (!contratante) {
+      return res
+        .status(403)
+        .json({ error: "Perfil de contratante não encontrado." });
+    }
+
     const registros = await Agendamento.findAll({
       order: [["id", "ASC"]],
     });
 
-    const resposta = registros.map(mapAgendamentoDto);
+    // filtra somente os agendamentos desse contratante
+    const filtrados = registros.filter((a) => {
+      const cid =
+        getField(a, "contratante_id", "contratanteId") ?? undefined;
+      return cid === contratante.id;
+    });
+
+    const resposta = filtrados.map(mapAgendamentoDto);
     return res.json(resposta);
   } catch (err) {
     console.error("❌ Erro ao listar agendamentos (cliente):", err);
@@ -59,17 +90,39 @@ export async function getAgendamentosCliente(req, res) {
   }
 }
 
-// ---------------------------------------------------------------------
-// GET /api/agendamentos/prestador
-// (por enquanto, todos os agendamentos)
-// ---------------------------------------------------------------------
+/* ==========================================================
+   🧰 PRESTADOR – MEUS AGENDAMENTOS
+   GET /api/agendamentos/prestador
+   - Lista só agendamentos ligados a esse prestador
+========================================================== */
 export async function getAgendamentosPrestador(req, res) {
   try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado." });
+    }
+
+    const prestador = await Prestador.findOne({
+      where: { usuario_id: userId },
+    });
+
+    if (!prestador) {
+      return res
+        .status(403)
+        .json({ error: "Perfil de prestador não encontrado." });
+    }
+
     const registros = await Agendamento.findAll({
       order: [["id", "ASC"]],
     });
 
-    const resposta = registros.map(mapAgendamentoDto);
+    // filtra só agendamentos desse prestador
+    const filtrados = registros.filter((a) => {
+      const pid = getField(a, "prestador_id", "prestadorId") ?? undefined;
+      return pid === prestador.id;
+    });
+
+    const resposta = filtrados.map(mapAgendamentoDto);
     return res.json(resposta);
   } catch (err) {
     console.error("❌ Erro ao listar agendamentos (prestador):", err);
@@ -79,28 +132,43 @@ export async function getAgendamentosPrestador(req, res) {
   }
 }
 
-// ---------------------------------------------------------------------
-// GET /api/agendamentos/disponiveis
-// Usa a tabela ServicoDisponivel como fonte base
-// ---------------------------------------------------------------------
-export async function getAgendamentosDisponiveis(_req, res) {
+/* ==========================================================
+   🧰 PRESTADOR – SERVIÇOS DISPONÍVEIS
+   GET /api/agendamentos/disponiveis
+   - Mostra só agendamentos com status "aberto"
+   - A lógica é toda em cima do campo "status"
+========================================================== */
+export async function getAgendamentosDisponiveis(req, res) {
   try {
-    if (!ServicoDisponivel) {
-      return res.json([]);
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado." });
     }
 
-    const registros = await ServicoDisponivel.findAll({
+    const prestador = await Prestador.findOne({
+      where: { usuario_id: userId },
+    });
+
+    if (!prestador) {
+      return res
+        .status(403)
+        .json({ error: "Perfil de prestador não encontrado." });
+    }
+
+    // pegamos todos e filtramos em memória (garante que não quebra mesmo
+    // se nomes de colunas forem um pouco diferentes)
+    const registros = await Agendamento.findAll({
       order: [["id", "ASC"]],
     });
 
-    const resposta = registros.map((s) => {
-      const base = mapAgendamentoDto(s);
-      return {
-        ...base,
-        // depois podemos incluir mais campos específicos do serviço
-      };
+    const statusAbertos = ["aguardando", "aguardando confirmação", "disponivel", "disponível", "pendente"];
+
+    const filtrados = registros.filter((a) => {
+      const status = (getField(a, "status") || "").toLowerCase().trim();
+      return statusAbertos.includes(status);
     });
 
+    const resposta = filtrados.map(mapAgendamentoDto);
     return res.json(resposta);
   } catch (err) {
     console.error("❌ Erro ao listar serviços disponíveis:", err);
@@ -110,9 +178,12 @@ export async function getAgendamentosDisponiveis(_req, res) {
   }
 }
 
-// ---------------------------------------------------------------------
-// POST /api/agendamentos/:id/aceitar
-// ---------------------------------------------------------------------
+/* ==========================================================
+   ✅ ACEITAR AGENDAMENTO
+   POST /api/agendamentos/:id/aceitar
+   - Marca como "Aceita"
+   - Se existir coluna de prestador, amarra ao prestador logado
+========================================================== */
 export async function aceitarAgendamento(req, res) {
   try {
     const { id } = req.params;
@@ -120,6 +191,18 @@ export async function aceitarAgendamento(req, res) {
     const ag = await Agendamento.findByPk(id);
     if (!ag) {
       return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
+
+    // tenta vincular ao prestador logado (se existir na tabela)
+    const userId = req.user?.id;
+    if (userId) {
+      const prestador = await Prestador.findOne({
+        where: { usuario_id: userId },
+      });
+      if (prestador) {
+        // se a coluna existir, ótimo; se não existir, isso é ignorado pelo Sequelize
+        ag.prestador_id = prestador.id;
+      }
     }
 
     ag.status = "Aceita";
@@ -134,9 +217,11 @@ export async function aceitarAgendamento(req, res) {
   }
 }
 
-// ---------------------------------------------------------------------
-// POST /api/agendamentos/:id/recusar
-// ---------------------------------------------------------------------
+/* ==========================================================
+   ❌ RECUSAR AGENDAMENTO
+   POST /api/agendamentos/:id/recusar
+   - Marca como "Recusada"
+========================================================== */
 export async function recusarAgendamento(req, res) {
   try {
     const { id } = req.params;
@@ -158,71 +243,11 @@ export async function recusarAgendamento(req, res) {
   }
 }
 
-// ---------------------------------------------------------------------
-// GET /api/agendamentos/:id/qrcode
-// (versão simples / placeholder – depois colocamos a lógica real)
-// ---------------------------------------------------------------------
-export async function qrcode(req, res) {
-  try {
-    const { id } = req.params;
-
-    const ag = await Agendamento.findByPk(id);
-    if (!ag) {
-      return res.status(404).json({ error: "Agendamento não encontrado." });
-    }
-
-    // Aqui no futuro podemos gerar um QR code de verdade.
-    // Por enquanto devolvemos um payload simples para teste.
-    return res.json({
-      agendamentoId: ag.id,
-      status: ag.status,
-      message: "Endpoint de QRCode em desenvolvimento.",
-    });
-  } catch (err) {
-    console.error("❌ Erro ao gerar QRCode:", err);
-    return res
-      .status(500)
-      .json({ error: "Erro ao gerar QRCode do agendamento." });
-  }
-}
-
-// ---------------------------------------------------------------------
-// POST /api/agendamentos/:id/scan
-// (versão simples / placeholder)
-// ---------------------------------------------------------------------
-export async function scan(req, res) {
-  try {
-    const { id } = req.params;
-
-    const ag = await Agendamento.findByPk(id);
-    if (!ag) {
-      return res.status(404).json({ error: "Agendamento não encontrado." });
-    }
-
-    // Exemplo: marcar que o QR foi escaneado (check-in/check-out)
-    // Por enquanto só retornamos uma mensagem.
-    return res.json({
-      agendamentoId: ag.id,
-      status: ag.status,
-      message: "Scan de QRCode recebido (lógica em desenvolvimento).",
-    });
-  } catch (err) {
-    console.error("❌ Erro ao processar scan de QRCode:", err);
-    return res
-      .status(500)
-      .json({ error: "Erro ao processar scan de QRCode." });
-  }
-}
-
-// ---------------------------------------------------------------------
-// Export default (para compatibilidade)
-// ---------------------------------------------------------------------
+// Export default para compatibilidade, se em algum lugar ainda usarem import default
 export default {
   getAgendamentosCliente,
   getAgendamentosPrestador,
   getAgendamentosDisponiveis,
   aceitarAgendamento,
   recusarAgendamento,
-  qrcode,
-  scan,
 };
