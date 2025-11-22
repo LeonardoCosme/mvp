@@ -67,6 +67,9 @@ const {
   Avaliacao,
   Historico,
   PasswordResetToken,
+  ServicoDisponivel,
+  SolicitacaoServico,
+  EmailVerificationToken,
 } = db;
 
 // ✅ Exportações nomeadas
@@ -81,6 +84,9 @@ export {
   Avaliacao,
   Historico,
   PasswordResetToken,
+  ServicoDisponivel,
+  SolicitacaoServico,
+  EmailVerificationToken,
 };
 
 // ✅ Exportação default usada em imports dinâmicos
