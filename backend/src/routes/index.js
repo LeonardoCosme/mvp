@@ -2,7 +2,7 @@
 import express from "express";
 import authenticate from "../middleware/authenticate.js";
 
-// Controllers (todos em formato ESM)
+// Controllers
 import * as Auth from "../controllers/auth_Controller.js";
 import * as User from "../controllers/user_controller.js";
 import * as Password from "../controllers/password_controller.js";
@@ -16,7 +16,7 @@ import * as Historico from "../controllers/historico_controller.js";
 const router = express.Router();
 
 /* ==========================================================
-   🔹 LOG DE ROTAS — apenas em desenvolvimento
+   🔹 LOG DE ROTAS (apenas desenvolvimento)
 ========================================================== */
 if (process.env.NODE_ENV !== "production") {
   console.log("🔹 Rotas carregadas:");
@@ -44,13 +44,11 @@ router.post("/auth/forgot-password", Auth.forgotPassword);
 router.get("/user/me", authenticate, User.me);
 
 /* ==========================================================
-   🔑 RECUPERAÇÃO DE SENHA (controlador antigo, se existir)
+   🔑 RECUPERAÇÃO DE SENHA (antigo)
 ========================================================== */
 if (Password?.forgotPassword && Password?.resetPassword) {
   router.post("/user/forgot-password", Password.forgotPassword);
   router.post("/user/reset-password", Password.resetPassword);
-} else {
-  console.error("⚠️ Controlador de senha inválido ou ausente.");
 }
 
 /* ==========================================================
@@ -65,7 +63,7 @@ router.post("/prestador", authenticate, Prest.save);
 router.post("/contratante", authenticate, Contr.save);
 
 /* ==========================================================
-   📚 CATÁLOGO DE SERVIÇOS
+   📚 CATÁLOGO
 ========================================================== */
 router.get("/tipos-servico", Cat.listTipos);
 
@@ -73,66 +71,31 @@ router.get("/tipos-servico", Cat.listTipos);
    📅 AGENDAMENTOS
 ========================================================== */
 
-// criação de agendamento (se a função existir nesse controller)
-if (typeof Ag.create === "function") {
-  router.post("/agendamentos", authenticate, Ag.create);
-} else {
-  console.warn("⚠️ Rota Ag.create não encontrada (POST /agendamentos).");
-}
+// Criar agendamento (contratante)
+router.post("/agendamentos", authenticate, Ag.create);
 
-// CONTRATANTE – meus agendamentos
-router.get(
-  "/agendamentos/cliente",
-  authenticate,
-  Ag.getAgendamentosCliente
-);
+// Meus agendamentos – contratante
+router.get("/agendamentos/cliente", authenticate, Ag.listCliente);
 
-// PRESTADOR – meus agendamentos
-router.get(
-  "/agendamentos/prestador",
-  authenticate,
-  Ag.getAgendamentosPrestador
-);
+// Meus agendamentos – prestador
+router.get("/agendamentos/prestador", authenticate, Ag.listPrestador);
 
-// PRESTADOR – serviços disponíveis
-router.get(
-  "/agendamentos/disponiveis",
-  authenticate,
-  Ag.getAgendamentosDisponiveis
-);
+// Serviços disponíveis para prestador
+router.get("/agendamentos/disponiveis", authenticate, Ag.listDisponiveis);
 
-// ACEITAR / RECUSAR
-router.post(
-  "/agendamentos/:id/aceitar",
-  authenticate,
-  Ag.aceitarAgendamento
-);
+// Editar agendamento (contratante)
+router.put("/agendamentos/:id", authenticate, Ag.update);
 
-router.post(
-  "/agendamentos/:id/recusar",
-  authenticate,
-  Ag.recusarAgendamento
-);
+// Excluir agendamento (contratante)
+router.delete("/agendamentos/:id", authenticate, Ag.remove);
 
-// EDITAR (contratante)
-router.put(
-  "/agendamentos/:id",
-  authenticate,
-  Ag.updateAgendamento
-);
+// Aceitar / Recusar (prestador)
+router.post("/agendamentos/:id/aceitar", authenticate, Ag.accept);
+router.post("/agendamentos/:id/recusar", authenticate, Ag.recusar);
 
-/* ✅ QR Code / Scan — só registra se existir no controller */
-if (typeof Ag.qrcode === "function") {
-  router.get("/agendamentos/:id/qrcode", authenticate, Ag.qrcode);
-} else {
-  console.warn("⚠️ Rota Ag.qrcode não encontrada.");
-}
-
-if (typeof Ag.scan === "function") {
-  router.post("/agendamentos/:id/scan", authenticate, Ag.scan);
-} else {
-  console.warn("⚠️ Rota Ag.scan não encontrada.");
-}
+// QRCode (placeholders)
+router.get("/agendamentos/:id/qrcode", authenticate, Ag.qrcode);
+router.post("/agendamentos/:id/scan", authenticate, Ag.scan);
 
 /* ==========================================================
    ⭐ AVALIAÇÕES
