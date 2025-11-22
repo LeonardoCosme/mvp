@@ -4,22 +4,52 @@ import db from "../models/index.js";
 const { Agendamento, Contratante, Prestador } = db;
 
 /**
- * Helper genérico para tentar ler um campo com vários nomes possíveis.
- * Se não achar, devolve null.
+ * Lê um campo tentando vários nomes possíveis.
+ * Ex.: getField(a, "contratante_id", "id_contratante")
  */
 function getField(instance, ...names) {
   if (!instance) return null;
 
   for (const name of names) {
-    if (name in instance && instance[name] != null) {
-      return instance[name];
+    // acesso direto: a.campo
+    if (Object.prototype.hasOwnProperty.call(instance, name)) {
+      const v = instance[name];
+      if (v !== undefined && v !== null) return v;
     }
+
+    // via Sequelize: a.get("campo")
     if (typeof instance.get === "function") {
       const v = instance.get(name);
-      if (v != null) return v;
+      if (v !== undefined && v !== null) return v;
     }
   }
+
   return null;
+}
+
+/**
+ * Seta um campo tentando vários nomes de propriedade.
+ */
+function setField(instance, names, value) {
+  if (!instance) return;
+
+  for (const name of names) {
+    if (Object.prototype.hasOwnProperty.call(instance, name)) {
+      instance[name] = value;
+      return;
+    }
+  }
+
+  if (typeof instance.set === "function") {
+    for (const name of names) {
+      try {
+        instance.set(name, value);
+        return;
+      } catch {
+        // ignora e tenta o próximo nome
+      }
+    }
+  }
 }
 
 /**
@@ -32,11 +62,7 @@ function mapAgendamentoDto(a) {
   const hora = getField(a, "hora_servico", "horaServico", "hora");
   const tipoNome = getField(a, "tipo_nome", "tipoNome", "nome_tipo");
   const endereco = getField(a, "endereco");
-  const observacao = getField(a, "observacao", "obs", "descricao");
-
-  const status =
-    getField(a, "status") ||
-    ""; // ex.: "Aguardando", "Aceita", "Concluida" etc.
+  const status = (getField(a, "status") || "").toString();
 
   return {
     id: a.id,
@@ -45,16 +71,15 @@ function mapAgendamentoDto(a) {
     data_servico: data || null,
     hora_servico: hora || null,
     endereco: endereco || "",
-    observacao: observacao ?? null,
   };
 }
 
 /* ==========================================================
    👤 CLIENTE (CONTRATANTE)
    GET /api/agendamentos/cliente
-   - Lista só agendamentos do contratante logado
+   - Lista APENAS agendamentos do contratante logado
 ========================================================== */
-export async function listCliente(req, res) {
+export async function getAgendamentosCliente(req, res) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -75,11 +100,9 @@ export async function listCliente(req, res) {
       order: [["id", "ASC"]],
     });
 
-    // filtra somente os agendamentos desse contratante
     const filtrados = registros.filter((a) => {
       const cid =
-        getField(a, "contratante_id", "contratanteId", "cliente_id") ??
-        undefined;
+        getField(a, "contratante_id", "contratanteId", "id_contratante", "cliente_id");
       return cid === contratante.id;
     });
 
@@ -93,15 +116,13 @@ export async function listCliente(req, res) {
   }
 }
 
-// alias com nome antigo, caso ainda seja usado em algum lugar
-export const getAgendamentosCliente = listCliente;
-
 /* ==========================================================
    🧰 PRESTADOR – MEUS AGENDAMENTOS
    GET /api/agendamentos/prestador
-   - Lista só agendamentos ligados a esse prestador
+   - Lista APENAS agendamentos desse prestador
+   - Ordena do mais recente para o mais antigo
 ========================================================== */
-export async function listPrestador(req, res) {
+export async function getAgendamentosPrestador(req, res) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -118,16 +139,36 @@ export async function listPrestador(req, res) {
         .json({ error: "Perfil de prestador não encontrado." });
     }
 
-    const registros = await Agendamento.findAll({
-      order: [["id", "ASC"]],
+    const registros = await Agendamento.findAll();
+
+    const filtrados = registros.filter((a) => {
+      const pid = getField(
+        a,
+        "prestador_id",
+        "prestadorId",
+        "id_prestador",
+        "idPrestador"
+      );
+      return pid === prestador.id;
     });
 
-    // filtra só agendamentos desse prestador
-    const filtrados = registros.filter((a) => {
-      const pid =
-        getField(a, "prestador_id", "prestadorId") ??
-        undefined;
-      return pid === prestador.id;
+    // ordena por data + hora (desc). Se não tiver, cai para id desc.
+    filtrados.sort((a, b) => {
+      const da = getField(a, "data_servico", "dataServico", "data") || "";
+      const db_ = getField(b, "data_servico", "dataServico", "data") || "";
+      const ha = getField(a, "hora_servico", "horaServico", "hora") || "";
+      const hb = getField(b, "hora_servico", "horaServico", "hora") || "";
+
+      const keyA = `${da} ${ha}`;
+      const keyB = `${db_} ${hb}`;
+
+      if (keyA === " ") return -1;
+      if (keyB === " ") return 1;
+      if (keyA < keyB) return 1;
+      if (keyA > keyB) return -1;
+
+      // fallback
+      return (b.id || 0) - (a.id || 0);
     });
 
     const resposta = filtrados.map(mapAgendamentoDto);
@@ -140,16 +181,12 @@ export async function listPrestador(req, res) {
   }
 }
 
-// alias antigo
-export const getAgendamentosPrestador = listPrestador;
-
 /* ==========================================================
    🧰 PRESTADOR – SERVIÇOS DISPONÍVEIS
-   GET /api/agendamentos/pendentes
    GET /api/agendamentos/disponiveis
-   - Mostra só agendamentos com status "aberto"
+   - Mostra só agendamentos com status “aberto”
 ========================================================== */
-export async function listPrestadorPendentes(req, res) {
+export async function getAgendamentosDisponiveis(req, res) {
   try {
     const userId = req.user?.id;
     if (!userId) {
@@ -180,12 +217,17 @@ export async function listPrestadorPendentes(req, res) {
 
     const filtrados = registros.filter((a) => {
       const status = (getField(a, "status") || "").toLowerCase().trim();
-      const pid =
-        getField(a, "prestador_id", "prestadorId") ??
-        undefined;
 
-      // só considera "disponível" se ainda NÃO está ligado a outro prestador
-      return statusAbertos.includes(status) && !pid;
+      // se já tiver prestador vinculado, não é mais “disponível”
+      const pid = getField(
+        a,
+        "prestador_id",
+        "prestadorId",
+        "id_prestador",
+        "idPrestador"
+      );
+
+      return statusAbertos.includes(status) && (pid === null || pid === undefined);
     });
 
     const resposta = filtrados.map(mapAgendamentoDto);
@@ -198,16 +240,11 @@ export async function listPrestadorPendentes(req, res) {
   }
 }
 
-// alias antigo
-export const getAgendamentosDisponiveis = listPrestadorPendentes;
-
 /* ==========================================================
    ✅ ACEITAR AGENDAMENTO
    POST /api/agendamentos/:id/aceitar
-   - Marca como "Aceita"
-   - Se existir coluna de prestador, amarra ao prestador logado
 ========================================================== */
-export async function accept(req, res) {
+export async function aceitarAgendamento(req, res) {
   try {
     const { id } = req.params;
 
@@ -216,14 +253,17 @@ export async function accept(req, res) {
       return res.status(404).json({ error: "Agendamento não encontrado." });
     }
 
-    // tenta vincular ao prestador logado (se existir na tabela)
     const userId = req.user?.id;
     if (userId) {
       const prestador = await Prestador.findOne({
         where: { usuario_id: userId },
       });
       if (prestador) {
-        ag.prestador_id = prestador.id;
+        setField(
+          ag,
+          ["prestador_id", "prestadorId", "id_prestador", "idPrestador"],
+          prestador.id
+        );
       }
     }
 
@@ -239,15 +279,11 @@ export async function accept(req, res) {
   }
 }
 
-// aliases antigos
-export const aceitarAgendamento = accept;
-
 /* ==========================================================
    ❌ RECUSAR AGENDAMENTO
    POST /api/agendamentos/:id/recusar
-   - Marca como "Recusada"
 ========================================================== */
-export async function reject(req, res) {
+export async function recusarAgendamento(req, res) {
   try {
     const { id } = req.params;
 
@@ -257,6 +293,14 @@ export async function reject(req, res) {
     }
 
     ag.status = "Recusada";
+
+    // opcional: liberar de novo o prestador, se estava vinculado
+    setField(
+      ag,
+      ["prestador_id", "prestadorId", "id_prestador", "idPrestador"],
+      null
+    );
+
     await ag.save();
 
     return res.json(mapAgendamentoDto(ag));
@@ -268,78 +312,99 @@ export async function reject(req, res) {
   }
 }
 
-// alias antigo
-export const recusarAgendamento = reject;
-
 /* ==========================================================
-   ✏️ Edição de agendamento pelo CONTRATANTE
+   ✏️ ATUALIZAR AGENDAMENTO (CONTRATANTE)
    PUT /api/agendamentos/:id
+   - Só o contratante dono pode editar
+   - Campos típicos: data, hora, endereço, observação
+   - Após edição, status volta para "Pendente"
 ========================================================== */
-export async function updateAgendamentoContratante(req, res) {
+export async function atualizarAgendamentoCliente(req, res) {
   try {
-    const { id } = req.params;
-    const { data_servico, hora_servico, observacao } = req.body;
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado." });
+    }
 
-    const agendamento = await Agendamento.findByPk(id);
-    if (!agendamento) {
+    const contratante = await Contratante.findOne({
+      where: { usuario_id: userId },
+    });
+
+    if (!contratante) {
+      return res
+        .status(403)
+        .json({ error: "Perfil de contratante não encontrado." });
+    }
+
+    const { id } = req.params;
+    const ag = await Agendamento.findByPk(id);
+
+    if (!ag) {
       return res.status(404).json({ error: "Agendamento não encontrado." });
     }
 
-    // garante que o usuário logado é o dono (se houver relacionamento)
-    const usuarioId = req.user?.id;
-
-    if (usuarioId) {
-      const contratante = await Contratante.findOne({
-        where: { usuario_id: usuarioId },
-      });
-
-      if (contratante) {
-        const cid =
-          getField(
-            agendamento,
-            "contratante_id",
-            "contratanteId",
-            "cliente_id"
-          ) ?? null;
-
-        if (cid && cid !== contratante.id) {
-          return res
-            .status(403)
-            .json({ error: "Você não pode editar este agendamento." });
-        }
-      }
+    const cid = getField(
+      ag,
+      "contratante_id",
+      "contratanteId",
+      "id_contratante",
+      "cliente_id"
+    );
+    if (cid !== contratante.id) {
+      return res
+        .status(403)
+        .json({ error: "Você não pode editar este agendamento." });
     }
 
-    if (data_servico) agendamento.data_servico = data_servico;
-    if (hora_servico) agendamento.hora_servico = hora_servico;
-    if (observacao !== undefined) agendamento.observacao = observacao;
+    const {
+      data_servico,
+      dataServico,
+      data,
+      hora_servico,
+      horaServico,
+      hora,
+      endereco,
+      observacao,
+    } = req.body || {};
 
-    // Sempre que editar, volta a ficar pendente para novo aceite
-    agendamento.status = "Pendente";
+    const novaData = data_servico || dataServico || data;
+    const novaHora = hora_servico || horaServico || hora;
 
-    await agendamento.save();
+    if (novaData) {
+      setField(ag, ["data_servico", "dataServico", "data"], novaData);
+    }
+    if (novaHora) {
+      setField(ag, ["hora_servico", "horaServico", "hora"], novaHora);
+    }
+    if (endereco) {
+      setField(ag, ["endereco"], endereco);
+    }
+    if (observacao) {
+      setField(ag, ["observacao", "obs"], observacao);
+    }
 
-    return res.json({ success: true });
+    // depois de editar, volta para pendente/aguardando
+    ag.status = "Pendente";
+
+    await ag.save();
+
+    return res.json(mapAgendamentoDto(ag));
   } catch (err) {
-    console.error("❌ Erro ao editar agendamento:", err);
+    console.error("❌ Erro ao atualizar agendamento:", err);
     return res
       .status(500)
-      .json({ error: "Erro ao editar o agendamento. Tente novamente." });
+      .json({ error: "Erro ao atualizar o agendamento." });
   }
 }
 
-// Export default para compatibilidade com import default
+/* ==========================================================
+   ✅ Export default (para compatibilidade)
+========================================================== */
 export default {
-  listCliente,
-  listPrestador,
-  listPrestadorPendentes,
-  accept,
-  reject,
-  updateAgendamentoContratante,
-  // aliases antigos
-  getAgendamentosCliente: listCliente,
-  getAgendamentosPrestador: listPrestador,
-  getAgendamentosDisponiveis: listPrestadorPendentes,
-  aceitarAgendamento: accept,
-  recusarAgendamento: reject,
+  getAgendamentosCliente,
+  getAgendamentosPrestador,
+  getAgendamentosDisponiveis,
+  aceitarAgendamento,
+  recusarAgendamento,
+  atualizarAgendamentoCliente,
 };
