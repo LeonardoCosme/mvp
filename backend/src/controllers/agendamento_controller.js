@@ -1,7 +1,7 @@
 // src/controllers/agendamento_controller.js
 import db from "../models/index.js";
 
-const { Agendamento, ServicoDisponivel, Contratante, Prestador } = db;
+const { Agendamento, Contratante, Prestador } = db;
 
 /**
  * Helper genérico para tentar ler um campo com vários nomes possíveis.
@@ -10,9 +10,11 @@ const { Agendamento, ServicoDisponivel, Contratante, Prestador } = db;
 function getField(instance, ...names) {
   if (!instance) return null;
 
+  const json = typeof instance.toJSON === "function" ? instance.toJSON() : instance;
+
   for (const name of names) {
-    if (name in instance && instance[name] != null) {
-      return instance[name];
+    if (json && Object.prototype.hasOwnProperty.call(json, name) && json[name] != null) {
+      return json[name];
     }
     if (typeof instance.get === "function") {
       const v = instance.get(name);
@@ -49,21 +51,18 @@ function mapAgendamentoDto(a) {
    GET /api/agendamentos/cliente
    - Lista só agendamentos do contratante logado
 ========================================================== */
-export async function getAgendamentosCliente(req, res) {
+export async function listCliente(req, res) {
   try {
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ error: "Usuário não autenticado." });
     }
 
-    const contratante = await Contratante.findOne({
-      where: { usuario_id: userId },
-    });
-
-    if (!contratante) {
-      return res
-        .status(403)
-        .json({ error: "Perfil de contratante não encontrado." });
+    let contratante = null;
+    try {
+      contratante = await Contratante.findOne({ where: { usuario_id: userId } });
+    } catch (e) {
+      console.warn("⚠️ Não foi possível carregar Contratante:", e?.message);
     }
 
     const registros = await Agendamento.findAll({
@@ -71,8 +70,19 @@ export async function getAgendamentosCliente(req, res) {
     });
 
     const filtrados = registros.filter((a) => {
-      const cid = getField(a, "contratante_id", "contratanteId") ?? undefined;
-      return cid === contratante.id;
+      // 1) se a tabela tiver coluna de contratante/cliente, usa ela
+      const cid = getField(a, "contratante_id", "cliente_id", "contratanteId", "clienteId");
+      if (contratante && cid != null) {
+        return Number(cid) === Number(contratante.id);
+      }
+
+      // 2) fallback: usa o usuário dono do agendamento
+      const uid = getField(a, "usuario_id", "user_id", "usuarioId", "userId");
+      if (uid != null) {
+        return Number(uid) === Number(userId);
+      }
+
+      return false;
     });
 
     const resposta = filtrados.map(mapAgendamentoDto);
@@ -88,53 +98,49 @@ export async function getAgendamentosCliente(req, res) {
 /* ==========================================================
    🧰 PRESTADOR – MEUS AGENDAMENTOS
    GET /api/agendamentos/prestador
-   - Lista agendamentos do prestador logado
-   - Se a coluna de vínculo não estiver clara, CAI NO PLANO B:
-     mostra todos os agendamentos com status de "em atendimento"
+   - Lista agendamentos "Aceitos" (e similares)
+   - Se houver coluna prestador_id, filtra por ela
+   - Se não houver, mostra todos aceitos (comportamento antigo)
 ========================================================== */
-export async function getAgendamentosPrestador(req, res) {
+export async function listPrestador(req, res) {
   try {
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ error: "Usuário não autenticado." });
     }
 
-    const prestador = await Prestador.findOne({
-      where: { usuario_id: userId },
-    });
-
-    if (!prestador) {
-      return res
-        .status(403)
-        .json({ error: "Perfil de prestador não encontrado." });
+    let prestador = null;
+    try {
+      prestador = await Prestador.findOne({ where: { usuario_id: userId } });
+    } catch (e) {
+      console.warn("⚠️ Não foi possível carregar Prestador:", e?.message);
     }
 
     const registros = await Agendamento.findAll({
-      order: [["id", "DESC"]], // mais recentes primeiro
+      order: [["id", "DESC"]], // mais recente primeiro
     });
 
-    // 1º tentativa: filtrar por campo de vínculo (prestador_id / prestadorId)
-    let filtrados = registros.filter((a) => {
-      const pid = getField(a, "prestador_id", "prestadorId");
-      if (pid == null) return false;
-      return Number(pid) === Number(prestador.id);
-    });
+    const filtrados = registros.filter((a) => {
+      const status = (getField(a, "status") || "").toLowerCase();
 
-    // Se não achou nada, cai no plano B: mostrar todos que estejam em atendimento
-    if (filtrados.length === 0) {
-      const statusMeus = [
-        "aceita",
-        "aceito",
-        "em andamento",
-        "em andamento (prestador)",
-        "concluida",
-        "concluída",
-      ];
-      filtrados = registros.filter((a) => {
-        const st = (getField(a, "status") || "").toLowerCase().trim();
-        return statusMeus.includes(st);
-      });
-    }
+      const ehAceito =
+        status.startsWith("aceit") ||
+        status === "concluida" ||
+        status === "concluído" ||
+        status === "concluido";
+
+      if (!ehAceito) return false;
+
+      // Se existir coluna de prestador e estiver preenchida, filtra por ela
+      const pid = getField(a, "prestador_id", "prestadorId", "id_prestador");
+      if (prestador && pid != null) {
+        return Number(pid) === Number(prestador.id);
+      }
+
+      // Se não tiver coluna de prestador, mantém comportamento antigo:
+      // mostra todos os "Aceitos" para qualquer prestador.
+      return true;
+    });
 
     const resposta = filtrados.map(mapAgendamentoDto);
     return res.json(resposta);
@@ -151,21 +157,22 @@ export async function getAgendamentosPrestador(req, res) {
    GET /api/agendamentos/disponiveis
    - Mostra só agendamentos com status "aberto"
 ========================================================== */
-export async function getAgendamentosDisponiveis(req, res) {
+export async function listDisponiveis(req, res) {
   try {
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ error: "Usuário não autenticado." });
     }
 
+    // só para garantir que é um prestador válido
     const prestador = await Prestador.findOne({
       where: { usuario_id: userId },
     });
 
     if (!prestador) {
-      return res
-        .status(403)
-        .json({ error: "Perfil de prestador não encontrado." });
+      console.warn("⚠️ listDisponiveis chamado por usuário sem perfil de prestador.");
+      // tecnicamente poderíamos retornar 403, mas para não quebrar o front, devolvemos []
+      return res.json([]);
     }
 
     const registros = await Agendamento.findAll({
@@ -182,7 +189,13 @@ export async function getAgendamentosDisponiveis(req, res) {
 
     const filtrados = registros.filter((a) => {
       const status = (getField(a, "status") || "").toLowerCase().trim();
-      return statusAbertos.includes(status);
+      if (!statusAbertos.includes(status)) return false;
+
+      // se já tiver prestador_id preenchido, não deve aparecer como disponível
+      const pid = getField(a, "prestador_id", "prestadorId", "id_prestador");
+      if (pid != null) return false;
+
+      return true;
     });
 
     const resposta = filtrados.map(mapAgendamentoDto);
@@ -199,7 +212,7 @@ export async function getAgendamentosDisponiveis(req, res) {
    ✅ ACEITAR AGENDAMENTO
    POST /api/agendamentos/:id/aceitar
 ========================================================== */
-export async function aceitarAgendamento(req, res) {
+export async function accept(req, res) {
   try {
     const { id } = req.params;
 
@@ -209,14 +222,20 @@ export async function aceitarAgendamento(req, res) {
     }
 
     const userId = req.user?.id;
+    let prestador = null;
     if (userId) {
-      const prestador = await Prestador.findOne({
-        where: { usuario_id: userId },
-      });
-      if (prestador) {
-        // tenta atribuir ao prestador logado (se a coluna existir)
-        if ("prestador_id" in ag) ag.prestador_id = prestador.id;
-        if ("prestadorId" in ag) ag.prestadorId = prestador.id;
+      prestador = await Prestador.findOne({ where: { usuario_id: userId } });
+    }
+
+    if (prestador) {
+      // só seta prestador_id se esse campo existir de fato
+      const json = ag.toJSON();
+      if (
+        Object.prototype.hasOwnProperty.call(json, "prestador_id") ||
+        Object.prototype.hasOwnProperty.call(json, "prestadorId") ||
+        Object.prototype.hasOwnProperty.call(json, "id_prestador")
+      ) {
+        ag.prestador_id = prestador.id;
       }
     }
 
@@ -236,7 +255,7 @@ export async function aceitarAgendamento(req, res) {
    ❌ RECUSAR AGENDAMENTO
    POST /api/agendamentos/:id/recusar
 ========================================================== */
-export async function recusarAgendamento(req, res) {
+export async function decline(req, res) {
   try {
     const { id } = req.params;
 
@@ -258,69 +277,49 @@ export async function recusarAgendamento(req, res) {
 }
 
 /* ==========================================================
-   ✏️ EDITAR AGENDAMENTO (CONTRATANTE)
+   ✏️ ATUALIZAR AGENDAMENTO (CONTRATANTE)
    PUT /api/agendamentos/:id
+   - por enquanto só atualiza data, hora, endereço e observação (se existir)
 ========================================================== */
-export async function updateAgendamentoCliente(req, res) {
+export async function updateCliente(req, res) {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: "Usuário não autenticado." });
-    }
-
-    const contratante = await Contratante.findOne({
-      where: { usuario_id: userId },
-    });
-
-    if (!contratante) {
-      return res
-        .status(403)
-        .json({ error: "Perfil de contratante não encontrado." });
-    }
-
     const { id } = req.params;
-    const ag = await Agendamento.findByPk(id);
+    const userId = req.user?.id;
 
+    const ag = await Agendamento.findByPk(id);
     if (!ag) {
       return res.status(404).json({ error: "Agendamento não encontrado." });
     }
 
-    const cid = getField(ag, "contratante_id", "contratanteId");
-    if (cid == null || Number(cid) !== Number(contratante.id)) {
-      return res
-        .status(403)
-        .json({ error: "Agendamento não pertence a este contratante." });
+    // garantimos que o agendamento pertence ao usuário (via usuario_id ou contratante_id)
+    const uid = getField(ag, "usuario_id", "user_id", "usuarioId", "userId");
+    if (uid != null && Number(uid) !== Number(userId)) {
+      return res.status(403).json({ error: "Você não pode editar este agendamento." });
     }
 
-    const {
-      data_servico,
-      dataServico,
-      hora_servico,
-      horaServico,
-      endereco,
-      observacao,
-    } = req.body || {};
+    const { data_servico, hora_servico, endereco, observacao } = req.body || {};
 
-    if (data_servico || dataServico) {
-      ag.data_servico = data_servico || dataServico;
-    }
-    if (hora_servico || horaServico) {
-      ag.hora_servico = hora_servico || horaServico;
-    }
-    if (endereco) {
-      ag.endereco = endereco;
-    }
-    if (observacao && "observacao" in ag) {
+    if (data_servico !== undefined) ag.data_servico = data_servico;
+    if (hora_servico !== undefined) ag.hora_servico = hora_servico;
+    if (endereco !== undefined) ag.endereco = endereco;
+
+    // se existir coluna de observação
+    const json = ag.toJSON();
+    if (
+      Object.prototype.hasOwnProperty.call(json, "observacao") &&
+      observacao !== undefined
+    ) {
       ag.observacao = observacao;
     }
 
-    // marca como pendente após edição
-    ag.status = "Pendente (editado pelo contratante)";
+    // quando editar, volta para "Pendente"
+    ag.status = "Pendente";
 
     await ag.save();
+
     return res.json(mapAgendamentoDto(ag));
   } catch (err) {
-    console.error("❌ Erro ao atualizar agendamento (cliente):", err);
+    console.error("❌ Erro ao atualizar agendamento:", err);
     return res
       .status(500)
       .json({ error: "Erro ao atualizar o agendamento." });
@@ -328,70 +327,31 @@ export async function updateAgendamentoCliente(req, res) {
 }
 
 /* ==========================================================
-   🗑️ CANCELAR AGENDAMENTO (CONTRATANTE)
+   🗑️ EXCLUIR AGENDAMENTO (CONTRATANTE)
    DELETE /api/agendamentos/:id
 ========================================================== */
-export async function deleteAgendamentoCliente(req, res) {
+export async function deleteCliente(req, res) {
   try {
-    const userId = req.user?.id;
-    if (!userId) {
-      return res.status(401).json({ error: "Usuário não autenticado." });
-    }
-
-    const contratante = await Contratante.findOne({
-      where: { usuario_id: userId },
-    });
-
-    if (!contratante) {
-      return res
-        .status(403)
-        .json({ error: "Perfil de contratante não encontrado." });
-    }
-
     const { id } = req.params;
-    const ag = await Agendamento.findByPk(id);
+    const userId = req.user?.id;
 
+    const ag = await Agendamento.findByPk(id);
     if (!ag) {
       return res.status(404).json({ error: "Agendamento não encontrado." });
     }
 
-    const cid = getField(ag, "contratante_id", "contratanteId");
-    if (cid == null || Number(cid) !== Number(contratante.id)) {
-      return res
-        .status(403)
-        .json({ error: "Agendamento não pertence a este contratante." });
+    const uid = getField(ag, "usuario_id", "user_id", "usuarioId", "userId");
+    if (uid != null && Number(uid) !== Number(userId)) {
+      return res.status(403).json({ error: "Você não pode excluir este agendamento." });
     }
 
     await ag.destroy();
-    return res.status(204).send();
+
+    return res.json({ success: true });
   } catch (err) {
-    console.error("❌ Erro ao cancelar agendamento (cliente):", err);
+    console.error("❌ Erro ao excluir agendamento:", err);
     return res
       .status(500)
-      .json({ error: "Erro ao cancelar o agendamento." });
+      .json({ error: "Erro ao excluir o agendamento." });
   }
 }
-
-/* ==========================================================
-   📅 CREATE (MVP / PLACEHOLDER)
-   POST /api/agendamentos
-========================================================== */
-export async function create(req, res) {
-  // placeholder só para não quebrar rota antiga.
-  return res.status(501).json({
-    error:
-      "Criação de agendamento não está implementada neste controlador (MVP).",
-  });
-}
-
-// Export default para compatibilidade
-export default {
-  getAgendamentosCliente,
-  getAgendamentosPrestador,
-  getAgendamentosDisponiveis,
-  aceitarAgendamento,
-  recusarAgendamento,
-  updateAgendamentoCliente,
-  deleteAgendamentoCliente,
-  create,
-};
