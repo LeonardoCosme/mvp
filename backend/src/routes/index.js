@@ -73,29 +73,55 @@ router.get("/tipos-servico", Cat.listTipos);
    📅 AGENDAMENTOS
 ========================================================== */
 
-// criação (se existir no controller)
+// criação de agendamento (se a função existir nesse controller)
 if (typeof Ag.create === "function") {
   router.post("/agendamentos", authenticate, Ag.create);
+} else {
+  console.warn("⚠️ Rota Ag.create não encontrada (POST /agendamentos).");
 }
 
-// 👤 AGENDAMENTOS DO CONTRATANTE LOGADO
-router.get("/agendamentos/cliente", authenticate, Ag.listCliente);
+// CONTRATANTE – meus agendamentos
+router.get(
+  "/agendamentos/cliente",
+  authenticate,
+  Ag.getAgendamentosCliente
+);
 
-// 🧰 AGENDAMENTOS DO PRESTADOR LOGADO (meus agendamentos)
-router.get("/agendamentos/prestador", authenticate, Ag.listPrestador);
+// PRESTADOR – meus agendamentos
+router.get(
+  "/agendamentos/prestador",
+  authenticate,
+  Ag.getAgendamentosPrestador
+);
 
-// 🧰 SERVIÇOS DISPONÍVEIS PARA PRESTADOR
-router.get("/agendamentos/disponiveis", authenticate, Ag.listDisponiveis);
+// PRESTADOR – serviços disponíveis
+router.get(
+  "/agendamentos/disponiveis",
+  authenticate,
+  Ag.getAgendamentosDisponiveis
+);
 
-// ✅ ACEITAR / ❌ RECUSAR
-router.post("/agendamentos/:id/aceitar", authenticate, Ag.accept);
-router.post("/agendamentos/:id/recusar", authenticate, Ag.decline);
+// ACEITAR / RECUSAR
+router.post(
+  "/agendamentos/:id/aceitar",
+  authenticate,
+  Ag.aceitarAgendamento
+);
 
-// ✏️ EDITAR / 🗑️ EXCLUIR (CONTRATANTE)
-router.put("/agendamentos/:id", authenticate, Ag.updateCliente);
-router.delete("/agendamentos/:id", authenticate, Ag.deleteCliente);
+router.post(
+  "/agendamentos/:id/recusar",
+  authenticate,
+  Ag.recusarAgendamento
+);
 
-/* ✅ QR Code / Scan – só se existirem no controller */
+// EDITAR (contratante)
+router.put(
+  "/agendamentos/:id",
+  authenticate,
+  Ag.updateAgendamento
+);
+
+/* ✅ QR Code / Scan — só registra se existir no controller */
 if (typeof Ag.qrcode === "function") {
   router.get("/agendamentos/:id/qrcode", authenticate, Ag.qrcode);
 } else {
@@ -112,6 +138,7 @@ if (typeof Ag.scan === "function") {
    ⭐ AVALIAÇÕES
 ========================================================== */
 router.post("/avaliacoes", authenticate, Aval.create);
+
 if (typeof Aval.resumoPrestador === "function") {
   router.get(
     "/avaliacoes/resumo/:prestadorId",
