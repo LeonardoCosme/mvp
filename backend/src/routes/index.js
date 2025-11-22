@@ -73,81 +73,92 @@ router.get("/tipos-servico", Cat.listTipos);
    📅 AGENDAMENTOS
 ========================================================== */
 
-// 🔹 Criar agendamento (só registra se a função existir)
+/** Criar agendamento (se a função existir no controller) */
 if (typeof Ag.create === "function") {
   router.post("/agendamentos", authenticate, Ag.create);
+} else {
+  console.warn("⚠️ Rota Ag.create não encontrada (POST /agendamentos).");
 }
 
-// 🔹 Agendamentos do cliente (tela do contratante)
+/** Agendamentos do CONTRATANTE logado */
 if (typeof Ag.getAgendamentosCliente === "function") {
   router.get(
     "/agendamentos/cliente",
     authenticate,
     Ag.getAgendamentosCliente
   );
-} else if (typeof Ag.listCliente === "function") {
-  // fallback caso esteja usando controller antigo em algum ambiente
-  router.get("/agendamentos/cliente", authenticate, Ag.listCliente);
+} else {
+  console.warn(
+    "⚠️ Rota Ag.getAgendamentosCliente não encontrada (GET /agendamentos/cliente)."
+  );
 }
 
-// 🔹 Agendamentos do prestador (meus agendamentos)
+/** Agendamentos do PRESTADOR logado */
 if (typeof Ag.getAgendamentosPrestador === "function") {
   router.get(
     "/agendamentos/prestador",
     authenticate,
     Ag.getAgendamentosPrestador
   );
-} else if (typeof Ag.listPrestador === "function") {
-  router.get("/agendamentos/prestador", authenticate, Ag.listPrestador);
-}
-
-// 🔹 Agendamentos pendentes (se ainda existir no controller antigo)
-if (typeof Ag.listPrestadorPendentes === "function") {
-  router.get(
-    "/agendamentos/pendentes",
-    authenticate,
-    Ag.listPrestadorPendentes
+} else {
+  console.warn(
+    "⚠️ Rota Ag.getAgendamentosPrestador não encontrada (GET /agendamentos/prestador)."
   );
 }
 
-// 🔹 Serviços disponíveis para o prestador aceitar
+/** Serviços disponíveis para o prestador (status pendente/aguardando/etc.) */
 if (typeof Ag.getAgendamentosDisponiveis === "function") {
   router.get(
     "/agendamentos/disponiveis",
     authenticate,
     Ag.getAgendamentosDisponiveis
   );
+} else {
+  console.warn(
+    "⚠️ Rota Ag.getAgendamentosDisponiveis não encontrada (GET /agendamentos/disponiveis)."
+  );
 }
 
-// 🔹 Aceitar agendamento
+/** Aceitar agendamento */
 if (typeof Ag.aceitarAgendamento === "function") {
   router.post(
     "/agendamentos/:id/aceitar",
     authenticate,
     Ag.aceitarAgendamento
   );
-} else if (typeof Ag.accept === "function") {
-  // fallback para nome antigo
-  router.post("/agendamentos/:id/aceitar", authenticate, Ag.accept);
+} else {
+  console.warn(
+    "⚠️ Rota Ag.aceitarAgendamento não encontrada (POST /agendamentos/:id/aceitar)."
+  );
 }
 
-// 🔹 Recusar agendamento
+/** Recusar agendamento */
 if (typeof Ag.recusarAgendamento === "function") {
   router.post(
     "/agendamentos/:id/recusar",
     authenticate,
     Ag.recusarAgendamento
   );
+} else {
+  console.warn(
+    "⚠️ Rota Ag.recusarAgendamento não encontrada (POST /agendamentos/:id/recusar)."
+  );
 }
 
-// ✅ NOVA ROTA PARA EDIÇÃO PELO CONTRATANTE
-router.put(
-  "/agendamentos/:id",
-  authenticate,
-  Ag.updateAgendamentoContratante
-);
+/** Atualizar agendamento (edição pelo CONTRATANTE) */
+if (typeof Ag.atualizarAgendamentoCliente === "function") {
+  router.put(
+    "/agendamentos/:id",
+    authenticate,
+    Ag.atualizarAgendamentoCliente
+  );
+} else {
+  console.warn(
+    "⚠️ Rota Ag.atualizarAgendamentoCliente não encontrada (PUT /agendamentos/:id)."
+  );
+}
 
-/* ✅ QR Code / Scan – mantidos só se existirem no controller atual */
+/** QRCode / Scan – apenas se existirem no controller */
 if (typeof Ag.qrcode === "function") {
   router.get("/agendamentos/:id/qrcode", authenticate, Ag.qrcode);
 } else {
