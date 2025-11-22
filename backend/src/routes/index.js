@@ -2,7 +2,7 @@
 import express from "express";
 import authenticate from "../middleware/authenticate.js";
 
-// Controllers
+// Controllers (ESM)
 import * as Auth from "../controllers/auth_Controller.js";
 import * as User from "../controllers/user_controller.js";
 import * as Password from "../controllers/password_controller.js";
@@ -16,7 +16,7 @@ import * as Historico from "../controllers/historico_controller.js";
 const router = express.Router();
 
 /* ==========================================================
-   🔹 LOG DE ROTAS (apenas desenvolvimento)
+   🔹 LOG DE ROTAS — apenas em desenvolvimento
 ========================================================== */
 if (process.env.NODE_ENV !== "production") {
   console.log("🔹 Rotas carregadas:");
@@ -44,7 +44,7 @@ router.post("/auth/forgot-password", Auth.forgotPassword);
 router.get("/user/me", authenticate, User.me);
 
 /* ==========================================================
-   🔑 RECUPERAÇÃO DE SENHA (antigo)
+   🔑 RECUPERAÇÃO DE SENHA (legado)
 ========================================================== */
 if (Password?.forgotPassword && Password?.resetPassword) {
   router.post("/user/forgot-password", Password.forgotPassword);
@@ -52,56 +52,51 @@ if (Password?.forgotPassword && Password?.resetPassword) {
 }
 
 /* ==========================================================
-   🧰 PRESTADOR
+   🧰 PRESTADOR / CONTRATANTE
 ========================================================== */
 router.get("/prestador/me", authenticate, Prest.me);
 router.post("/prestador", authenticate, Prest.save);
 
-/* ==========================================================
-   🧾 CONTRATANTE
-========================================================== */
 router.post("/contratante", authenticate, Contr.save);
 
 /* ==========================================================
-   📚 CATÁLOGO
+   📚 CATÁLOGO DE SERVIÇOS
 ========================================================== */
 router.get("/tipos-servico", Cat.listTipos);
 
 /* ==========================================================
    📅 AGENDAMENTOS
 ========================================================== */
-
-// Criar agendamento (contratante)
-router.post("/agendamentos", authenticate, Ag.create);
-
-// Meus agendamentos – contratante
+// Cliente (contratante)
 router.get("/agendamentos/cliente", authenticate, Ag.listCliente);
 
-// Meus agendamentos – prestador
+// Prestador – meus agendamentos
 router.get("/agendamentos/prestador", authenticate, Ag.listPrestador);
 
-// Serviços disponíveis para prestador
+// Prestador – serviços disponíveis
 router.get("/agendamentos/disponiveis", authenticate, Ag.listDisponiveis);
 
-// Editar agendamento (contratante)
-router.put("/agendamentos/:id", authenticate, Ag.update);
-
-// Excluir agendamento (contratante)
-router.delete("/agendamentos/:id", authenticate, Ag.remove);
-
-// Aceitar / Recusar (prestador)
+// Aceitar / Recusar
 router.post("/agendamentos/:id/aceitar", authenticate, Ag.accept);
-router.post("/agendamentos/:id/recusar", authenticate, Ag.recusar);
+router.post("/agendamentos/:id/recusar", authenticate, Ag.reject);
 
-// QRCode (placeholders)
-router.get("/agendamentos/:id/qrcode", authenticate, Ag.qrcode);
-router.post("/agendamentos/:id/scan", authenticate, Ag.scan);
+// QRCode / Scan – só registra se existirem no controller atual
+if (typeof Ag.qrcode === "function") {
+  router.get("/agendamentos/:id/qrcode", authenticate, Ag.qrcode);
+} else {
+  console.warn("⚠️ Rota Ag.qrcode não encontrada (opcional).");
+}
+
+if (typeof Ag.scan === "function") {
+  router.post("/agendamentos/:id/scan", authenticate, Ag.scan);
+} else {
+  console.warn("⚠️ Rota Ag.scan não encontrada (opcional).");
+}
 
 /* ==========================================================
    ⭐ AVALIAÇÕES
 ========================================================== */
 router.post("/avaliacoes", authenticate, Aval.create);
-
 if (typeof Aval.resumoPrestador === "function") {
   router.get(
     "/avaliacoes/resumo/:prestadorId",

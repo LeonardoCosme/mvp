@@ -50,6 +50,9 @@ export default function AgendamentoPage() {
   const [erro, setErro] = useState('');
   const [acaoCarregando, setAcaoCarregando] = useState<number | null>(null);
 
+  // --------------------------------------------------
+  // Descobre perfil e carrega dados iniciais
+  // --------------------------------------------------
   useEffect(() => {
     if (!getToken()) {
       router.push('/login?next=/agendamento');
@@ -67,8 +70,21 @@ export default function AgendamentoPage() {
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
-        const isContratante = !!user?.Contratante;
-        const isPrestador = !!user?.Prestador;
+        console.log('DEBUG /user/me =>', user);
+
+        const tipoBruto: string = (
+          user?.tipo ||
+          user?.tipoUsuario ||
+          ''
+        )
+          .toString()
+          .toLowerCase()
+          .trim();
+
+        const isContratante =
+          tipoBruto === 'contratante' || !!(user && user.Contratante);
+        const isPrestador =
+          tipoBruto === 'prestador' || !!(user && user.Prestador);
 
         const perfilDetectado: Perfil = isContratante
           ? 'Contratante'
@@ -76,7 +92,7 @@ export default function AgendamentoPage() {
           ? 'Prestador'
           : 'Usuário';
 
-        console.log('DEBUG /user/me =>', user);
+        console.log('DEBUG tipoBruto =>', tipoBruto);
         console.log('DEBUG perfilDetectado =>', perfilDetectado);
 
         setPerfil(perfilDetectado);
@@ -86,6 +102,7 @@ export default function AgendamentoPage() {
           const lista = (await apiFetch(
             '/agendamentos/cliente'
           )) as AgendamentoResumo[];
+
           if (!cancelado) {
             setAgendamentos(Array.isArray(lista) ? lista : []);
             setDisponiveis([]);
@@ -132,6 +149,21 @@ export default function AgendamentoPage() {
     };
   }, [router]);
 
+  // --------------------------------------------------
+  // Funções auxiliares (prestador)
+  // --------------------------------------------------
+  async function carregarMeusAgendamentosSePrestador() {
+    if (perfil !== 'Prestador') return;
+    try {
+      const meus = (await apiFetch(
+        '/agendamentos/prestador'
+      )) as AgendamentoResumo[];
+      setAgendamentos(Array.isArray(meus) ? meus : []);
+    } catch (err) {
+      console.error('❌ Erro ao recarregar agendamentos do prestador:', err);
+    }
+  }
+
   async function handleAceitar(id: number) {
     try {
       setAcaoCarregando(id);
@@ -139,15 +171,11 @@ export default function AgendamentoPage() {
         method: 'POST',
       });
 
-      // Atualiza listas no estado
+      // Remove da lista de disponíveis
       setDisponiveis((lista) => lista.filter((item) => item.id !== id));
-      setAgendamentos((lista) => {
-        // força recarregar meus agendamentos chamando a API de prestador
-        // mas para não refazer tudo, só retornamos lista antiga;
-        // o useEffect não é reexecutado, então fazemos um "refresh" manual:
-        carregarMeusAgendamentosSePrestador();
-        return lista;
-      });
+
+      // Recarrega "Meus agendamentos" do prestador
+      await carregarMeusAgendamentosSePrestador();
     } catch (err: any) {
       console.error('❌ Erro ao aceitar agendamento:', err);
       alert(
@@ -182,20 +210,9 @@ export default function AgendamentoPage() {
     }
   }
 
-  async function carregarMeusAgendamentosSePrestador() {
-    if (perfil !== 'Prestador') return;
-    try {
-      const meus = (await apiFetch(
-        '/agendamentos/prestador'
-      )) as AgendamentoResumo[];
-      setAgendamentos(Array.isArray(meus) ? meus : []);
-    } catch (err) {
-      console.error('❌ Erro ao recarregar agendamentos do prestador:', err);
-    }
-  }
-
-  // ------------ CONTRATANTE: EDITAR / CANCELAR ------------
-
+  // --------------------------------------------------
+  // CONTRATANTE: EDITAR / CANCELAR
+  // --------------------------------------------------
   function podeEditarOuCancelar(status: string) {
     const st = (status || '').toLowerCase();
     return (
@@ -225,10 +242,7 @@ export default function AgendamentoPage() {
         ag.endereco || ''
       );
 
-      const observacao = window.prompt(
-        'Observação (opcional):',
-        ''
-      );
+      const observacao = window.prompt('Observação (opcional):', '');
 
       const body: any = {
         data_servico: novaData,
@@ -246,7 +260,6 @@ export default function AgendamentoPage() {
         body: JSON.stringify(body),
       })) as AgendamentoResumo;
 
-      // atualiza no estado
       setAgendamentos((lista) =>
         lista.map((item) => (item.id === ag.id ? atualizado : item))
       );
@@ -264,9 +277,7 @@ export default function AgendamentoPage() {
 
   async function handleCancelarAgendamento(ag: AgendamentoResumo) {
     if (
-      !window.confirm(
-        `Tem certeza que deseja cancelar o serviço #${ag.id}?`
-      )
+      !window.confirm(`Tem certeza que deseja cancelar o serviço #${ag.id}?`)
     ) {
       return;
     }
@@ -289,6 +300,9 @@ export default function AgendamentoPage() {
     }
   }
 
+  // --------------------------------------------------
+  // RENDER
+  // --------------------------------------------------
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#4b2506] to-[#2b1304] pb-16">
       <section className="pt-24">

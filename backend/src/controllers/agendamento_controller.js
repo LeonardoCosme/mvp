@@ -3,18 +3,18 @@ import db from "../models/index.js";
 
 const { Agendamento, Contratante, Prestador } = db;
 
-/* ==========================================================
-   🔧 Helpers
-========================================================== */
-
-// Lê um campo tentando vários nomes possíveis
+/**
+ * Helper genérico para ler campos com nomes diferentes (data_servico, dataServico, etc.)
+ */
 function getField(instance, ...names) {
   if (!instance) return null;
 
   for (const name of names) {
-    if (name in instance && instance[name] != null) {
+    // acesso direto (a.campo)
+    if (Object.prototype.hasOwnProperty.call(instance, name) && instance[name] != null) {
       return instance[name];
     }
+    // acesso via .get() do Sequelize
     if (typeof instance.get === "function") {
       const v = instance.get(name);
       if (v != null) return v;
@@ -23,15 +23,17 @@ function getField(instance, ...names) {
   return null;
 }
 
-// Converte um registro do banco para o formato que o front espera
-function toDto(a) {
+/**
+ * DTO enviado para o frontend
+ */
+function mapAgendamentoDto(a) {
   if (!a) return null;
 
   const data = getField(a, "data_servico", "dataServico", "data");
   const hora = getField(a, "hora_servico", "horaServico", "hora");
   const tipoNome = getField(a, "tipo_nome", "tipoNome", "nome_tipo");
   const endereco = getField(a, "endereco");
-  const status = getField(a, "status") || "";
+  const status = (getField(a, "status") || "").toString();
 
   return {
     id: a.id,
@@ -44,8 +46,9 @@ function toDto(a) {
 }
 
 /* ==========================================================
-   👤 CONTRATANTE – MEUS AGENDAMENTOS
+   👤 CLIENTE (CONTRATANTE)
    GET /api/agendamentos/cliente
+   - Lista só agendamentos do contratante logado
 ========================================================== */
 export async function listCliente(req, res) {
   try {
@@ -59,25 +62,33 @@ export async function listCliente(req, res) {
     });
 
     if (!contratante) {
-      console.log("DEBUG listCliente: nenhum contratante para usuario", userId);
       return res
         .status(403)
         .json({ error: "Perfil de contratante não encontrado." });
     }
 
-    const registros = await Agendamento.findAll({
-      where: { contratante_id: contratante.id },
-      order: [
-        ["data_servico", "DESC"],
-        ["hora_servico", "DESC"],
-      ],
+    const todos = await Agendamento.findAll({
+      order: [["id", "ASC"]],
     });
 
-    console.log(
-      `DEBUG listCliente: usuario=${userId}, contratante=${contratante.id}, registros=${registros.length}`
-    );
+    const filtrados = todos.filter((a) => {
+      const cid = getField(a, "contratante_id", "contratanteId");
+      return cid != null && String(cid) === String(contratante.id);
+    });
 
-    return res.json(registros.map(toDto));
+    // DEBUG no log do Railway para conferirmos
+    console.log("[AGENDAMENTOS][CLIENTE]", {
+      userId,
+      contratanteId: contratante.id,
+      total: todos.length,
+      filtrados: filtrados.map((x) => ({
+        id: x.id,
+        contratante_id: getField(x, "contratante_id", "contratanteId"),
+        status: getField(x, "status"),
+      })),
+    });
+
+    return res.json(filtrados.map(mapAgendamentoDto));
   } catch (err) {
     console.error("❌ Erro ao listar agendamentos (cliente):", err);
     return res
@@ -89,6 +100,7 @@ export async function listCliente(req, res) {
 /* ==========================================================
    🧰 PRESTADOR – MEUS AGENDAMENTOS
    GET /api/agendamentos/prestador
+   - Lista agendamentos que foram aceitos por este prestador
 ========================================================== */
 export async function listPrestador(req, res) {
   try {
@@ -102,25 +114,32 @@ export async function listPrestador(req, res) {
     });
 
     if (!prestador) {
-      console.log("DEBUG listPrestador: nenhum prestador para usuario", userId);
       return res
         .status(403)
         .json({ error: "Perfil de prestador não encontrado." });
     }
 
-    const registros = await Agendamento.findAll({
-      where: { prestador_id: prestador.id },
-      order: [
-        ["data_servico", "DESC"],
-        ["hora_servico", "DESC"],
-      ],
+    const todos = await Agendamento.findAll({
+      order: [["id", "DESC"]], // mais recentes primeiro
     });
 
-    console.log(
-      `DEBUG listPrestador: usuario=${userId}, prestador=${prestador.id}, registros=${registros.length}`
-    );
+    const filtrados = todos.filter((a) => {
+      const pid = getField(a, "prestador_id", "prestadorId");
+      return pid != null && String(pid) === String(prestador.id);
+    });
 
-    return res.json(registros.map(toDto));
+    console.log("[AGENDAMENTOS][PRESTADOR-MEUS]", {
+      userId,
+      prestadorId: prestador.id,
+      total: todos.length,
+      filtrados: filtrados.map((x) => ({
+        id: x.id,
+        prestador_id: getField(x, "prestador_id", "prestadorId"),
+        status: getField(x, "status"),
+      })),
+    });
+
+    return res.json(filtrados.map(mapAgendamentoDto));
   } catch (err) {
     console.error("❌ Erro ao listar agendamentos (prestador):", err);
     return res
@@ -132,8 +151,8 @@ export async function listPrestador(req, res) {
 /* ==========================================================
    🧰 PRESTADOR – SERVIÇOS DISPONÍVEIS
    GET /api/agendamentos/disponiveis
-   - Mostra apenas agendamentos em status "aberto"
-   - (pendente/aguardando/disponível) e SEM prestador_id
+   - Mostra agendamentos ainda não assumidos por nenhum prestador
+     com status pendente/aguardando/disponível
 ========================================================== */
 export async function listDisponiveis(req, res) {
   try {
@@ -147,18 +166,13 @@ export async function listDisponiveis(req, res) {
     });
 
     if (!prestador) {
-      console.log("DEBUG listDisponiveis: nenhum prestador para usuario", userId);
       return res
         .status(403)
         .json({ error: "Perfil de prestador não encontrado." });
     }
 
-    const registros = await Agendamento.findAll({
-      where: { prestador_id: null },
-      order: [
-        ["data_servico", "ASC"],
-        ["hora_servico", "ASC"],
-      ],
+    const todos = await Agendamento.findAll({
+      order: [["id", "ASC"]],
     });
 
     const statusAbertos = [
@@ -169,16 +183,26 @@ export async function listDisponiveis(req, res) {
       "pendente",
     ];
 
-    const filtrados = registros.filter((a) => {
+    const filtrados = todos.filter((a) => {
       const status = (getField(a, "status") || "").toLowerCase().trim();
-      return statusAbertos.includes(status);
+      const pid = getField(a, "prestador_id", "prestadorId");
+      return (
+        pid == null && status && statusAbertos.includes(status)
+      ); // ainda sem prestador
     });
 
-    console.log(
-      `DEBUG listDisponiveis: usuario=${userId}, prestador=${prestador.id}, total=${registros.length}, abertos=${filtrados.length}`
-    );
+    console.log("[AGENDAMENTOS][DISPONIVEIS]", {
+      userId,
+      prestadorId: prestador.id,
+      total: todos.length,
+      filtrados: filtrados.map((x) => ({
+        id: x.id,
+        status: getField(x, "status"),
+        prestador_id: getField(x, "prestador_id", "prestadorId"),
+      })),
+    });
 
-    return res.json(filtrados.map(toDto));
+    return res.json(filtrados.map(mapAgendamentoDto));
   } catch (err) {
     console.error("❌ Erro ao listar serviços disponíveis:", err);
     return res
@@ -188,165 +212,18 @@ export async function listDisponiveis(req, res) {
 }
 
 /* ==========================================================
-   ➕ CRIAR AGENDAMENTO (CONTRATANTE)
-   POST /api/agendamentos
+   ✅ ACEITAR AGENDAMENTO
+   POST /api/agendamentos/:id/aceitar
+   - Marca como "Aceita" e vincula ao prestador logado
 ========================================================== */
-export async function create(req, res) {
+export async function accept(req, res) {
   try {
+    const { id } = req.params;
+
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json({ error: "Usuário não autenticado." });
     }
-
-    const contratante = await Contratante.findOne({
-      where: { usuario_id: userId },
-    });
-
-    if (!contratante) {
-      return res
-        .status(403)
-        .json({ error: "Perfil de contratante não encontrado." });
-    }
-
-    const {
-      tipo_servico_id,
-      descricao,
-      data_servico,
-      hora_servico,
-      duracao,
-      endereco,
-    } = req.body;
-
-    const novo = await Agendamento.create({
-      contratante_id: contratante.id,
-      prestador_id: null,
-      tipo_servico_id,
-      descricao,
-      data_servico,
-      hora_servico,
-      duracao,
-      endereco,
-      status: "pendente",
-    });
-
-    console.log(
-      `DEBUG create: usuario=${userId}, contratante=${contratante.id}, agendamento=${novo.id}`
-    );
-
-    return res.status(201).json(toDto(novo));
-  } catch (err) {
-    console.error("❌ Erro ao criar agendamento:", err);
-    return res.status(500).json({ error: "Erro ao criar agendamento." });
-  }
-}
-
-/* ==========================================================
-   ✏️ EDITAR AGENDAMENTO (CONTRATANTE)
-   PUT /api/agendamentos/:id
-========================================================== */
-export async function update(req, res) {
-  try {
-    const userId = req.user?.id;
-    const { id } = req.params;
-
-    const contratante = await Contratante.findOne({
-      where: { usuario_id: userId },
-    });
-
-    if (!contratante) {
-      return res
-        .status(403)
-        .json({ error: "Perfil de contratante não encontrado." });
-    }
-
-    const ag = await Agendamento.findByPk(id);
-    if (!ag || ag.contratante_id !== contratante.id) {
-      return res.status(404).json({ error: "Agendamento não encontrado." });
-    }
-
-    // Se já está aceito/concluído, não deixa editar
-    const statusAtual = (ag.status || "").toLowerCase().trim();
-    if (["aceita", "aceito", "concluida", "concluída"].includes(statusAtual)) {
-      return res
-        .status(400)
-        .json({ error: "Não é possível editar um agendamento já aceito." });
-    }
-
-    const {
-      descricao,
-      data_servico,
-      hora_servico,
-      duracao,
-      endereco,
-    } = req.body;
-
-    if (descricao !== undefined) ag.descricao = descricao;
-    if (data_servico !== undefined) ag.data_servico = data_servico;
-    if (hora_servico !== undefined) ag.hora_servico = hora_servico;
-    if (duracao !== undefined) ag.duracao = duracao;
-    if (endereco !== undefined) ag.endereco = endereco;
-
-    // sempre volta a ser pendente após edição
-    ag.status = "pendente";
-
-    await ag.save();
-
-    console.log(
-      `DEBUG update: usuario=${userId}, contratante=${contratante.id}, agendamento=${ag.id}`
-    );
-
-    return res.json(toDto(ag));
-  } catch (err) {
-    console.error("❌ Erro ao editar agendamento:", err);
-    return res.status(500).json({ error: "Erro ao editar agendamento." });
-  }
-}
-
-/* ==========================================================
-   🗑️ EXCLUIR AGENDAMENTO (CONTRATANTE)
-   DELETE /api/agendamentos/:id
-========================================================== */
-export async function remove(req, res) {
-  try {
-    const userId = req.user?.id;
-    const { id } = req.params;
-
-    const contratante = await Contratante.findOne({
-      where: { usuario_id: userId },
-    });
-
-    if (!contratante) {
-      return res
-        .status(403)
-        .json({ error: "Perfil de contratante não encontrado." });
-    }
-
-    const ag = await Agendamento.findByPk(id);
-    if (!ag || ag.contratante_id !== contratante.id) {
-      return res.status(404).json({ error: "Agendamento não encontrado." });
-    }
-
-    await ag.destroy();
-
-    console.log(
-      `DEBUG remove: usuario=${userId}, contratante=${contratante.id}, agendamento=${id}`
-    );
-
-    return res.json({ success: true });
-  } catch (err) {
-    console.error("❌ Erro ao remover agendamento:", err);
-    return res.status(500).json({ error: "Erro ao remover agendamento." });
-  }
-}
-
-/* ==========================================================
-   ✅ ACEITAR (PRESTADOR)
-   POST /api/agendamentos/:id/aceitar
-========================================================== */
-export async function accept(req, res) {
-  try {
-    const userId = req.user?.id;
-    const { id } = req.params;
 
     const prestador = await Prestador.findOne({
       where: { usuario_id: userId },
@@ -363,46 +240,53 @@ export async function accept(req, res) {
       return res.status(404).json({ error: "Agendamento não encontrado." });
     }
 
-    // só deixa aceitar se ainda estiver aberto
-    const statusAtual = (ag.status || "").toLowerCase().trim();
-    if (!["pendente", "aguardando", "disponivel", "disponível"].includes(statusAtual)) {
-      return res.status(400).json({ error: "Agendamento já não está disponível." });
+    // Se já tiver prestador associado e não for este, não deixa assumir
+    const jaTemPrestador = getField(ag, "prestador_id", "prestadorId");
+    if (
+      jaTemPrestador != null &&
+      String(jaTemPrestador) !== String(prestador.id)
+    ) {
+      return res.status(409).json({
+        error: "Este serviço já foi aceito por outro prestador.",
+      });
     }
 
+    // vincula ao prestador logado
     ag.prestador_id = prestador.id;
+    if (typeof ag.set === "function") {
+      ag.set("prestador_id", prestador.id);
+    }
+
     ag.status = "aceita";
+    if (typeof ag.set === "function") {
+      ag.set("status", "aceita");
+    }
 
     await ag.save();
 
-    console.log(
-      `DEBUG accept: usuario=${userId}, prestador=${prestador.id}, agendamento=${ag.id}`
-    );
+    console.log("[AGENDAMENTOS][ACEITAR]", {
+      id: ag.id,
+      prestadorId: prestador.id,
+      status: ag.status,
+    });
 
-    return res.json(toDto(ag));
+    return res.json(mapAgendamentoDto(ag));
   } catch (err) {
     console.error("❌ Erro ao aceitar agendamento:", err);
-    return res.status(500).json({ error: "Erro ao aceitar o agendamento." });
+    return res
+      .status(500)
+      .json({ error: "Erro ao aceitar o agendamento." });
   }
 }
 
 /* ==========================================================
-   ❌ RECUSAR (PRESTADOR)
+   ❌ RECUSAR AGENDAMENTO
    POST /api/agendamentos/:id/recusar
+   - Marca como "Recusada" (não vincula prestador)
 ========================================================== */
-export async function recusar(req, res) {
+export async function reject(req, res) {
   try {
-    const userId = req.user?.id;
     const { id } = req.params;
-
-    const prestador = await Prestador.findOne({
-      where: { usuario_id: userId },
-    });
-
-    if (!prestador) {
-      return res
-        .status(403)
-        .json({ error: "Perfil de prestador não encontrado." });
-    }
 
     const ag = await Agendamento.findByPk(id);
     if (!ag) {
@@ -410,46 +294,31 @@ export async function recusar(req, res) {
     }
 
     ag.status = "recusada";
+    if (typeof ag.set === "function") {
+      ag.set("status", "recusada");
+    }
+
     await ag.save();
 
-    console.log(
-      `DEBUG recusar: usuario=${userId}, prestador=${prestador.id}, agendamento=${ag.id}`
-    );
+    console.log("[AGENDAMENTOS][RECUSAR]", {
+      id: ag.id,
+      status: ag.status,
+    });
 
-    return res.json(toDto(ag));
+    return res.json(mapAgendamentoDto(ag));
   } catch (err) {
     console.error("❌ Erro ao recusar agendamento:", err);
-    return res.status(500).json({ error: "Erro ao recusar o agendamento." });
+    return res
+      .status(500)
+      .json({ error: "Erro ao recusar o agendamento." });
   }
 }
 
-/* ==========================================================
-   🔳 QR CODE (placeholders por enquanto)
-========================================================== */
-export async function qrcode(_req, res) {
-  return res
-    .status(501)
-    .json({ error: "Funcionalidade de QR Code ainda não implementada." });
-}
-
-export async function scan(_req, res) {
-  return res
-    .status(501)
-    .json({ error: "Funcionalidade de leitura de QR Code ainda não implementada." });
-}
-
-/* ==========================================================
-   🔁 Export default para quem ainda usa import default
-========================================================== */
+// Export default para compatibilidade (import Ag from ...)
 export default {
-  create,
   listCliente,
   listPrestador,
   listDisponiveis,
-  update,
-  remove,
   accept,
-  recusar,
-  qrcode,
-  scan,
+  reject,
 };
