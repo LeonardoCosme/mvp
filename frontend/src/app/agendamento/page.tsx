@@ -21,7 +21,6 @@ type AgendamentoResumo = {
     nota?: number | null;
     comentario?: string | null;
   } | null;
-  // pode vir number ou string do backend
   duracao_horas?: number | string | null;
   start_usado?: boolean;
   end_usado?: boolean;
@@ -91,8 +90,22 @@ export default function AgendamentoPage() {
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
-        const isContratante = !!user?.Contratante;
-        const isPrestador = !!user?.Prestador;
+        console.log('DEBUG /user/me =>', user);
+
+        // --- NOVA DETECÇÃO DE PERFIL ---
+        const tipoBruto =
+          user?.tipo ?? user?.tipoUsuario ?? user?.perfil ?? '';
+
+        const tipoNorm = String(tipoBruto).toLowerCase().trim();
+        const hasContratanteObj = !!user?.Contratante || !!user?.contratante;
+        const hasPrestadorObj = !!user?.Prestador || !!user?.prestador;
+
+        const isContratante =
+          hasContratanteObj ||
+          tipoNorm === 'contratante' ||
+          tipoNorm === 'cliente';
+
+        const isPrestador = hasPrestadorObj || tipoNorm === 'prestador';
 
         const perfilDetectado: Perfil = isContratante
           ? 'Contratante'
@@ -100,7 +113,7 @@ export default function AgendamentoPage() {
           ? 'Prestador'
           : 'Usuário';
 
-        console.log('DEBUG /user/me =>', user);
+        console.log('DEBUG tipoBruto =>', tipoBruto);
         console.log('DEBUG perfilDetectado =>', perfilDetectado);
 
         setPerfil(perfilDetectado);
@@ -560,17 +573,13 @@ export default function AgendamentoPage() {
                       (statusLower.includes('aceita') ||
                         statusLower.includes('concluida'));
 
-                    // converte duracao_horas de forma segura
-                    let duracaoTexto: string | null = null;
-                    if (ag.duracao_horas !== null && ag.duracao_horas !== undefined) {
-                      const num =
-                        typeof ag.duracao_horas === 'number'
-                          ? ag.duracao_horas
-                          : Number(ag.duracao_horas);
-                      if (!Number.isNaN(num)) {
-                        duracaoTexto = num.toFixed(2);
-                      }
-                    }
+                    // trata duracao_horas como número, mesmo se vier string
+                    const duracaoNumero =
+                      typeof ag.duracao_horas === 'number'
+                        ? ag.duracao_horas
+                        : ag.duracao_horas
+                        ? Number(ag.duracao_horas)
+                        : null;
 
                     return (
                       <article
@@ -594,9 +603,9 @@ export default function AgendamentoPage() {
                               {ag.status.replace('_', ' ')}
                             </span>
                           </p>
-                          {duracaoTexto && (
+                          {duracaoNumero != null && !Number.isNaN(duracaoNumero) && (
                             <p className="text-xs text-gray-500 mt-0.5">
-                              Duração: {duracaoTexto} h
+                              Duração: {duracaoNumero.toFixed(2)} h
                             </p>
                           )}
                         </div>
@@ -678,41 +687,26 @@ export default function AgendamentoPage() {
 
                           {/* Prestador: ler QRs */}
                           {podeLerQrPrestador && (
-                            <div className="flex flex-col items-end gap-2 mt-1 w-full md:w-auto">
-                              <div className="flex flex-wrap gap-2 justify-end w-full">
-                                <button
-                                  type="button"
-                                  onClick={() => handleScanQr(ag, 'start')}
-                                  disabled={scanLoadingId === ag.id}
-                                  className="px-3 py-1.5 rounded-lg border border-blue-300 text-blue-700 text-xs font-semibold hover:bg-blue-50 disabled:opacity-60"
-                                >
-                                  {scanLoadingId === ag.id
-                                    ? 'Registrando início...'
-                                    : 'Ler QR de início'}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleScanQr(ag, 'end')}
-                                  disabled={scanLoadingId === ag.id}
-                                  className="px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 text-xs font-semibold hover:bg-purple-50 disabled:opacity-60"
-                                >
-                                  {scanLoadingId === ag.id
-                                    ? 'Registrando fim...'
-                                    : 'Ler QR de finalização'}
-                                </button>
-                              </div>
-
-                              {/* Placeholder para leitura por câmera */}
+                            <div className="flex flex-wrap gap-2 mt-1 justify-end w-full md:w-auto">
                               <button
                                 type="button"
-                                onClick={() =>
-                                  alert(
-                                    'Leitura direta pela câmera ainda será implementada.\nPor enquanto, use o leitor de QR do celular e cole o código no campo quando solicitado.'
-                                  )
-                                }
-                                className="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 text-[11px] font-medium hover:bg-gray-50"
+                                onClick={() => handleScanQr(ag, 'start')}
+                                disabled={scanLoadingId === ag.id}
+                                className="px-3 py-1.5 rounded-lg border border-blue-300 text-blue-700 text-xs font-semibold hover:bg-blue-50 disabled:opacity-60"
                               >
-                                Ler QR com câmera
+                                {scanLoadingId === ag.id
+                                  ? 'Registrando início...'
+                                  : 'Ler QR de início'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleScanQr(ag, 'end')}
+                                disabled={scanLoadingId === ag.id}
+                                className="px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 text-xs font-semibold hover:bg-purple-50 disabled:opacity-60"
+                              >
+                                {scanLoadingId === ag.id
+                                  ? 'Registrando fim...'
+                                  : 'Ler QR de finalização'}
                               </button>
                             </div>
                           )}
