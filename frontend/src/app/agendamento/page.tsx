@@ -91,18 +91,26 @@ export default function AgendamentoPage() {
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
-        const isContratante = !!user?.Contratante;
-        const isPrestador = !!user?.Prestador;
-
-        const perfilDetectado: Perfil = isContratante
-          ? 'Contratante'
-          : isPrestador
-          ? 'Prestador'
-          : 'Usuário';
-
         console.log('DEBUG /user/me =>', user);
-        console.log('DEBUG perfilDetectado =>', perfilDetectado);
 
+        // ------------ NOVA DETECÇÃO DE PERFIL ------------
+        const tipoBruto = (user?.tipo || '').toString().toLowerCase();
+        console.log('DEBUG tipoBruto =>', tipoBruto);
+
+        let perfilDetectado: Perfil = 'Usuário';
+
+        if (tipoBruto === 'contratante') {
+          perfilDetectado = 'Contratante';
+        } else if (tipoBruto === 'prestador') {
+          perfilDetectado = 'Prestador';
+        } else if (user?.Contratante) {
+          // fallback para formato antigo
+          perfilDetectado = 'Contratante';
+        } else if (user?.Prestador) {
+          perfilDetectado = 'Prestador';
+        }
+
+        console.log('DEBUG perfilDetectado =>', perfilDetectado);
         setPerfil(perfilDetectado);
 
         // 2) Busca agendamentos conforme o perfil
@@ -361,9 +369,7 @@ export default function AgendamentoPage() {
 
   async function handleCancelarAgendamento(ag: AgendamentoResumo) {
     if (
-      !window.confirm(
-        `Tem certeza que deseja cancelar o serviço #${ag.id}?`
-      )
+      !window.confirm(`Tem certeza que deseja cancelar o serviço #${ag.id}?`)
     ) {
       return;
     }
@@ -401,9 +407,7 @@ export default function AgendamentoPage() {
                 </h1>
                 <p className="text-sm text-gray-600 mt-1">
                   Perfil:{' '}
-                  <span className="font-semibold">
-                    {perfil}
-                  </span>
+                  <span className="font-semibold">{perfil}</span>
                 </p>
               </div>
 
