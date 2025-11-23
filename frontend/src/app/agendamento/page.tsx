@@ -21,8 +21,8 @@ type AgendamentoResumo = {
     nota?: number | null;
     comentario?: string | null;
   } | null;
-  // novos campos vindos da API para duração / QRs
-  duracao_horas?: number | null;
+  // pode vir number ou string do backend
+  duracao_horas?: number | string | null;
   start_usado?: boolean;
   end_usado?: boolean;
 };
@@ -91,26 +91,18 @@ export default function AgendamentoPage() {
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
+        const isContratante = !!user?.Contratante;
+        const isPrestador = !!user?.Prestador;
+
+        const perfilDetectado: Perfil = isContratante
+          ? 'Contratante'
+          : isPrestador
+          ? 'Prestador'
+          : 'Usuário';
+
         console.log('DEBUG /user/me =>', user);
-
-        // ------------ NOVA DETECÇÃO DE PERFIL ------------
-        const tipoBruto = (user?.tipo || '').toString().toLowerCase();
-        console.log('DEBUG tipoBruto =>', tipoBruto);
-
-        let perfilDetectado: Perfil = 'Usuário';
-
-        if (tipoBruto === 'contratante') {
-          perfilDetectado = 'Contratante';
-        } else if (tipoBruto === 'prestador') {
-          perfilDetectado = 'Prestador';
-        } else if (user?.Contratante) {
-          // fallback para formato antigo
-          perfilDetectado = 'Contratante';
-        } else if (user?.Prestador) {
-          perfilDetectado = 'Prestador';
-        }
-
         console.log('DEBUG perfilDetectado =>', perfilDetectado);
+
         setPerfil(perfilDetectado);
 
         // 2) Busca agendamentos conforme o perfil
@@ -369,7 +361,9 @@ export default function AgendamentoPage() {
 
   async function handleCancelarAgendamento(ag: AgendamentoResumo) {
     if (
-      !window.confirm(`Tem certeza que deseja cancelar o serviço #${ag.id}?`)
+      !window.confirm(
+        `Tem certeza que deseja cancelar o serviço #${ag.id}?`
+      )
     ) {
       return;
     }
@@ -407,7 +401,9 @@ export default function AgendamentoPage() {
                 </h1>
                 <p className="text-sm text-gray-600 mt-1">
                   Perfil:{' '}
-                  <span className="font-semibold">{perfil}</span>
+                  <span className="font-semibold">
+                    {perfil}
+                  </span>
                 </p>
               </div>
 
@@ -564,6 +560,18 @@ export default function AgendamentoPage() {
                       (statusLower.includes('aceita') ||
                         statusLower.includes('concluida'));
 
+                    // converte duracao_horas de forma segura
+                    let duracaoTexto: string | null = null;
+                    if (ag.duracao_horas !== null && ag.duracao_horas !== undefined) {
+                      const num =
+                        typeof ag.duracao_horas === 'number'
+                          ? ag.duracao_horas
+                          : Number(ag.duracao_horas);
+                      if (!Number.isNaN(num)) {
+                        duracaoTexto = num.toFixed(2);
+                      }
+                    }
+
                     return (
                       <article
                         key={ag.id}
@@ -586,9 +594,9 @@ export default function AgendamentoPage() {
                               {ag.status.replace('_', ' ')}
                             </span>
                           </p>
-                          {ag.duracao_horas != null && (
+                          {duracaoTexto && (
                             <p className="text-xs text-gray-500 mt-0.5">
-                              Duração: {ag.duracao_horas.toFixed(2)} h
+                              Duração: {duracaoTexto} h
                             </p>
                           )}
                         </div>
@@ -670,26 +678,41 @@ export default function AgendamentoPage() {
 
                           {/* Prestador: ler QRs */}
                           {podeLerQrPrestador && (
-                            <div className="flex flex-wrap gap-2 mt-1 justify-end w-full md:w-auto">
+                            <div className="flex flex-col items-end gap-2 mt-1 w-full md:w-auto">
+                              <div className="flex flex-wrap gap-2 justify-end w-full">
+                                <button
+                                  type="button"
+                                  onClick={() => handleScanQr(ag, 'start')}
+                                  disabled={scanLoadingId === ag.id}
+                                  className="px-3 py-1.5 rounded-lg border border-blue-300 text-blue-700 text-xs font-semibold hover:bg-blue-50 disabled:opacity-60"
+                                >
+                                  {scanLoadingId === ag.id
+                                    ? 'Registrando início...'
+                                    : 'Ler QR de início'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleScanQr(ag, 'end')}
+                                  disabled={scanLoadingId === ag.id}
+                                  className="px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 text-xs font-semibold hover:bg-purple-50 disabled:opacity-60"
+                                >
+                                  {scanLoadingId === ag.id
+                                    ? 'Registrando fim...'
+                                    : 'Ler QR de finalização'}
+                                </button>
+                              </div>
+
+                              {/* Placeholder para leitura por câmera */}
                               <button
                                 type="button"
-                                onClick={() => handleScanQr(ag, 'start')}
-                                disabled={scanLoadingId === ag.id}
-                                className="px-3 py-1.5 rounded-lg border border-blue-300 text-blue-700 text-xs font-semibold hover:bg-blue-50 disabled:opacity-60"
+                                onClick={() =>
+                                  alert(
+                                    'Leitura direta pela câmera ainda será implementada.\nPor enquanto, use o leitor de QR do celular e cole o código no campo quando solicitado.'
+                                  )
+                                }
+                                className="px-3 py-1 rounded-lg border border-gray-300 text-gray-700 text-[11px] font-medium hover:bg-gray-50"
                               >
-                                {scanLoadingId === ag.id
-                                  ? 'Registrando início...'
-                                  : 'Ler QR de início'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleScanQr(ag, 'end')}
-                                disabled={scanLoadingId === ag.id}
-                                className="px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 text-xs font-semibold hover:bg-purple-50 disabled:opacity-60"
-                              >
-                                {scanLoadingId === ag.id
-                                  ? 'Registrando fim...'
-                                  : 'Ler QR de finalização'}
+                                Ler QR com câmera
                               </button>
                             </div>
                           )}
