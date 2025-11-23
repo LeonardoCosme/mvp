@@ -54,13 +54,20 @@ function mapAgendamentoDto(a) {
   const endereco = getField(a, "endereco");
   const status = (getField(a, "status") || "").toString();
 
-  const duracaoHoras = getField(a, "duracao_horas", "duracaoHoras");
+  const duracaoRaw = getField(a, "duracao_horas", "duracaoHoras");
+  let duracaoHoras = null;
+  if (duracaoRaw != null) {
+    const n = Number(duracaoRaw);
+    duracaoHoras = Number.isFinite(n) ? n : null;
+  }
 
   const startUsed = !!getField(a, "start_used", "startUsed");
   const startAt = getField(a, "start_at", "startAt");
 
   const endUsed = !!getField(a, "end_used", "endUsed");
   const endAt = getField(a, "end_at", "endAt");
+
+  const relatoServico = getField(a, "relato_servico", "relatoServico");
 
   return {
     id: a.id,
@@ -69,12 +76,14 @@ function mapAgendamentoDto(a) {
     data_servico: data || null,
     hora_servico: hora || null,
     endereco: endereco || "",
-    duracao_horas: duracaoHoras ?? null,
+    duracao_horas: duracaoHoras,
     // infos para o frontend poder colorir os QRs / mostrar tempo
     start_usado: startUsed,
     start_at: startAt,
     end_usado: endUsed,
     end_at: endAt,
+    // relato do prestador ao finalizar o serviço
+    relato_servico: relatoServico || null,
   };
 }
 
@@ -108,18 +117,8 @@ export async function create(req, res) {
       "tipoServico",
       "tipo"
     );
-    const dataServico = getField(
-      body,
-      "data_servico",
-      "dataServico",
-      "data"
-    );
-    const horaServico = getField(
-      body,
-      "hora_servico",
-      "horaServico",
-      "hora"
-    );
+    const dataServico = getField(body, "data_servico", "dataServico", "data");
+    const horaServico = getField(body, "hora_servico", "horaServico", "hora");
     const descricao = getField(
       body,
       "descricao",
@@ -565,7 +564,7 @@ export async function qrcode(req, res) {
 /* ==========================================================
    📥 SCAN DO QR (PRESTADOR)
    POST /api/agendamentos/:id/scan
-   body: { code: string, tipo?: 'start' | 'end' }
+   body: { code: string, tipo?: 'start' | 'end', relato?: string }
 ========================================================== */
 export async function scan(req, res) {
   try {
@@ -575,7 +574,7 @@ export async function scan(req, res) {
     }
 
     const { id } = req.params;
-    const { code, tipo } = req.body || {};
+    const { code, tipo, relato } = req.body || {};
 
     if (!code) {
       return res
@@ -684,6 +683,16 @@ export async function scan(req, res) {
       ag.end_at = now;
     }
 
+    // 🆕 Relato do serviço feito pelo prestador
+    if (relato && typeof relato === "string" && relato.trim()) {
+      if (typeof ag.set === "function") {
+        ag.set("relato_servico", relato.trim());
+        ag.set("relatoServico", relato.trim());
+      } else {
+        ag.relato_servico = relato.trim();
+      }
+    }
+
     // Calcula duração se tivermos start_at
     const startAt = getField(ag, "start_at", "startAt");
     if (startAt) {
@@ -747,7 +756,10 @@ export async function update(req, res) {
     }
 
     const agContratanteId = getField(ag, "contratante_id", "contratanteId");
-    if (!agContratanteId || String(agContratanteId) !== String(contratante.id)) {
+    if (
+      !agContratanteId ||
+      String(agContratanteId) !== String(contratante.id)
+    ) {
       return res.status(403).json({
         error: "Você não tem permissão para editar este agendamento.",
       });
@@ -836,7 +848,10 @@ export async function remove(req, res) {
     }
 
     const agContratanteId = getField(ag, "contratante_id", "contratanteId");
-    if (!agContratanteId || String(agContratanteId) !== String(contratante.id)) {
+    if (
+      !agContratanteId ||
+      String(agContratanteId) !== String(contratante.id)
+    ) {
       return res.status(403).json({
         error: "Você não tem permissão para cancelar este agendamento.",
       });
