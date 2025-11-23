@@ -21,10 +21,29 @@ type AgendamentoResumo = {
     nota?: number | null;
     comentario?: string | null;
   } | null;
+  // novos campos vindos da API para duração / QRs
+  duracao_horas?: number | null;
+  start_usado?: boolean;
+  end_usado?: boolean;
 };
 
 type AgendamentoDisponivel = AgendamentoResumo & {
   contratante_nome?: string | null;
+};
+
+type QrStatus = {
+  id: number;
+  status: string;
+  start: {
+    code: string | null;
+    used: boolean;
+    usedAt?: string | null;
+  };
+  end: {
+    code: string | null;
+    used: boolean;
+    usedAt?: string | null;
+  };
 };
 
 function formatDateBR(dateStr?: string | null): string {
@@ -50,9 +69,11 @@ export default function AgendamentoPage() {
   const [erro, setErro] = useState('');
   const [acaoCarregando, setAcaoCarregando] = useState<number | null>(null);
 
-  // --------------------------------------------------
-  // Descobre perfil e carrega dados iniciais
-  // --------------------------------------------------
+  // estado para QRs
+  const [qrcodes, setQrcodes] = useState<Record<number, QrStatus>>({});
+  const [qrLoadingId, setQrLoadingId] = useState<number | null>(null);
+  const [scanLoadingId, setScanLoadingId] = useState<number | null>(null);
+
   useEffect(() => {
     if (!getToken()) {
       router.push('/login?next=/agendamento');
@@ -70,21 +91,8 @@ export default function AgendamentoPage() {
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
-        console.log('DEBUG /user/me =>', user);
-
-        const tipoBruto: string = (
-          user?.tipo ||
-          user?.tipoUsuario ||
-          ''
-        )
-          .toString()
-          .toLowerCase()
-          .trim();
-
-        const isContratante =
-          tipoBruto === 'contratante' || !!(user && user.Contratante);
-        const isPrestador =
-          tipoBruto === 'prestador' || !!(user && user.Prestador);
+        const isContratante = !!user?.Contratante;
+        const isPrestador = !!user?.Prestador;
 
         const perfilDetectado: Perfil = isContratante
           ? 'Contratante'
@@ -92,7 +100,7 @@ export default function AgendamentoPage() {
           ? 'Prestador'
           : 'Usuário';
 
-        console.log('DEBUG tipoBruto =>', tipoBruto);
+        console.log('DEBUG /user/me =>', user);
         console.log('DEBUG perfilDetectado =>', perfilDetectado);
 
         setPerfil(perfilDetectado);
@@ -102,7 +110,6 @@ export default function AgendamentoPage() {
           const lista = (await apiFetch(
             '/agendamentos/cliente'
           )) as AgendamentoResumo[];
-
           if (!cancelado) {
             setAgendamentos(Array.isArray(lista) ? lista : []);
             setDisponiveis([]);
@@ -149,9 +156,6 @@ export default function AgendamentoPage() {
     };
   }, [router]);
 
-  // --------------------------------------------------
-  // Funções auxiliares (prestador)
-  // --------------------------------------------------
   async function carregarMeusAgendamentosSePrestador() {
     if (perfil !== 'Prestador') return;
     try {
@@ -171,10 +175,9 @@ export default function AgendamentoPage() {
         method: 'POST',
       });
 
-      // Remove da lista de disponíveis
+      // remove da lista de disponíveis
       setDisponiveis((lista) => lista.filter((item) => item.id !== id));
-
-      // Recarrega "Meus agendamentos" do prestador
+      // recarrega "meus agendamentos" do prestador
       await carregarMeusAgendamentosSePrestador();
     } catch (err: any) {
       console.error('❌ Erro ao aceitar agendamento:', err);
@@ -210,9 +213,90 @@ export default function AgendamentoPage() {
     }
   }
 
-  // --------------------------------------------------
-  // CONTRATANTE: EDITAR / CANCELAR
-  // --------------------------------------------------
+  // --------- QR CODES ---------
+
+  async function toggleQr(ag: AgendamentoResumo) {
+    const id = ag.id;
+
+    // se já está carregado, esconde
+    if (qrcodes[id]) {
+      setQrcodes((prev) => {
+        const clone = { ...prev };
+        delete clone[id];
+        return clone;
+      });
+      return;
+    }
+
+    try {
+      setQrLoadingId(id);
+      const info = (await apiFetch(`/agendamentos/${id}/qrcode`)) as QrStatus;
+      setQrcodes((prev) => ({ ...prev, [id]: info }));
+    } catch (err: any) {
+      console.error('❌ Erro ao carregar QR codes:', err);
+      alert(
+        err?.body?.error ||
+          err?.body?.message ||
+          err?.message ||
+          'Erro ao carregar QR codes deste agendamento.'
+      );
+    } finally {
+      setQrLoadingId(null);
+    }
+  }
+
+  async function handleScanQr(ag: AgendamentoResumo, tipo: 'start' | 'end') {
+    const codigo = window.prompt(
+      tipo === 'start'
+        ? 'Cole aqui o código lido do QR de INÍCIO:'
+        : 'Cole aqui o código lido do QR de FINALIZAÇÃO:'
+    );
+    if (!codigo) return;
+
+    try {
+      setScanLoadingId(ag.id);
+
+      const resp = await apiFetch(`/agendamentos/${ag.id}/scan`, {
+        method: 'POST',
+        body: JSON.stringify({ code: codigo, tipo }),
+      });
+      console.log('DEBUG scan resp =>', resp);
+
+      // atualiza lista de agendamentos do prestador
+      await carregarMeusAgendamentosSePrestador();
+
+      // se os QRs desse agendamento estão abertos, recarrega o estado deles
+      if (qrcodes[ag.id]) {
+        try {
+          const info = (await apiFetch(
+            `/agendamentos/${ag.id}/qrcode`
+          )) as QrStatus;
+          setQrcodes((prev) => ({ ...prev, [ag.id]: info }));
+        } catch (err) {
+          console.error('Erro ao recarregar QR após scan:', err);
+        }
+      }
+
+      alert(
+        tipo === 'start'
+          ? 'Check-in do serviço registrado com sucesso.'
+          : 'Finalização do serviço registrada com sucesso.'
+      );
+    } catch (err: any) {
+      console.error('❌ Erro ao registrar leitura do QR:', err);
+      alert(
+        err?.body?.error ||
+          err?.body?.message ||
+          err?.message ||
+          'Não foi possível registrar a leitura do QR code.'
+      );
+    } finally {
+      setScanLoadingId(null);
+    }
+  }
+
+  // ------------ CONTRATANTE: EDITAR / CANCELAR ------------
+
   function podeEditarOuCancelar(status: string) {
     const st = (status || '').toLowerCase();
     return (
@@ -277,7 +361,9 @@ export default function AgendamentoPage() {
 
   async function handleCancelarAgendamento(ag: AgendamentoResumo) {
     if (
-      !window.confirm(`Tem certeza que deseja cancelar o serviço #${ag.id}?`)
+      !window.confirm(
+        `Tem certeza que deseja cancelar o serviço #${ag.id}?`
+      )
     ) {
       return;
     }
@@ -300,9 +386,8 @@ export default function AgendamentoPage() {
     }
   }
 
-  // --------------------------------------------------
-  // RENDER
-  // --------------------------------------------------
+  // ---------------------- RENDER ----------------------
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-[#4b2506] to-[#2b1304] pb-16">
       <section className="pt-24">
@@ -461,59 +546,153 @@ export default function AgendamentoPage() {
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {agendamentos.map((ag) => (
-                    <article
-                      key={ag.id}
-                      className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {ag.tipo_nome || 'Serviço'}{' '}
-                          <span className="text-xs text-gray-500">
-                            #{ag.id}
-                          </span>
-                        </p>
-                        <p className="text-xs text-gray-600 mt-0.5">
-                          {formatDateBR(ag.data_servico)} às{' '}
-                          {formatHora(ag.hora_servico)} — {ag.endereco}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-0.5 capitalize">
-                          Status:{' '}
-                          <span className="font-medium text-gray-800">
-                            {ag.status.replace('_', ' ')}
-                          </span>
-                        </p>
-                      </div>
+                  {agendamentos.map((ag) => {
+                    const qrInfo = qrcodes[ag.id];
+                    const statusLower = ag.status.toLowerCase();
 
-                      <div className="flex flex-col items-end gap-2">
-                        {ag.avaliacao?.nota != null && (
-                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                            ⭐ Avaliado ({ag.avaliacao.nota}/5)
-                          </span>
-                        )}
+                    const podeMostrarQrContratante =
+                      perfil === 'Contratante' &&
+                      (statusLower.includes('aceita') ||
+                        statusLower.includes('concluida'));
 
-                        {perfil === 'Contratante' &&
-                          podeEditarOuCancelar(ag.status) && (
-                            <div className="flex gap-2 mt-1">
+                    const podeLerQrPrestador =
+                      perfil === 'Prestador' &&
+                      (statusLower.includes('aceita') ||
+                        statusLower.includes('concluida'));
+
+                    return (
+                      <article
+                        key={ag.id}
+                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {ag.tipo_nome || 'Serviço'}{' '}
+                            <span className="text-xs text-gray-500">
+                              #{ag.id}
+                            </span>
+                          </p>
+                          <p className="text-xs text-gray-600 mt-0.5">
+                            {formatDateBR(ag.data_servico)} às{' '}
+                            {formatHora(ag.hora_servico)} — {ag.endereco}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5 capitalize">
+                            Status:{' '}
+                            <span className="font-medium text-gray-800">
+                              {ag.status.replace('_', ' ')}
+                            </span>
+                          </p>
+                          {ag.duracao_horas != null && (
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Duração: {ag.duracao_horas.toFixed(2)} h
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col items-end gap-2 w-full md:w-auto">
+                          {ag.avaliacao?.nota != null && (
+                            <span className="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                              ⭐ Avaliado ({ag.avaliacao.nota}/5)
+                            </span>
+                          )}
+
+                          {/* Botões editar/cancelar (contratante) */}
+                          {perfil === 'Contratante' &&
+                            podeEditarOuCancelar(ag.status) && (
+                              <div className="flex gap-2 mt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditarAgendamento(ag)}
+                                  className="px-3 py-1.5 rounded-lg border border-amber-300 text-amber-800 text-xs font-semibold hover:bg-amber-50"
+                                >
+                                  Editar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelarAgendamento(ag)}
+                                  className="px-3 py-1.5 rounded-lg border border-red-300 text-red-700 text-xs font-semibold hover:bg-red-50"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            )}
+
+                          {/* Contratante: visualizar QRs */}
+                          {podeMostrarQrContratante && (
+                            <div className="flex flex-col items-end gap-1 mt-1 w-full md:w-auto">
                               <button
                                 type="button"
-                                onClick={() => handleEditarAgendamento(ag)}
-                                className="px-3 py-1.5 rounded-lg border border-amber-300 text-amber-800 text-xs font-semibold hover:bg-amber-50"
+                                onClick={() => toggleQr(ag)}
+                                disabled={qrLoadingId === ag.id}
+                                className="px-3 py-1.5 rounded-lg border border-[#8F1D14]/40 text-[#8F1D14] text-xs font-semibold hover:bg-[#8F1D14]/5 disabled:opacity-60"
                               >
-                                Editar
+                                {qrLoadingId === ag.id
+                                  ? 'Carregando QRs...'
+                                  : qrInfo
+                                  ? 'Esconder QR codes'
+                                  : 'Ver QR codes'}
+                              </button>
+
+                              {qrInfo && (
+                                <div className="mt-2 flex flex-col gap-1 w-full max-w-xs">
+                                  <div
+                                    className={`rounded-md px-2 py-1 border text-[11px] break-all ${
+                                      qrInfo.start.used
+                                        ? 'bg-red-50 border-red-300 text-red-700'
+                                        : 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                    }`}
+                                  >
+                                    <span className="font-semibold mr-1">
+                                      QR início:
+                                    </span>
+                                    <code>{qrInfo.start.code}</code>
+                                  </div>
+                                  <div
+                                    className={`rounded-md px-2 py-1 border text-[11px] break-all ${
+                                      qrInfo.end.used
+                                        ? 'bg-red-50 border-red-300 text-red-700'
+                                        : 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                    }`}
+                                  >
+                                    <span className="font-semibold mr-1">
+                                      QR finalização:
+                                    </span>
+                                    <code>{qrInfo.end.code}</code>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Prestador: ler QRs */}
+                          {podeLerQrPrestador && (
+                            <div className="flex flex-wrap gap-2 mt-1 justify-end w-full md:w-auto">
+                              <button
+                                type="button"
+                                onClick={() => handleScanQr(ag, 'start')}
+                                disabled={scanLoadingId === ag.id}
+                                className="px-3 py-1.5 rounded-lg border border-blue-300 text-blue-700 text-xs font-semibold hover:bg-blue-50 disabled:opacity-60"
+                              >
+                                {scanLoadingId === ag.id
+                                  ? 'Registrando início...'
+                                  : 'Ler QR de início'}
                               </button>
                               <button
                                 type="button"
-                                onClick={() => handleCancelarAgendamento(ag)}
-                                className="px-3 py-1.5 rounded-lg border border-red-300 text-red-700 text-xs font-semibold hover:bg-red-50"
+                                onClick={() => handleScanQr(ag, 'end')}
+                                disabled={scanLoadingId === ag.id}
+                                className="px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 text-xs font-semibold hover:bg-purple-50 disabled:opacity-60"
                               >
-                                Cancelar
+                                {scanLoadingId === ag.id
+                                  ? 'Registrando fim...'
+                                  : 'Ler QR de finalização'}
                               </button>
                             </div>
                           )}
-                      </div>
-                    </article>
-                  ))}
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
               )}
             </section>
