@@ -574,7 +574,17 @@ export async function scan(req, res) {
     }
 
     const { id } = req.params;
-    const { code, tipo, relato } = req.body || {};
+    const { code, tipo } = req.body || {};
+
+    // aceita vários nomes para o texto do relato
+    const relato = getField(
+      req.body,
+      "relato",
+      "relato_servico",
+      "relatoServico",
+      "descricaoServico",
+      "descricao_servico"
+    );
 
     if (!code) {
       return res
@@ -683,7 +693,7 @@ export async function scan(req, res) {
       ag.end_at = now;
     }
 
-    // 🆕 Relato do serviço feito pelo prestador
+    // Relato do serviço feito pelo prestador (se vier no body)
     if (relato && typeof relato === "string" && relato.trim()) {
       if (typeof ag.set === "function") {
         ag.set("relato_servico", relato.trim());
