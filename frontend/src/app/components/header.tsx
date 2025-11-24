@@ -48,14 +48,12 @@ export default function Header() {
           window.localStorage.setItem('tipo', tipoApi);
         }
       } catch (e) {
-        // se der erro, não quebra o header
         console.error('Erro ao carregar /user/me no Header:', e);
       }
     }
   };
 
   useEffect(() => {
-    // sempre que trocar de rota, revalida estado de login
     syncAuthState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
@@ -161,7 +159,7 @@ export default function Header() {
             </>
           ) : (
             <>
-              {/* Botão de perfil colorido conforme o tipo */}
+              {/* Botão com apenas o nome + tipo, colorido conforme o perfil */}
               <button
                 type="button"
                 onClick={goToPerfil}
@@ -171,9 +169,6 @@ export default function Header() {
                   {initial}
                 </span>
                 <div className="flex flex-col leading-tight text-left">
-                  <span className="text-xs opacity-90">
-                    Meu perfil
-                  </span>
                   <span className="text-sm truncate max-w-[140px]">
                     {displayName}
                   </span>
