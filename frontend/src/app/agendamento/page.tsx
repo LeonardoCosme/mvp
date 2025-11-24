@@ -5,8 +5,8 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { apiFetch } from '@/utils/api';
-import { getToken } from '@/utils/auth';
+import { apiFetch } from '../../utils/api';
+import { getToken } from '../../utils/auth';
 
 type Perfil = 'Contratante' | 'Prestador' | 'Usuário';
 
@@ -24,7 +24,7 @@ type AgendamentoResumo = {
   duracao_horas?: number | string | null;
   start_usado?: boolean;
   end_usado?: boolean;
-  // 🆕 vem do backend (relato_servico no DTO)
+  // vem do backend (relato_servico no DTO)
   relato_servico?: string | null;
 };
 
@@ -281,7 +281,7 @@ export default function AgendamentoPage() {
     );
     if (!codigo) return;
 
-    // 🆕 se for QR de finalização, pergunta o relato do serviço
+    // se for QR de finalização, pergunta o relato do serviço
     let relato: string | undefined;
     if (tipo === 'end') {
       const texto = window.prompt(
@@ -431,7 +431,41 @@ export default function AgendamentoPage() {
     }
   }
 
-  // 🆕 CONTRATANTE: registrar avaliação após conclusão
+  // PRESTADOR: editar relato depois de concluído
+  async function handleEditarRelato(ag: AgendamentoResumo) {
+    const texto = window.prompt(
+      'Descreva o serviço realizado (isso fica salvo no histórico):',
+      ag.relato_servico || ''
+    );
+
+    if (texto === null) return; // cancelou
+
+    const body = {
+      relato_servico: texto.trim() || null,
+    };
+
+    try {
+      await apiFetch(`/agendamentos/${ag.id}/relato`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      });
+
+      // recarrega lista do prestador pra pegar o texto atualizado
+      await carregarMeusAgendamentosSePrestador();
+
+      alert('Relato do serviço atualizado com sucesso.');
+    } catch (err: any) {
+      console.error('❌ Erro ao salvar relato do serviço:', err);
+      alert(
+        err?.body?.error ||
+          err?.body?.message ||
+          err?.message ||
+          'Não foi possível salvar o relato do serviço.'
+      );
+    }
+  }
+
+  // CONTRATANTE: registrar avaliação após conclusão
   async function handleAvaliarAgendamento(ag: AgendamentoResumo) {
     if (ag.avaliacao?.nota != null) {
       alert('Este serviço já foi avaliado.');
@@ -642,13 +676,20 @@ export default function AgendamentoPage() {
                     const qrInfo = qrcodes[ag.id];
                     const statusLower = ag.status.toLowerCase();
 
+                    // serviço considerado “finalizado” para efeitos de QR
+                    const jaFinalizado =
+                      statusLower.includes('concluida') || !!ag.end_usado;
+
+                    // CONTRATANTE: só vê QR enquanto está ACEITO e ainda não finalizado
                     const podeMostrarQrContratante =
                       perfil === 'Contratante' &&
-                      (statusLower.includes('aceita') ||
-                        statusLower.includes('concluida'));
+                      statusLower.includes('aceita') &&
+                      !jaFinalizado;
 
+                    // PRESTADOR: só vê leitura de QR enquanto ainda há algo a registrar
                     const podeLerQrPrestador =
                       perfil === 'Prestador' &&
+                      !jaFinalizado &&
                       (statusLower.includes('aceita') ||
                         statusLower.includes('concluida'));
 
@@ -693,7 +734,7 @@ export default function AgendamentoPage() {
                               </p>
                             )}
 
-                          {/* 🆕 Relato do prestador, visível para o contratante */}
+                          {/* Relato do prestador, visível para o contratante */}
                           {ag.relato_servico && (
                             <p className="text-xs text-gray-600 mt-0.5">
                               <span className="font-semibold">
@@ -736,7 +777,7 @@ export default function AgendamentoPage() {
                               </div>
                             )}
 
-                          {/* 🆕 Contratante: botão para avaliar serviço concluído */}
+                          {/* Contratante: botão para avaliar serviço concluído */}
                           {podeAvaliarContratante && (
                             <button
                               type="button"
@@ -794,30 +835,50 @@ export default function AgendamentoPage() {
                             </div>
                           )}
 
-                          {/* Prestador: ler QRs */}
+                          {/* Prestador: ler QRs (apenas enquanto não finalizado) */}
                           {podeLerQrPrestador && (
                             <div className="flex flex-wrap gap-2 mt-1 justify-end w-full md:w-auto">
-                              <button
-                                type="button"
-                                onClick={() => handleScanQr(ag, 'start')}
-                                disabled={scanLoadingId === ag.id}
-                                className="px-3 py-1.5 rounded-lg border border-blue-300 text-blue-700 text-xs font-semibold hover:bg-blue-50 disabled:opacity-60"
-                              >
-                                {scanLoadingId === ag.id
-                                  ? 'Registrando início...'
-                                  : 'Ler QR de início'}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleScanQr(ag, 'end')}
-                                disabled={scanLoadingId === ag.id}
-                                className="px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 text-xs font-semibold hover:bg-purple-50 disabled:opacity-60"
-                              >
-                                {scanLoadingId === ag.id
-                                  ? 'Registrando fim...'
-                                  : 'Ler QR de finalização'}
-                              </button>
+                              {/* QR de início: só se ainda não foi usado */}
+                              {!ag.start_usado && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleScanQr(ag, 'start')}
+                                  disabled={scanLoadingId === ag.id}
+                                  className="px-3 py-1.5 rounded-lg border border-blue-300 text-blue-700 text-xs font-semibold hover:bg-blue-50 disabled:opacity-60"
+                                >
+                                  {scanLoadingId === ag.id
+                                    ? 'Registrando início...'
+                                    : 'Ler QR de início'}
+                                </button>
+                              )}
+
+                              {/* QR de finalização: só se já iniciou e ainda não finalizou */}
+                              {ag.start_usado && !ag.end_usado && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleScanQr(ag, 'end')}
+                                  disabled={scanLoadingId === ag.id}
+                                  className="px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 text-xs font-semibold hover:bg-purple-50 disabled:opacity-60"
+                                >
+                                  {scanLoadingId === ag.id
+                                    ? 'Registrando fim...'
+                                    : 'Ler QR de finalização'}
+                                </button>
+                              )}
                             </div>
+                          )}
+
+                          {/* Prestador: serviço finalizado -> botão de editar relato */}
+                          {perfil === 'Prestador' && jaFinalizado && (
+                            <button
+                              type="button"
+                              onClick={() => handleEditarRelato(ag)}
+                              className="px-3 py-1.5 rounded-lg border border-emerald-300 text-emerald-700 text-xs font-semibold hover:bg-emerald-50"
+                            >
+                              {ag.relato_servico
+                                ? 'Editar relato do serviço'
+                                : 'Adicionar relato do serviço'}
+                            </button>
                           )}
                         </div>
                       </article>
