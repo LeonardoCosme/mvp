@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/utils/api';
 import { getToken } from '@/utils/auth';
-import QRCode from 'react-qr-code';
+import { QRCodeCanvas } from 'qrcode.react';
 
 type Perfil = 'Contratante' | 'Prestador' | 'Usuário';
 
@@ -70,9 +70,16 @@ export default function AgendamentoPage() {
   const [erro, setErro] = useState('');
   const [acaoCarregando, setAcaoCarregando] = useState<number | null>(null);
 
+  // estado para QRs
   const [qrcodes, setQrcodes] = useState<Record<number, QrStatus>>({});
   const [qrLoadingId, setQrLoadingId] = useState<number | null>(null);
   const [scanLoadingId, setScanLoadingId] = useState<number | null>(null);
+
+  // qual QR está visível dentro do card (início / finalização)
+  const [qrStartVisible, setQrStartVisible] = useState<Record<number, boolean>>(
+    {}
+  );
+  const [qrEndVisible, setQrEndVisible] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
     if (!getToken()) {
@@ -87,6 +94,7 @@ export default function AgendamentoPage() {
         setLoading(true);
         setErro('');
 
+        // 1) Descobre o usuário logado
         const user = await apiFetch('/user/me');
         if (cancelado) return;
 
@@ -94,6 +102,7 @@ export default function AgendamentoPage() {
 
         const tipoBruto =
           user?.tipo ?? user?.tipoUsuario ?? user?.perfil ?? '';
+
         const tipoNorm = String(tipoBruto).toLowerCase().trim();
         const hasContratanteObj = !!user?.Contratante || !!user?.contratante;
         const hasPrestadorObj = !!user?.Prestador || !!user?.prestador;
@@ -102,6 +111,7 @@ export default function AgendamentoPage() {
           hasContratanteObj ||
           tipoNorm === 'contratante' ||
           tipoNorm === 'cliente';
+
         const isPrestador = hasPrestadorObj || tipoNorm === 'prestador';
 
         const perfilDetectado: Perfil = isContratante
@@ -115,6 +125,7 @@ export default function AgendamentoPage() {
 
         setPerfil(perfilDetectado);
 
+        // 2) Busca agendamentos conforme o perfil
         if (perfilDetectado === 'Contratante') {
           const lista = (await apiFetch(
             '/agendamentos/cliente'
@@ -196,7 +207,9 @@ export default function AgendamentoPage() {
         method: 'POST',
       });
 
+      // remove da lista de disponíveis
       setDisponiveis((lista) => lista.filter((item) => item.id !== id));
+      // recarrega "meus agendamentos" do prestador
       await carregarMeusAgendamentosSePrestador();
     } catch (err: any) {
       console.error('❌ Erro ao aceitar agendamento:', err);
@@ -237,8 +250,19 @@ export default function AgendamentoPage() {
   async function toggleQr(ag: AgendamentoResumo) {
     const id = ag.id;
 
+    // se já está carregado, esconde tudo daquele agendamento
     if (qrcodes[id]) {
       setQrcodes((prev) => {
+        const clone = { ...prev };
+        delete clone[id];
+        return clone;
+      });
+      setQrStartVisible((prev) => {
+        const clone = { ...prev };
+        delete clone[id];
+        return clone;
+      });
+      setQrEndVisible((prev) => {
         const clone = { ...prev };
         delete clone[id];
         return clone;
@@ -252,6 +276,9 @@ export default function AgendamentoPage() {
         `/agendamentos/${id}/qrcode`
       )) as QrStatus;
       setQrcodes((prev) => ({ ...prev, [id]: info }));
+      // por padrão: mostra início, esconde finalização
+      setQrStartVisible((prev) => ({ ...prev, [id]: true }));
+      setQrEndVisible((prev) => ({ ...prev, [id]: false }));
     } catch (err: any) {
       console.error('❌ Erro ao carregar QR codes:', err);
       alert(
@@ -273,6 +300,7 @@ export default function AgendamentoPage() {
     );
     if (!codigo) return;
 
+    // se for QR de finalização, pergunta o relato do serviço
     let relato: string | undefined;
     if (tipo === 'end') {
       const texto = window.prompt(
@@ -329,7 +357,7 @@ export default function AgendamentoPage() {
     }
   }
 
-  // ------------ CONTRATANTE: EDITAR / CANCELAR / AVALIAR / RELATO ------------
+  // ------------ CONTRATANTE: EDITAR / CANCELAR / AVALIAR ------------
 
   function podeEditarOuCancelar(status: string) {
     const st = (status || '').toLowerCase();
@@ -420,6 +448,7 @@ export default function AgendamentoPage() {
     }
   }
 
+  // CONTRATANTE: registrar avaliação após conclusão
   async function handleAvaliarAgendamento(ag: AgendamentoResumo) {
     if (ag.avaliacao?.nota != null) {
       alert('Este serviço já foi avaliado.');
@@ -465,27 +494,27 @@ export default function AgendamentoPage() {
     }
   }
 
-  // Contratante pode editar o relato do prestador após concluído
-  async function handleEditarRelatoServico(ag: AgendamentoResumo) {
+  // PRESTADOR: editar relato do serviço
+  async function handleEditarRelato(ag: AgendamentoResumo) {
     const atual = ag.relato_servico || '';
-    const novo = window.prompt(
-      'Editar relato do serviço prestado:',
-      atual
-    );
-    if (novo === null) return;
+    const texto = window.prompt('Edite o relato do serviço:', atual);
+    if (texto === null) return;
 
-    const texto = novo.trim();
+    const body = {
+      relato: texto.trim() || null,
+    };
+
     try {
       await apiFetch(`/agendamentos/${ag.id}/relato`, {
         method: 'PUT',
-        body: JSON.stringify({ relato_servico: texto }),
+        body: JSON.stringify(body),
       });
 
-      setAgendamentos((lista) =>
-        lista.map((item) =>
-          item.id === ag.id ? { ...item, relato_servico: texto } : item
-        )
-      );
+      if (perfil === 'Prestador') {
+        await carregarMeusAgendamentosSePrestador();
+      } else if (perfil === 'Contratante') {
+        await carregarMeusAgendamentosSeContratante();
+      }
 
       alert('Relato atualizado com sucesso!');
     } catch (err: any) {
@@ -494,7 +523,7 @@ export default function AgendamentoPage() {
         err?.body?.error ||
           err?.body?.message ||
           err?.message ||
-          'Não foi possível atualizar o relato do serviço.'
+          'Não foi possível salvar o relato do serviço.'
       );
     }
   }
@@ -662,16 +691,17 @@ export default function AgendamentoPage() {
                   {agendamentos.map((ag) => {
                     const qrInfo = qrcodes[ag.id];
                     const statusLower = ag.status.toLowerCase();
+                    const isConcluida = statusLower.includes('concluida');
 
-                    // Contratante só vê QRs enquanto serviço está ACEITO (não depois de concluído)
                     const podeMostrarQrContratante =
                       perfil === 'Contratante' &&
-                      statusLower.includes('aceita');
+                      statusLower.includes('aceita') &&
+                      !isConcluida;
 
                     const podeLerQrPrestador =
                       perfil === 'Prestador' &&
-                      (statusLower.includes('aceita') ||
-                        statusLower.includes('concluida'));
+                      statusLower.includes('aceita') &&
+                      !isConcluida;
 
                     const duracaoNumero =
                       typeof ag.duracao_horas === 'number'
@@ -682,13 +712,11 @@ export default function AgendamentoPage() {
 
                     const podeAvaliarContratante =
                       perfil === 'Contratante' &&
-                      statusLower.includes('concluida') &&
+                      isConcluida &&
                       !ag.avaliacao?.nota;
 
-                    const podeEditarRelatoContratante =
-                      perfil === 'Contratante' &&
-                      statusLower.includes('concluida') &&
-                      !!ag.relato_servico;
+                    const startVisivel = !!qrStartVisible[ag.id];
+                    const endVisivel = !!qrEndVisible[ag.id];
 
                     return (
                       <article
@@ -719,6 +747,7 @@ export default function AgendamentoPage() {
                               </p>
                             )}
 
+                          {/* Relato do prestador, visível para o contratante */}
                           {ag.relato_servico && (
                             <p className="text-xs text-gray-600 mt-0.5">
                               <span className="font-semibold">
@@ -736,6 +765,7 @@ export default function AgendamentoPage() {
                             </span>
                           )}
 
+                          {/* Botões editar/cancelar (contratante) */}
                           {perfil === 'Contratante' &&
                             podeEditarOuCancelar(ag.status) && (
                               <div className="flex gap-2 mt-1">
@@ -760,6 +790,7 @@ export default function AgendamentoPage() {
                               </div>
                             )}
 
+                          {/* Contratante: botão para avaliar serviço concluído */}
                           {podeAvaliarContratante && (
                             <button
                               type="button"
@@ -770,13 +801,12 @@ export default function AgendamentoPage() {
                             </button>
                           )}
 
-                          {podeEditarRelatoContratante && (
+                          {/* Prestador: editar relato do serviço após conclusão */}
+                          {perfil === 'Prestador' && isConcluida && (
                             <button
                               type="button"
-                              onClick={() =>
-                                handleEditarRelatoServico(ag)
-                              }
-                              className="px-3 py-1.5 rounded-lg bg-[#F89D13] text-white text-xs font-semibold hover:bg-[#e68a11]"
+                              onClick={() => handleEditarRelato(ag)}
+                              className="px-3 py-1.5 rounded-lg border border-[#F89D13] text-[#F89D13] text-xs font-semibold hover:bg-[#F89D13]/5"
                             >
                               Editar relato do serviço
                             </button>
@@ -793,72 +823,92 @@ export default function AgendamentoPage() {
                               >
                                 {qrLoadingId === ag.id
                                   ? 'Carregando QRs...'
-                                  : qrInfo
+                                  : qrcodes[ag.id]
                                   ? 'Esconder QR codes'
                                   : 'Ver QR codes'}
                               </button>
 
                               {qrInfo && (
-                                <div className="mt-2 flex flex-col gap-3 w-full max-w-xs">
-                                  {/* QR de início */}
-                                  {qrInfo.start.code && (
-                                    <div
-                                      className={`rounded-md px-2 py-2 border text-[11px] ${
-                                        qrInfo.start.used
-                                          ? 'bg-red-50 border-red-300 text-red-700'
-                                          : 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                                      }`}
-                                    >
-                                      <p className="font-semibold mb-1">
+                                <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-xl">
+                                  {/* CARD QR INÍCIO */}
+                                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-3 flex flex-col items-stretch">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-xs font-semibold text-emerald-900">
                                         QR início
-                                      </p>
-                                      <div className="flex flex-col items-center gap-1">
-                                        <div className="bg-white p-2 rounded">
-                                          <QRCode
-                                            value={qrInfo.start.code}
-                                            size={120}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className="text-[11px] px-2 py-0.5 rounded-full border border-emerald-300 text-emerald-800 hover:bg-emerald-100"
+                                        onClick={() =>
+                                          setQrStartVisible((prev) => ({
+                                            ...prev,
+                                            [ag.id]: !startVisivel,
+                                          }))
+                                        }
+                                      >
+                                        {startVisivel ? 'Esconder' : 'Mostrar'}
+                                      </button>
+                                    </div>
+
+                                    {startVisivel && (
+                                      <>
+                                        <div className="flex justify-center mb-2">
+                                          <QRCodeCanvas
+                                            value={qrInfo.start.code || ''}
+                                            size={156}
+                                            includeMargin
                                           />
                                         </div>
-                                        <code className="text-[10px] break-all">
-                                          {qrInfo.start.code}
-                                        </code>
-                                        <p className="text-[10px] text-gray-600 mt-0.5">
+                                        <p className="text-[11px] text-emerald-900 break-all mb-1 text-center">
+                                          <code>{qrInfo.start.code}</code>
+                                        </p>
+                                        <p className="text-[11px] text-emerald-900 text-center">
                                           Mostre este QR para o prestador ler
                                           com a câmera do celular.
                                         </p>
-                                      </div>
-                                    </div>
-                                  )}
+                                      </>
+                                    )}
+                                  </div>
 
-                                  {/* QR de finalização */}
-                                  {qrInfo.end.code && (
-                                    <div
-                                      className={`rounded-md px-2 py-2 border text-[11px] ${
-                                        qrInfo.end.used
-                                          ? 'bg-red-50 border-red-300 text-red-700'
-                                          : 'bg-emerald-50 border-emerald-300 text-emerald-700'
-                                      }`}
-                                    >
-                                      <p className="font-semibold mb-1">
+                                  {/* CARD QR FINALIZAÇÃO */}
+                                  <div className="rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-3 flex flex-col items-stretch">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-xs font-semibold text-sky-900">
                                         QR finalização
-                                      </p>
-                                      <div className="flex flex-col items-center gap-1">
-                                        <div className="bg-white p-2 rounded">
-                                          <QRCode
-                                            value={qrInfo.end.code}
-                                            size={120}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className="text-[11px] px-2 py-0.5 rounded-full border border-sky-300 text-sky-800 hover:bg-sky-100"
+                                        onClick={() =>
+                                          setQrEndVisible((prev) => ({
+                                            ...prev,
+                                            [ag.id]: !endVisivel,
+                                          }))
+                                        }
+                                      >
+                                        {endVisivel ? 'Esconder' : 'Mostrar'}
+                                      </button>
+                                    </div>
+
+                                    {endVisivel && (
+                                      <>
+                                        <div className="flex justify-center mb-2">
+                                          <QRCodeCanvas
+                                            value={qrInfo.end.code || ''}
+                                            size={156}
+                                            includeMargin
                                           />
                                         </div>
-                                        <code className="text-[10px] break-all">
-                                          {qrInfo.end.code}
-                                        </code>
-                                        <p className="text-[10px] text-gray-600 mt-0.5">
+                                        <p className="text-[11px] text-sky-900 break-all mb-1 text-center">
+                                          <code>{qrInfo.end.code}</code>
+                                        </p>
+                                        <p className="text-[11px] text-sky-900 text-center">
                                           Este código também pode ser copiado e
                                           colado na tela do prestador.
                                         </p>
-                                      </div>
-                                    </div>
-                                  )}
+                                      </>
+                                    )}
+                                  </div>
                                 </div>
                               )}
                             </div>
