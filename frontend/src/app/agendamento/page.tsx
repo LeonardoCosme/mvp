@@ -24,6 +24,8 @@ type AgendamentoResumo = {
   duracao_horas?: number | string | null;
   start_usado?: boolean;
   end_usado?: boolean;
+  // 🆕 vem do backend (relato_servico no DTO)
+  relato_servico?: string | null;
 };
 
 type AgendamentoDisponivel = AgendamentoResumo & {
@@ -92,7 +94,6 @@ export default function AgendamentoPage() {
 
         console.log('DEBUG /user/me =>', user);
 
-        // --- NOVA DETECÇÃO DE PERFIL ---
         const tipoBruto =
           user?.tipo ?? user?.tipoUsuario ?? user?.perfil ?? '';
 
@@ -181,6 +182,18 @@ export default function AgendamentoPage() {
     }
   }
 
+  async function carregarMeusAgendamentosSeContratante() {
+    if (perfil !== 'Contratante') return;
+    try {
+      const lista = (await apiFetch(
+        '/agendamentos/cliente'
+      )) as AgendamentoResumo[];
+      setAgendamentos(Array.isArray(lista) ? lista : []);
+    } catch (err) {
+      console.error('❌ Erro ao recarregar agendamentos do contratante:', err);
+    }
+  }
+
   async function handleAceitar(id: number) {
     try {
       setAcaoCarregando(id);
@@ -243,7 +256,9 @@ export default function AgendamentoPage() {
 
     try {
       setQrLoadingId(id);
-      const info = (await apiFetch(`/agendamentos/${id}/qrcode`)) as QrStatus;
+      const info = (await apiFetch(
+        `/agendamentos/${id}/qrcode`
+      )) as QrStatus;
       setQrcodes((prev) => ({ ...prev, [id]: info }));
     } catch (err: any) {
       console.error('❌ Erro ao carregar QR codes:', err);
@@ -266,12 +281,29 @@ export default function AgendamentoPage() {
     );
     if (!codigo) return;
 
+    // 🆕 se for QR de finalização, pergunta o relato do serviço
+    let relato: string | undefined;
+    if (tipo === 'end') {
+      const texto = window.prompt(
+        'Descreva brevemente o serviço realizado (opcional):',
+        ''
+      );
+      if (texto && texto.trim()) {
+        relato = texto.trim();
+      }
+    }
+
     try {
       setScanLoadingId(ag.id);
 
+      const body: any = { code: codigo, tipo };
+      if (relato) {
+        body.relato = relato; // backend aceita "relato"
+      }
+
       const resp = await apiFetch(`/agendamentos/${ag.id}/scan`, {
         method: 'POST',
-        body: JSON.stringify({ code: codigo, tipo }),
+        body: JSON.stringify(body),
       });
       console.log('DEBUG scan resp =>', resp);
 
@@ -308,7 +340,7 @@ export default function AgendamentoPage() {
     }
   }
 
-  // ------------ CONTRATANTE: EDITAR / CANCELAR ------------
+  // ------------ CONTRATANTE: EDITAR / CANCELAR / AVALIAR ------------
 
   function podeEditarOuCancelar(status: string) {
     const st = (status || '').toLowerCase();
@@ -395,6 +427,53 @@ export default function AgendamentoPage() {
           err?.body?.message ||
           err?.message ||
           'Não foi possível cancelar o agendamento.'
+      );
+    }
+  }
+
+  // 🆕 CONTRATANTE: registrar avaliação após conclusão
+  async function handleAvaliarAgendamento(ag: AgendamentoResumo) {
+    if (ag.avaliacao?.nota != null) {
+      alert('Este serviço já foi avaliado.');
+      return;
+    }
+
+    const notaStr = window.prompt(
+      'Dê uma nota de 1 a 5 para o serviço:',
+      '5'
+    );
+    if (notaStr === null) return;
+
+    const nota = Number(notaStr);
+    if (!Number.isFinite(nota) || nota < 1 || nota > 5) {
+      alert('Informe uma nota válida entre 1 e 5.');
+      return;
+    }
+
+    const comentario =
+      window.prompt('Comentário sobre o serviço (opcional):', '') ?? '';
+
+    try {
+      await apiFetch('/avaliacoes', {
+        method: 'POST',
+        body: JSON.stringify({
+          agendamentoId: ag.id,
+          nota,
+          comentario: comentario.trim() || null,
+        }),
+      });
+
+      // recarrega os agendamentos do contratante para refletir a avaliação
+      await carregarMeusAgendamentosSeContratante();
+
+      alert('Avaliação registrada com sucesso!');
+    } catch (err: any) {
+      console.error('❌ Erro ao registrar avaliação:', err);
+      alert(
+        err?.body?.error ||
+          err?.body?.message ||
+          err?.message ||
+          'Não foi possível registrar a avaliação.'
       );
     }
   }
@@ -573,13 +652,17 @@ export default function AgendamentoPage() {
                       (statusLower.includes('aceita') ||
                         statusLower.includes('concluida'));
 
-                    // trata duracao_horas como número, mesmo se vier string
                     const duracaoNumero =
                       typeof ag.duracao_horas === 'number'
                         ? ag.duracao_horas
                         : ag.duracao_horas
                         ? Number(ag.duracao_horas)
                         : null;
+
+                    const podeAvaliarContratante =
+                      perfil === 'Contratante' &&
+                      statusLower.includes('concluida') &&
+                      !ag.avaliacao?.nota;
 
                     return (
                       <article
@@ -603,9 +686,20 @@ export default function AgendamentoPage() {
                               {ag.status.replace('_', ' ')}
                             </span>
                           </p>
-                          {duracaoNumero != null && !Number.isNaN(duracaoNumero) && (
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              Duração: {duracaoNumero.toFixed(2)} h
+                          {duracaoNumero != null &&
+                            !Number.isNaN(duracaoNumero) && (
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                Duração: {duracaoNumero.toFixed(2)} h
+                              </p>
+                            )}
+
+                          {/* 🆕 Relato do prestador, visível para o contratante */}
+                          {ag.relato_servico && (
+                            <p className="text-xs text-gray-600 mt-0.5">
+                              <span className="font-semibold">
+                                Relato do serviço:{' '}
+                              </span>
+                              {ag.relato_servico}
                             </p>
                           )}
                         </div>
@@ -623,20 +717,35 @@ export default function AgendamentoPage() {
                               <div className="flex gap-2 mt-1">
                                 <button
                                   type="button"
-                                  onClick={() => handleEditarAgendamento(ag)}
+                                  onClick={() =>
+                                    handleEditarAgendamento(ag)
+                                  }
                                   className="px-3 py-1.5 rounded-lg border border-amber-300 text-amber-800 text-xs font-semibold hover:bg-amber-50"
                                 >
                                   Editar
                                 </button>
                                 <button
                                   type="button"
-                                  onClick={() => handleCancelarAgendamento(ag)}
+                                  onClick={() =>
+                                    handleCancelarAgendamento(ag)
+                                  }
                                   className="px-3 py-1.5 rounded-lg border border-red-300 text-red-700 text-xs font-semibold hover:bg-red-50"
                                 >
                                   Cancelar
                                 </button>
                               </div>
                             )}
+
+                          {/* 🆕 Contratante: botão para avaliar serviço concluído */}
+                          {podeAvaliarContratante && (
+                            <button
+                              type="button"
+                              onClick={() => handleAvaliarAgendamento(ag)}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700"
+                            >
+                              Avaliar serviço
+                            </button>
+                          )}
 
                           {/* Contratante: visualizar QRs */}
                           {podeMostrarQrContratante && (

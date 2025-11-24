@@ -13,7 +13,7 @@ export default (sequelize, DataTypes) => {
       contratanteId: {
         type: DataTypes.INTEGER.UNSIGNED,
         allowNull: false,
-        field: 'contratante_id', // -> contratantes.id ✅ corrigido
+        field: 'contratante_id', // -> contratantes.id ✅
       },
       prestadorId: {
         type: DataTypes.INTEGER.UNSIGNED,
@@ -51,6 +51,13 @@ export default (sequelize, DataTypes) => {
         allowNull: true,
       },
 
+      // 👇 NOVO: campo de relato da conclusão do serviço
+      relatoServico: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        field: 'relato_servico', // nome da coluna no MySQL
+      },
+
       // Status geral
       status: {
         type: DataTypes.ENUM('pendente', 'aceita', 'concluida', 'cancelada'),
@@ -83,7 +90,7 @@ export default (sequelize, DataTypes) => {
   );
 
   Agendamento.associate = (models) => {
-    // contratante_id → contratantes.id ✅ corrigido
+    // contratante_id → contratantes.id
     Agendamento.belongsTo(models.Contratante, {
       as: 'contratante',
       foreignKey: 'contratanteId',

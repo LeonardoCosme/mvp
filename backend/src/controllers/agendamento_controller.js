@@ -67,6 +67,7 @@ function mapAgendamentoDto(a) {
   const endUsed = !!getField(a, "end_used", "endUsed");
   const endAt = getField(a, "end_at", "endAt");
 
+  // campo de relato no banco: relato_servico
   const relatoServico = getField(a, "relato_servico", "relatoServico");
 
   return {
@@ -77,12 +78,10 @@ function mapAgendamentoDto(a) {
     hora_servico: hora || null,
     endereco: endereco || "",
     duracao_horas: duracaoHoras,
-    // infos para o frontend poder colorir os QRs / mostrar tempo
     start_usado: startUsed,
     start_at: startAt,
     end_usado: endUsed,
     end_at: endAt,
-    // relato do prestador ao finalizar o serviço
     relato_servico: relatoServico || null,
   };
 }
@@ -331,9 +330,6 @@ export async function listDisponiveis(req, res) {
 /* ==========================================================
    ✅ ACEITAR AGENDAMENTO
    POST /api/agendamentos/:id/aceitar
-   - Marca como "aceita"
-   - Vincula ao prestador logado
-   - Gera QR de início e fim (se ainda não existirem)
 ========================================================== */
 export async function accept(req, res) {
   try {
@@ -462,7 +458,6 @@ export async function reject(req, res) {
 /* ==========================================================
    📤 QR CODES (CONTRATANTE / PRESTADOR)
    GET /api/agendamentos/:id/qrcode
-   - Retorna start_qr / end_qr e se já foram usados
 ========================================================== */
 export async function qrcode(req, res) {
   try {
@@ -576,9 +571,9 @@ export async function scan(req, res) {
     const { id } = req.params;
     const { code, tipo } = req.body || {};
 
-    // aceita vários nomes para o texto do relato
+    // aceita vários nomes para o texto do relato, mas sempre grava em relato_servico
     const relato = getField(
-      req.body,
+      req.body || {},
       "relato",
       "relato_servico",
       "relatoServico",
@@ -639,9 +634,14 @@ export async function scan(req, res) {
 
       const alreadyUsed = !!getField(ag, "start_used", "startUsed");
       if (alreadyUsed) {
-        return res
-          .status(409)
-          .json({ error: "QR de início já foi utilizado." });
+        // não dá erro 409 – apenas informa que já foi usado
+        return res.json({
+          ok: true,
+          tipo: "start",
+          jaUtilizado: true,
+          agendamento: mapAgendamentoDto(ag),
+          message: "QR de início já havia sido utilizado.",
+        });
       }
 
       if (typeof ag.set === "function") {
@@ -666,6 +666,7 @@ export async function scan(req, res) {
       return res.json({
         ok: true,
         tipo: "start",
+        jaUtilizado: false,
         agendamento: mapAgendamentoDto(ag),
       });
     }
@@ -677,23 +678,40 @@ export async function scan(req, res) {
     }
 
     const alreadyUsed = !!getField(ag, "end_used", "endUsed");
-    if (alreadyUsed) {
-      return res
-        .status(409)
-        .json({ error: "QR de finalização já foi utilizado." });
+
+    if (!alreadyUsed) {
+      // primeira vez que está finalizando
+      if (typeof ag.set === "function") {
+        ag.set("end_used", true);
+        ag.set("endUsed", true);
+        ag.set("end_at", now);
+        ag.set("endAt", now);
+      } else {
+        ag.end_used = true;
+        ag.end_at = now;
+      }
+
+      // Calcula duração se tivermos start_at
+      const startAt = getField(ag, "start_at", "startAt");
+      if (startAt) {
+        const inicio = new Date(startAt);
+        const diffMs = now.getTime() - inicio.getTime();
+        const horas = diffMs / (1000 * 60 * 60); // ms -> horas
+
+        if (typeof ag.set === "function") {
+          ag.set("duracao_horas", horas);
+          ag.set("duracaoHoras", horas);
+        } else {
+          ag.duracao_horas = horas;
+        }
+      }
+
+      // Marca como concluída
+      ag.status = "concluida";
+      ag.set?.("status", "concluida");
     }
 
-    if (typeof ag.set === "function") {
-      ag.set("end_used", true);
-      ag.set("endUsed", true);
-      ag.set("end_at", now);
-      ag.set("endAt", now);
-    } else {
-      ag.end_used = true;
-      ag.end_at = now;
-    }
-
-    // Relato do serviço feito pelo prestador (se vier no body)
+    // Relato do serviço feito pelo prestador
     if (relato && typeof relato === "string" && relato.trim()) {
       if (typeof ag.set === "function") {
         ag.set("relato_servico", relato.trim());
@@ -703,30 +721,12 @@ export async function scan(req, res) {
       }
     }
 
-    // Calcula duração se tivermos start_at
-    const startAt = getField(ag, "start_at", "startAt");
-    if (startAt) {
-      const inicio = new Date(startAt);
-      const diffMs = now.getTime() - inicio.getTime();
-      const horas = diffMs / (1000 * 60 * 60); // ms -> horas
-
-      if (typeof ag.set === "function") {
-        ag.set("duracao_horas", horas);
-        ag.set("duracaoHoras", horas);
-      } else {
-        ag.duracao_horas = horas;
-      }
-    }
-
-    // Marca como concluída
-    ag.status = "concluida";
-    ag.set?.("status", "concluida");
-
     await ag.save();
 
     return res.json({
       ok: true,
       tipo: "end",
+      jaUtilizado: alreadyUsed,
       agendamento: mapAgendamentoDto(ag),
     });
   } catch (err) {
@@ -905,7 +905,7 @@ export async function remove(req, res) {
   }
 }
 
-// Export default para compatibilidade (import Ag from ...)
+// Export default para compatibilidade
 export default {
   create,
   listCliente,
