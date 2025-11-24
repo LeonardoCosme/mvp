@@ -14,6 +14,11 @@ import {
  */
 export async function historicoCliente(req, res) {
   try {
+    // segurança extra: garante usuário logado
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: "Usuário não autenticado" });
+    }
+
     const contr = await Contratante.findOne({
       where: { usuario_id: req.user.id },
       attributes: ["id"],
@@ -68,33 +73,47 @@ export async function historicoCliente(req, res) {
         "checkinAt",
         "startAt",
         "endAt",
+        // se um dia quiser mostrar relato no histórico, é só descomentar
+        // "relatoServico",
       ],
     });
 
-    const out = itens.map((a) => ({
-      id: a.id,
-      tipo_servico_id: a.tipoServicoId,
-      tipo_nome: a.tipo?.nome ?? null,
-      data_servico: a.dataServico,
-      hora_servico: a.horaServico,
-      duracao_horas: a.duracaoHoras,
-      endereco: a.endereco,
-      descricao: a.descricao,
-      prestador_id: a.prestadorId ?? a.prestador?.id ?? null,
-      prestador_nome: a.prestador?.usuario?.nomeUsuario ?? null,
-      prestador_email: a.prestador?.usuario?.email ?? null,
-      checkin_at: a.checkinAt ?? null,
-      start_at: a.startAt ?? null,
-      end_at: a.endAt ?? null,
-      avaliacao: a.avaliacao
-        ? {
-            id: a.avaliacao.id,
-            nota: a.avaliacao.nota,
-            comentario: a.avaliacao.comentario,
-            created_at: a.avaliacao.createdAt,
-          }
-        : null,
-    }));
+    const out = itens.map((a) => {
+      const avaliacao = a.avaliacao || null;
+      const nota = avaliacao ? avaliacao.nota : null;
+      const comentario = avaliacao ? avaliacao.comentario : null;
+
+      return {
+        id: a.id,
+        tipo_servico_id: a.tipoServicoId,
+        tipo_nome: a.tipo?.nome ?? null,
+        data_servico: a.dataServico,
+        hora_servico: a.horaServico,
+        duracao_horas: a.duracaoHoras,
+        endereco: a.endereco,
+        descricao: a.descricao,
+        prestador_id: a.prestadorId ?? a.prestador?.id ?? null,
+        prestador_nome: a.prestador?.usuario?.nomeUsuario ?? null,
+        prestador_email: a.prestador?.usuario?.email ?? null,
+        checkin_at: a.checkinAt ?? null,
+        start_at: a.startAt ?? null,
+        end_at: a.endAt ?? null,
+
+        // 🔹 CAMPOS "ACHATADOS" para o frontend do histórico
+        nota,
+        comentario,
+
+        // 🔹 Mantém o objeto avaliacao completo (se alguém usar em outro lugar)
+        avaliacao: avaliacao
+          ? {
+              id: avaliacao.id,
+              nota: avaliacao.nota,
+              comentario: avaliacao.comentario,
+              created_at: avaliacao.createdAt,
+            }
+          : null,
+      };
+    });
 
     return res.json(out);
   } catch (e) {
@@ -111,6 +130,10 @@ export async function statusCliente(req, res) {
   try {
     const agId = Number(req.params.id);
     if (!agId) return res.status(400).json({ error: "ID inválido" });
+
+    if (!req.user || !req.user.id) {
+      return res.status(401).json({ error: "Usuário não autenticado" });
+    }
 
     const contr = await Contratante.findOne({
       where: { usuario_id: req.user.id },
