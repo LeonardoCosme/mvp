@@ -90,6 +90,19 @@ if (typeof Ag.update === "function") {
   console.warn("⚠️ Rota Ag.update não registrada (função ausente no controller).");
 }
 
+// 🆕 Editar relato do serviço (prestador)
+if (typeof Ag.atualizarRelatoServico === "function") {
+  router.put(
+    "/agendamentos/:id/relato",
+    authenticate,
+    Ag.atualizarRelatoServico
+  );
+} else {
+  console.warn(
+    "⚠️ Rota Ag.atualizarRelatoServico não registrada (função ausente no controller)."
+  );
+}
+
 // Cancelar agendamento (contratante)
 if (typeof Ag.remove === "function") {
   router.delete("/agendamentos/:id", authenticate, Ag.remove);

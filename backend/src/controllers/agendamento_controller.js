@@ -905,6 +905,92 @@ export async function remove(req, res) {
   }
 }
 
+/* ==========================================================
+   🆕 EDITAR RELATO DO SERVIÇO (PRESTADOR)
+   PUT /api/agendamentos/:id/relato
+   body: { relato: string | null }
+========================================================== */
+export async function atualizarRelatoServico(req, res) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado." });
+    }
+
+    // Prestador logado
+    const prestador = await Prestador.findOne({
+      where: { usuario_id: userId },
+      attributes: ["id"],
+    });
+
+    if (!prestador) {
+      return res
+        .status(403)
+        .json({ error: "Somente prestadores podem editar o relato." });
+    }
+
+    const agId = Number(req.params.id);
+    if (!agId) {
+      return res.status(400).json({ error: "ID de agendamento inválido." });
+    }
+
+    const ag = await Agendamento.findByPk(agId);
+    if (!ag) {
+      return res.status(404).json({ error: "Agendamento não encontrado." });
+    }
+
+    const agPrestadorId = getField(ag, "prestador_id", "prestadorId");
+    if (!agPrestadorId || String(agPrestadorId) !== String(prestador.id)) {
+      return res.status(403).json({
+        error: "Este agendamento não está vinculado a este prestador.",
+      });
+    }
+
+    const statusAtual = (getField(ag, "status") || "").toLowerCase();
+    if (statusAtual !== "concluida") {
+      return res.status(400).json({
+        error: "Só é possível editar o relato de serviços concluídos.",
+      });
+    }
+
+    // lê o texto do body em vários formatos e normaliza
+    const rawRelato = getField(
+      req.body || {},
+      "relato",
+      "relato_servico",
+      "relatoServico",
+      "descricaoServico",
+      "descricao_servico",
+      "descricao"
+    );
+
+    let relato = rawRelato == null ? null : String(rawRelato).trim();
+    if (relato === "") relato = null;
+
+    if (typeof ag.set === "function") {
+      ag.set("relato_servico", relato);
+      ag.set("relatoServico", relato);
+    } else {
+      ag.relato_servico = relato;
+    }
+
+    await ag.save();
+
+    console.log("[AGENDAMENTOS][RELATO-UPDATE]", {
+      id: ag.id,
+      prestadorId: prestador.id,
+      relato,
+    });
+
+    return res.json(mapAgendamentoDto(ag));
+  } catch (err) {
+    console.error("❌ atualizarRelatoServico:", err);
+    return res
+      .status(500)
+      .json({ error: "Erro ao atualizar o relato do serviço." });
+  }
+}
+
 // Export default para compatibilidade
 export default {
   create,
@@ -917,4 +1003,5 @@ export default {
   scan,
   update,
   remove,
+  atualizarRelatoServico,
 };
