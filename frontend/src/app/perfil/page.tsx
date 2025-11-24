@@ -147,7 +147,7 @@ export default function PerfilPage() {
   const isPrestador = user.tipo === 'prestador';
   const isContratante = user.tipo === 'contratante';
 
-  // 🔹 Substitui ternário aninhado por função clara
+  // rótulos dos campos de dados pessoais
   const labelDados = (campo: string) => {
     if (campo === 'nomeUsuario') return 'Nome completo';
     if (campo === 'emailUsuario') return 'E-mail';
@@ -155,85 +155,38 @@ export default function PerfilPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 p-6">
-      <div className="mx-auto max-w-3xl space-y-8">
-        {/* Header */}
-        <header className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <h1 className="text-2xl font-bold text-[#8F1D14]">Meu Perfil</h1>
-            <p className="text-gray-600">{user.email}</p>
-            <p className="text-gray-600 capitalize">Tipo: {user.tipo}</p>
-          </div>
-        </header>
-
-        {msg && (
-          <div
-            className={`rounded-xl p-3 text-sm ${
-              msg.startsWith('✅')
-                ? 'bg-green-50 text-green-700 border border-green-200'
-                : 'bg-red-50 text-red-700 border border-red-200'
-            }`}
-          >
-            {msg}
-          </div>
-        )}
-
-        {/* DADOS PESSOAIS */}
-        <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 space-y-3">
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-lg font-semibold text-[#8F1D14]">Dados pessoais</h2>
-            {!editDados ? (
-              <button
-                onClick={() => setEditDados(true)}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Editar
-              </button>
-            ) : (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    resetDados();
-                    setEditDados(false);
-                  }}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={salvarDadosPessoais}
-                  className="px-3 py-1.5 text-sm bg-[#8F1D14] text-white rounded-lg hover:bg-[#a2261b]"
-                >
-                  Salvar
-                </button>
-              </div>
-            )}
-          </div>
-
-          {['nomeUsuario', 'emailUsuario', 'cpfUsuario'].map((campo) => (
-            <div key={campo}>
-              <label className="block text-sm text-gray-700 mb-1">{labelDados(campo)}</label>
-              <input
-                type={campo === 'emailUsuario' ? 'email' : 'text'}
-                disabled={!editDados}
-                className={`w-full border rounded-lg px-3 py-2 ${
-                  !editDados ? 'bg-gray-50' : ''
-                }`}
-                value={dados[campo as keyof typeof dados]}
-                onChange={(e) => setDados({ ...dados, [campo]: e.target.value })}
-              />
+    <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 pb-16">
+      {/* compensação do cabeçalho fixo */}
+      <section className="pt-24">
+        <div className="mx-auto max-w-3xl px-4 space-y-8">
+          {/* Header */}
+          <header className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-[#8F1D14]">Meu Perfil</h1>
+              <p className="text-gray-600">{user.email}</p>
+              <p className="text-gray-600 capitalize">Tipo: {user.tipo}</p>
             </div>
-          ))}
-        </section>
+          </header>
 
-        {/* PRESTADOR */}
-        {isPrestador && (
+          {msg && (
+            <div
+              className={`rounded-xl p-3 text-sm ${
+                msg.startsWith('✅')
+                  ? 'bg-green-50 text-green-700 border border-green-200'
+                  : 'bg-red-50 text-red-700 border border-red-200'
+              }`}
+            >
+              {msg}
+            </div>
+          )}
+
+          {/* DADOS PESSOAIS */}
           <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 space-y-3">
             <div className="flex justify-between items-center mb-3">
-              <h2 className="text-lg font-semibold text-[#8F1D14]">Dados de prestador</h2>
-              {!editPrest ? (
+              <h2 className="text-lg font-semibold text-[#8F1D14]">Dados pessoais</h2>
+              {!editDados ? (
                 <button
-                  onClick={() => setEditPrest(true)}
+                  onClick={() => setEditDados(true)}
                   className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
                 >
                   Editar
@@ -242,16 +195,16 @@ export default function PerfilPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
-                      resetPrest();
-                      setEditPrest(false);
+                      resetDados();
+                      setEditDados(false);
                     }}
                     className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
                     Cancelar
                   </button>
                   <button
-                    onClick={salvarPrestador}
-                    className="px-3 py-1.5 text-sm bg-[#F89D13] text-white rounded-lg hover:bg-[#e68a11]"
+                    onClick={salvarDadosPessoais}
+                    className="px-3 py-1.5 text-sm bg-[#8F1D14] text-white rounded-lg hover:bg-[#a2261b]"
                   >
                     Salvar
                   </button>
@@ -259,79 +212,127 @@ export default function PerfilPage() {
               )}
             </div>
 
-            {Object.entries(prest).map(([campo, valor]) => (
+            {['nomeUsuario', 'emailUsuario', 'cpfUsuario'].map((campo) => (
               <div key={campo}>
                 <label className="block text-sm text-gray-700 mb-1">
-                  {campo === 'cnpjPrestador' ? 'CNPJ' : 'Celular'}
+                  {labelDados(campo)}
                 </label>
                 <input
-                  disabled={!editPrest}
+                  type={campo === 'emailUsuario' ? 'email' : 'text'}
+                  disabled={!editDados}
                   className={`w-full border rounded-lg px-3 py-2 ${
-                    !editPrest ? 'bg-gray-50' : ''
+                    !editDados ? 'bg-gray-50' : ''
                   }`}
-                  value={valor}
-                  onChange={(e) =>
-                    setPrest({ ...prest, [campo]: e.target.value })
-                  }
+                  value={dados[campo as keyof typeof dados]}
+                  onChange={(e) => setDados({ ...dados, [campo]: e.target.value })}
                 />
               </div>
             ))}
           </section>
-        )}
 
-        {/* CONTRATANTE */}
-        {isContratante && (
-          <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 space-y-3">
-            <div className="flex justify-between items-center mb-3">
-              <h2 className="text-lg font-semibold text-[#8F1D14]">Dados de contratante</h2>
-              {!editContr ? (
-                <button
-                  onClick={() => setEditContr(true)}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Editar
-                </button>
-              ) : (
-                <div className="flex gap-2">
+          {/* PRESTADOR */}
+          {isPrestador && (
+            <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 space-y-3">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-lg font-semibold text-[#8F1D14]">Dados de prestador</h2>
+                {!editPrest ? (
                   <button
-                    onClick={() => {
-                      resetContr();
-                      setEditContr(false);
-                    }}
+                    onClick={() => setEditPrest(true)}
                     className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
                   >
-                    Cancelar
+                    Editar
                   </button>
-                  <button
-                    onClick={salvarContratante}
-                    className="px-3 py-1.5 text-sm bg-[#F89D13] text-white rounded-lg hover:bg-[#e68a11]"
-                  >
-                    Salvar
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {Object.entries(contr).map(([campo, valor]) => (
-              <div key={campo}>
-                <label className="block text-sm text-gray-700 mb-1">
-                  {campo === 'endereco' ? 'Endereço' : 'Telefone'}
-                </label>
-                <input
-                  disabled={!editContr}
-                  className={`w-full border rounded-lg px-3 py-2 ${
-                    !editContr ? 'bg-gray-50' : ''
-                  }`}
-                  value={valor}
-                  onChange={(e) =>
-                    setContr({ ...contr, [campo]: e.target.value })
-                  }
-                />
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        resetPrest();
+                        setEditPrest(false);
+                      }}
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={salvarPrestador}
+                      className="px-3 py-1.5 text-sm bg-[#F89D13] text-white rounded-lg hover:bg-[#e68a11]"
+                    >
+                      Salvar
+                    </button>
+                  </div>
+                )}
               </div>
-            ))}
-          </section>
-        )}
-      </div>
+
+              {Object.entries(prest).map(([campo, valor]) => (
+                <div key={campo}>
+                  <label className="block text-sm text-gray-700 mb-1">
+                    {campo === 'cnpjPrestador' ? 'CNPJ' : 'Celular'}
+                  </label>
+                  <input
+                    disabled={!editPrest}
+                    className={`w-full border rounded-lg px-3 py-2 ${
+                      !editPrest ? 'bg-gray-50' : ''
+                    }`}
+                    value={valor}
+                    onChange={(e) => setPrest({ ...prest, [campo]: e.target.value })}
+                  />
+                </div>
+              ))}
+            </section>
+          )}
+
+          {/* CONTRATANTE */}
+          {isContratante && (
+            <section className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 space-y-3">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-lg font-semibold text-[#8F1D14]">Dados de contratante</h2>
+                {!editContr ? (
+                  <button
+                    onClick={() => setEditContr(true)}
+                    className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Editar
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        resetContr();
+                        setEditContr(false);
+                      }}
+                      className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={salvarContratante}
+                      className="px-3 py-1.5 text-sm bg-[#F89D13] text-white rounded-lg hover:bg-[#e68a11]"
+                    >
+                      Salvar
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {Object.entries(contr).map(([campo, valor]) => (
+                <div key={campo}>
+                  <label className="block text-sm text-gray-700 mb-1">
+                    {campo === 'endereco' ? 'Endereço' : 'Telefone'}
+                  </label>
+                  <input
+                    disabled={!editContr}
+                    className={`w-full border rounded-lg px-3 py-2 ${
+                      !editContr ? 'bg-gray-50' : ''
+                    }`}
+                    value={valor}
+                    onChange={(e) => setContr({ ...contr, [campo]: e.target.value })}
+                  />
+                </div>
+              ))}
+            </section>
+          )}
+        </div>
+      </section>
     </main>
   );
 }
