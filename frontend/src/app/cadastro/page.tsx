@@ -63,7 +63,7 @@ export default function CadastroPage() {
           nomeUsuario: form.nomeUsuario.trim(),
           email: form.email.trim().toLowerCase(),
           password: form.senha,
-          tipo: form.tipo,
+          tipo: form.tipo, // 'contratante' ou 'prestador'
           cpfUsuario: form.cpfUsuario.trim(),
         }),
       });
@@ -215,7 +215,8 @@ export default function CadastroPage() {
                 onChange={handleChange}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
               >
-                <option value="contratante">Cliente</option>
+                {/* valores mantidos, apenas o texto exibido mudou */}
+                <option value="contratante">Contratante</option>
                 <option value="prestador">Prestador</option>
               </select>
             </div>
