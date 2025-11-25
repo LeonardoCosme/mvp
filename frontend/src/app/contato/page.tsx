@@ -7,9 +7,7 @@ type Member = {
   name: string;
   role?: string;
   linkedin: string;
-  // Coloque a foto em /public/team/<arquivo>. Ex.: /public/team/leonardo.jpg
-  // Deixe em branco para mostrar as iniciais com um degradê.
-  photo?: string;
+  photo?: string;   // /public/team/<arquivo>. Ex.: /team/leonardo.jpg
   initials: string; // fallback quando não houver foto
 };
 
@@ -39,18 +37,21 @@ const team: Member[] = [
 
 export default function ContatoPage() {
   return (
-    <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 py-12">
+    <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 pt-28 pb-12">
       <div className="max-w-5xl mx-auto px-4">
         {/* Header */}
         <header className="text-center mb-10">
-          <h1 className="text-3xl md:text-4xl font-extrabold text-[#8F1D14]">Contato</h1>
-          <p className="text-gray-700 mt-2">
-            Conecte-se com os membros do nosso time no LinkedIn.
+          <h1 className="text-3xl md:text-4xl font-extrabold text-[#8F1D14]">
+            Contato
+          </h1>
+          <p className="text-gray-700 mt-2 max-w-2xl mx-auto">
+            Conecte-se com os membros do nosso time pelo LinkedIn e acompanhe
+            o desenvolvimento do projeto.
           </p>
         </header>
 
         {/* Cards do time */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
           {team.map((m) => (
             <article
               key={m.linkedin}
@@ -65,9 +66,10 @@ export default function ContatoPage() {
                     alt={`Foto de ${m.name}`}
                     className="w-28 h-28 rounded-full object-cover border-4 border-white shadow"
                     onError={(e) => {
-                      // se a imagem falhar, esconde e mostra o fallback abaixo
                       (e.currentTarget as HTMLImageElement).style.display = 'none';
-                      const fallback = document.getElementById(`fallback-${m.initials}`);
+                      const fallback = document.getElementById(
+                        `fallback-${m.initials}`
+                      );
                       if (fallback) fallback.style.display = 'flex';
                     }}
                   />
@@ -87,7 +89,9 @@ export default function ContatoPage() {
 
               {/* Nome e função */}
               <h2 className="text-lg font-semibold text-gray-900">{m.name}</h2>
-              {m.role && <p className="text-gray-600 text-sm mb-4">{m.role}</p>}
+              {m.role && (
+                <p className="text-gray-600 text-sm mb-4">{m.role}</p>
+              )}
 
               {/* Botões */}
               <div className="flex flex-col gap-2 w-full">
@@ -100,7 +104,11 @@ export default function ContatoPage() {
                   title="Abrir LinkedIn"
                 >
                   {/* Ícone simples de LinkedIn (SVG) */}
-                  <svg viewBox="0 0 24 24" className="w-5 h-5" aria-hidden="true">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="w-5 h-5"
+                    aria-hidden="true"
+                  >
                     <path
                       fill="currentColor"
                       d="M4.98 3.5C4.98 4.88 3.86 6 2.5 6S0 4.88 0 3.5 1.12 1 2.5 1s2.48 1.12 2.48 2.5zM0 8h5v16H0V8zm7.5 0h4.8v2.2h.1c.7-1.3 2.4-2.7 4.9-2.7 5.2 0 6.2 3.4 6.2 7.8V24h-5V16c0-1.9 0-4.4-2.7-4.4-2.7 0-3.1 2.1-3.1 4.2V24h-5V8z"
@@ -118,6 +126,30 @@ export default function ContatoPage() {
               </div>
             </article>
           ))}
+        </section>
+
+        {/* Créditos do sistema / TCC + logo Fatec */}
+        <section className="mt-4">
+          <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow p-4 md:p-5 flex flex-col md:flex-row items-center justify-center gap-4 text-center md:text-left">
+            <div className="w-28 md:w-32 flex-shrink-0">
+              {/* Ajuste o src se o arquivo tiver outro nome/caminho */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/fatec-logo.png"
+                alt="Logo Fatec Ipiranga"
+                className="w-full h-auto object-contain"
+              />
+            </div>
+            <p className="text-xs md:text-sm text-gray-700 leading-relaxed">
+              Sistema desenvolvido pelos alunos da{' '}
+              <span className="font-semibold">Fatec-Ipiranga</span>. <br />
+              Orientador de TCC:{' '}
+              <span className="font-semibold">
+                CARLOS HENRIQUE VERISSIMO PEREIRA
+              </span>
+              .
+            </p>
+          </div>
         </section>
       </div>
     </main>
