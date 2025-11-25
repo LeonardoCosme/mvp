@@ -28,6 +28,24 @@ function rotuloServico(s: TipoServico): string {
   return s.nomeServico || s.nome || 'Serviço';
 }
 
+// ícone por tipo de serviço
+function iconeServico(s: TipoServico): string {
+  const nome = rotuloServico(s).toLowerCase();
+
+  if (nome.includes('elétrica') || nome.includes('eletrica')) return '⚡';
+  if (nome.includes('hidráulica') || nome.includes('hidraulica')) return '💧';
+  if (nome.includes('pintura') || nome.includes('pintor')) return '🎨';
+  if (nome.includes('marcenaria') || nome.includes('móvel') || nome.includes('moveis')) return '🪚';
+  if (nome.includes('limpeza') || nome.includes('faxina')) return '🧹';
+  if (nome.includes('jardim') || nome.includes('jardinagem') || nome.includes('grama')) return '🌿';
+  if (nome.includes('ar condicionado') || nome.includes('ar-condicionado')) return '❄️';
+  if (nome.includes('alvenaria') || nome.includes('reforma')) return '🧱';
+  if (nome.includes('instalação') || nome.includes('montagem')) return '🛠️';
+
+  // fallback genérico
+  return '🔧';
+}
+
 // descrição padrão, caso queira personalizar por nome/id depois
 function descricaoCurta(s: TipoServico): string {
   const nome = rotuloServico(s);
@@ -388,7 +406,6 @@ export default function ServicosPage() {
 
                   <div className="mt-4 text-xs text-gray-600">
                     <p>
-                      {/* Espaço para mensagem curta extra, se quiser. */}
                       Plataforma em desenvolvimento como projeto de TCC da
                       Fatec Ipiranga.
                     </p>
@@ -445,7 +462,7 @@ export default function ServicosPage() {
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-[#F89D13]/20 flex items-center justify-center">
                         <span className="text-[#8F1D14]" aria-hidden>
-                          🔧
+                          {iconeServico(s)}
                         </span>
                       </div>
                       <h3 className="font-semibold text-gray-900">
