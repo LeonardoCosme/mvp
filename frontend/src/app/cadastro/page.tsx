@@ -14,6 +14,8 @@ export default function CadastroPage() {
     confirmSenha: '',
     tipo: 'contratante',
     cpfUsuario: '',
+    endereco: '',
+    telefone: '',
   });
 
   const [error, setError] = useState('');
@@ -56,19 +58,28 @@ export default function CadastroPage() {
 
     setLoading(true);
     try {
+      const body: any = {
+        nomeUsuario: form.nomeUsuario.trim(),
+        email: form.email.trim().toLowerCase(),
+        password: form.senha,
+        tipo: form.tipo, // 'contratante' ou 'prestador'
+        cpfUsuario: form.cpfUsuario.trim(),
+      };
+
+      // Se for contratante, já enviamos endereço e telefone junto
+      if (form.tipo === 'contratante') {
+        body.endereco = form.endereco.trim();
+        body.telefone = form.telefone.trim();
+      }
+
       const response = await apiFetch('/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nomeUsuario: form.nomeUsuario.trim(),
-          email: form.email.trim().toLowerCase(),
-          password: form.senha,
-          tipo: form.tipo, // 'contratante' ou 'prestador'
-          cpfUsuario: form.cpfUsuario.trim(),
-        }),
+        body: JSON.stringify(body),
       });
 
       console.log('✅ Resposta API:', response);
+
       setSuccess('Cadastro realizado com sucesso!');
       setTimeout(() => router.push('/login'), 2000);
     } catch (err: any) {
@@ -215,11 +226,56 @@ export default function CadastroPage() {
                 onChange={handleChange}
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
               >
-                {/* valores mantidos, apenas o texto exibido mudou */}
                 <option value="contratante">Contratante</option>
                 <option value="prestador">Prestador</option>
               </select>
             </div>
+
+            {/* Dados adicionais para contratante */}
+            {form.tipo === 'contratante' && (
+              <div className="space-y-4 pt-2 border-t border-gray-200">
+                <p className="text-sm text-gray-700 font-medium">
+                  Dados de contratante
+                </p>
+
+                <div>
+                  <label
+                    htmlFor="endereco"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Endereço
+                  </label>
+                  <input
+                    id="endereco"
+                    name="endereco"
+                    value={form.endereco}
+                    onChange={handleChange}
+                    required={form.tipo === 'contratante'}
+                    placeholder="Rua, número, bairro, cidade"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="telefone"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Telefone
+                  </label>
+                  <input
+                    id="telefone"
+                    name="telefone"
+                    type="tel"
+                    value={form.telefone}
+                    onChange={handleChange}
+                    required={form.tipo === 'contratante'}
+                    placeholder="(11) 99999-9999"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
 
             {error && (
               <p className="text-red-600 text-sm text-center">{error}</p>
