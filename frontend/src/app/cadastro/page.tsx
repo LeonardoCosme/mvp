@@ -21,14 +21,20 @@ export default function CadastroPage() {
   const [loading, setLoading] = useState(false);
 
   // 🔒 Validação de senha forte
-  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{8,}$/;
-  const senhaForte = useMemo(() => passwordRegex.test(form.senha), [form.senha]);
+  const passwordRegex =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^\w\s]).{8,}$/;
+  const senhaForte = useMemo(
+    () => passwordRegex.test(form.senha),
+    [form.senha]
+  );
   const senhasBatendo = useMemo(
     () => form.confirmSenha === '' || form.senha === form.confirmSenha,
     [form.senha, form.confirmSenha]
   );
 
-  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+  function handleChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
 
@@ -38,7 +44,9 @@ export default function CadastroPage() {
     setSuccess('');
 
     if (!senhaForte) {
-      setError('A senha deve ter no mínimo 8 caracteres, com maiúscula, minúscula, número e símbolo.');
+      setError(
+        'A senha deve ter no mínimo 8 caracteres, com maiúscula, minúscula, número e símbolo.'
+      );
       return;
     }
     if (form.senha !== form.confirmSenha) {
@@ -48,7 +56,6 @@ export default function CadastroPage() {
 
     setLoading(true);
     try {
-      // ✅ Força a serialização manual do corpo
       const response = await apiFetch('/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -73,131 +80,163 @@ export default function CadastroPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 flex items-center justify-center p-6">
-      <div className="bg-white/90 backdrop-blur-md shadow-2xl rounded-2xl w-full max-w-lg p-8">
-        <h1 className="text-3xl font-bold text-center text-[#8F1D14] mb-1">Crie sua conta</h1>
-        <p className="text-center text-gray-600 mb-8">
-          Preencha seus dados para começar a usar o{' '}
-          <span className="text-[#F89D13] font-semibold">Marido de Aluguel</span>.
-        </p>
+    <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 pt-28 pb-12">
+      <div className="max-w-lg mx-auto px-4">
+        <div className="bg-white/90 backdrop-blur-md shadow-2xl rounded-2xl w-full p-8">
+          <h1 className="text-3xl font-bold text-center text-[#8F1D14] mb-1">
+            Crie sua conta
+          </h1>
+          <p className="text-center text-gray-600 mb-8">
+            Preencha seus dados para começar a usar o{' '}
+            <span className="text-[#F89D13] font-semibold">
+              Marido de Aluguel
+            </span>
+            .
+          </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <div>
-            <label htmlFor="nomeUsuario" className="block text-sm font-medium text-gray-700 mb-1">
-              Nome completo
-            </label>
-            <input
-              id="nomeUsuario"
-              name="nomeUsuario"
-              value={form.nomeUsuario}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13]"
-              placeholder="Ex: João Silva"
-            />
-          </div>
+          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+            <div>
+              <label
+                htmlFor="nomeUsuario"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Nome completo
+              </label>
+              <input
+                id="nomeUsuario"
+                name="nomeUsuario"
+                value={form.nomeUsuario}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
+                placeholder="Ex: João Silva"
+              />
+            </div>
 
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              E-mail
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13]"
-              placeholder="seuemail@email.com"
-            />
-          </div>
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                E-mail
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                value={form.email}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
+                placeholder="seuemail@email.com"
+              />
+            </div>
 
-          <div>
-            <label htmlFor="cpfUsuario" className="block text-sm font-medium text-gray-700 mb-1">
-              CPF
-            </label>
-            <input
-              id="cpfUsuario"
-              name="cpfUsuario"
-              type="text"
-              value={form.cpfUsuario}
-              onChange={handleChange}
-              maxLength={11}
-              inputMode="numeric"
-              placeholder="Somente números"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13]"
-            />
-          </div>
+            <div>
+              <label
+                htmlFor="cpfUsuario"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                CPF
+              </label>
+              <input
+                id="cpfUsuario"
+                name="cpfUsuario"
+                type="text"
+                value={form.cpfUsuario}
+                onChange={handleChange}
+                maxLength={11}
+                inputMode="numeric"
+                placeholder="Somente números"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
+              />
+            </div>
 
-          <div>
-            <label htmlFor="senha" className="block text-sm font-medium text-gray-700 mb-1">
-              Senha
-            </label>
-            <input
-              id="senha"
-              name="senha"
-              type="password"
-              value={form.senha}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13]"
-              placeholder="••••••••"
-            />
-            {!senhaForte && form.senha && (
-              <p className="text-xs text-red-600 mt-1">
-                A senha deve conter pelo menos 8 caracteres, incluindo letra maiúscula, minúscula, número e símbolo.
-              </p>
+            <div>
+              <label
+                htmlFor="senha"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Senha
+              </label>
+              <input
+                id="senha"
+                name="senha"
+                type="password"
+                value={form.senha}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
+                placeholder="••••••••"
+              />
+              {!senhaForte && form.senha && (
+                <p className="text-xs text-red-600 mt-1">
+                  A senha deve conter pelo menos 8 caracteres, incluindo letra
+                  maiúscula, minúscula, número e símbolo.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="confirmSenha"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Confirmar senha
+              </label>
+              <input
+                id="confirmSenha"
+                name="confirmSenha"
+                type="password"
+                value={form.confirmSenha}
+                onChange={handleChange}
+                required
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
+                placeholder="Repita a senha"
+              />
+              {!!form.confirmSenha && !senhasBatendo && (
+                <p className="text-xs text-red-600 mt-1">
+                  As senhas não conferem.
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="tipo"
+                className="block text-sm font-medium text-gray-700 mb-1"
+              >
+                Tipo de usuário
+              </label>
+              <select
+                id="tipo"
+                name="tipo"
+                value={form.tipo}
+                onChange={handleChange}
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
+              >
+                <option value="contratante">Cliente</option>
+                <option value="prestador">Prestador</option>
+              </select>
+            </div>
+
+            {error && (
+              <p className="text-red-600 text-sm text-center">{error}</p>
             )}
-          </div>
-
-          <div>
-            <label htmlFor="confirmSenha" className="block text-sm font-medium text-gray-700 mb-1">
-              Confirmar senha
-            </label>
-            <input
-              id="confirmSenha"
-              name="confirmSenha"
-              type="password"
-              value={form.confirmSenha}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13]"
-              placeholder="Repita a senha"
-            />
-            {!!form.confirmSenha && !senhasBatendo && (
-              <p className="text-xs text-red-600 mt-1">As senhas não conferem.</p>
+            {success && (
+              <p className="text-green-600 text-sm text-center">{success}</p>
             )}
-          </div>
 
-          <div>
-            <label htmlFor="tipo" className="block text-sm font-medium text-gray-700 mb-1">
-              Tipo de usuário
-            </label>
-            <select
-              id="tipo"
-              name="tipo"
-              value={form.tipo}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13]"
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#8F1D14] text-white py-3 rounded-lg font-semibold hover:bg-[#a2261b] transition mt-4 disabled:opacity-60"
             >
-              <option value="contratante">Cliente</option>
-              <option value="prestador">Prestador</option>
-            </select>
-          </div>
-
-          {error && <p className="text-red-600 text-sm text-center">{error}</p>}
-          {success && <p className="text-green-600 text-sm text-center">{success}</p>}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-[#8F1D14] text-white py-3 rounded-lg font-semibold hover:bg-[#a2261b] transition mt-4"
-          >
-            {loading ? 'Cadastrando...' : 'Cadastrar'}
-          </button>
-        </form>
+              {loading ? 'Cadastrando...' : 'Cadastrar'}
+            </button>
+          </form>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }
