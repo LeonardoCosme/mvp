@@ -3,7 +3,7 @@ import './globals.css';
 import PageShell from './PageShell';
 
 export const metadata: Metadata = {
-  title: 'InterServ',
+  title: 'Marido de Aluguel',
   description: 'Encontre profissionais de confiança',
 };
 

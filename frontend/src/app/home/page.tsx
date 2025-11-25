@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getToken } from '@/utils/auth';
+import { getToken } from '../../utils/auth';
 
 const slides = [
   { id: 1, src: '/carrossel1.jpg', alt: 'Profissionais', legenda: 'Serviços rápidos e de confiança' },
@@ -87,7 +87,7 @@ export default function LandingPage() {
       {/* Conteúdo abaixo */}
       <section className="flex flex-col items-center justify-center p-6 mt-10 text-center">
         <h1 className="text-4xl font-bold text-[#8F1D14] mb-4">
-          {logged && nome ? `Bem-vindo, ${nome.split(' ')[0]}!` : 'Bem-vindo ao InterServ'}
+          {logged && nome ? `Bem-vindo, ${nome.split(' ')[0]}!` : 'Bem-vindo ao Marido de Aluguel'}
         </h1>
         <p className="text-gray-700 max-w-md mb-10">
           Encontre profissionais de confiança para serviços rápidos, práticos e seguros.
