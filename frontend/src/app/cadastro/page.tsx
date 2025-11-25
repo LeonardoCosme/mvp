@@ -14,8 +14,12 @@ export default function CadastroPage() {
     confirmSenha: '',
     tipo: 'contratante',
     cpfUsuario: '',
+    // contratante
     endereco: '',
     telefone: '',
+    // prestador
+    cnpjPrestador: '',
+    celPrestador: '',
   });
 
   const [error, setError] = useState('');
@@ -66,10 +70,12 @@ export default function CadastroPage() {
         cpfUsuario: form.cpfUsuario.trim(),
       };
 
-      // Se for contratante, já enviamos endereço e telefone junto
       if (form.tipo === 'contratante') {
         body.endereco = form.endereco.trim();
         body.telefone = form.telefone.trim();
+      } else if (form.tipo === 'prestador') {
+        body.cnpjPrestador = form.cnpjPrestador.trim();
+        body.celPrestador = form.celPrestador.trim();
       }
 
       const response = await apiFetch('/auth/register', {
@@ -79,7 +85,6 @@ export default function CadastroPage() {
       });
 
       console.log('✅ Resposta API:', response);
-
       setSuccess('Cadastro realizado com sucesso!');
       setTimeout(() => router.push('/login'), 2000);
     } catch (err: any) {
@@ -231,7 +236,7 @@ export default function CadastroPage() {
               </select>
             </div>
 
-            {/* Dados adicionais para contratante */}
+            {/* Dados adicionais para CONTRATANTE */}
             {form.tipo === 'contratante' && (
               <div className="space-y-4 pt-2 border-t border-gray-200">
                 <p className="text-sm text-gray-700 font-medium">
@@ -250,7 +255,7 @@ export default function CadastroPage() {
                     name="endereco"
                     value={form.endereco}
                     onChange={handleChange}
-                    required={form.tipo === 'contratante'}
+                    required
                     placeholder="Rua, número, bairro, cidade"
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
                   />
@@ -269,7 +274,51 @@ export default function CadastroPage() {
                     type="tel"
                     value={form.telefone}
                     onChange={handleChange}
-                    required={form.tipo === 'contratante'}
+                    required
+                    placeholder="(11) 99999-9999"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Dados adicionais para PRESTADOR */}
+            {form.tipo === 'prestador' && (
+              <div className="space-y-4 pt-2 border-t border-gray-200">
+                <p className="text-sm text-gray-700 font-medium">
+                  Dados de prestador
+                </p>
+
+                <div>
+                  <label
+                    htmlFor="cnpjPrestador"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    CNPJ
+                  </label>
+                  <input
+                    id="cnpjPrestador"
+                    name="cnpjPrestador"
+                    value={form.cnpjPrestador}
+                    onChange={handleChange}
+                    placeholder="Somente números"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="celPrestador"
+                    className="block text-sm font-medium text-gray-700 mb-1"
+                  >
+                    Celular
+                  </label>
+                  <input
+                    id="celPrestador"
+                    name="celPrestador"
+                    type="tel"
+                    value={form.celPrestador}
+                    onChange={handleChange}
                     placeholder="(11) 99999-9999"
                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#F89D13] focus:outline-none"
                   />
