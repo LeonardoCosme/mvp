@@ -89,9 +89,9 @@ export default function AgendamentoPage() {
   const [qrLoadingId, setQrLoadingId] = useState<number | null>(null);
 
   // qual QR está visível dentro do card (início / finalização)
-  const [qrStartVisible, setQrStartVisible] = useState<
-    Record<number, boolean>
-  >({});
+  const [qrStartVisible, setQrStartVisible] = useState<Record<number, boolean>>(
+    {}
+  );
   const [qrEndVisible, setQrEndVisible] = useState<Record<number, boolean>>({});
 
   // estado de envio de leitura (prestador)
@@ -576,7 +576,7 @@ export default function AgendamentoPage() {
               <div className="flex flex-wrap gap-2">
                 <Link
                   href="/home"
-                  className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-semibold text-[#8F1D14] hover:bg-gray-50"
+                  className="px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50"
                 >
                   ← Voltar para a home
                 </Link>
@@ -661,12 +661,12 @@ export default function AgendamentoPage() {
                             )}
                           </div>
 
-                          <div className="flex flex-col gap-2 min-w-[170px] items-stretch">
+                          <div className="flex flex-col gap-2 min-w-[180px] items-stretch">
                             <button
                               type="button"
                               onClick={() => handleAceitar(ag.id)}
                               disabled={acaoCarregando === ag.id}
-                              className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60"
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-60"
                             >
                               {acaoCarregando === ag.id
                                 ? 'Aceitando...'
@@ -676,7 +676,7 @@ export default function AgendamentoPage() {
                               type="button"
                               onClick={() => handleRecusar(ag.id)}
                               disabled={acaoCarregando === ag.id}
-                              className="px-3 py-2 rounded-lg border border-red-400 text-red-700 text-sm font-semibold hover:bg-red-50 disabled:opacity-60"
+                              className="px-3 py-1.5 rounded-lg border border-red-400 text-red-700 text-sm font-semibold hover:bg-red-50 disabled:opacity-60"
                             >
                               {acaoCarregando === ag.id
                                 ? 'Recusando...'
@@ -801,7 +801,7 @@ export default function AgendamentoPage() {
                                   onClick={() =>
                                     handleEditarAgendamento(ag)
                                   }
-                                  className="px-3 py-2 rounded-lg border border-amber-300 text-amber-800 text-sm font-semibold hover:bg-amber-50"
+                                  className="px-3 py-1.5 rounded-lg border border-amber-300 text-amber-800 text-sm font-semibold hover:bg-amber-50"
                                 >
                                   Editar
                                 </button>
@@ -810,7 +810,7 @@ export default function AgendamentoPage() {
                                   onClick={() =>
                                     handleCancelarAgendamento(ag)
                                   }
-                                  className="px-3 py-2 rounded-lg border border-red-400 text-red-700 text-sm font-semibold hover:bg-red-50"
+                                  className="px-3 py-1.5 rounded-lg border border-red-400 text-red-700 text-sm font-semibold hover:bg-red-50"
                                 >
                                   Cancelar
                                 </button>
@@ -822,7 +822,7 @@ export default function AgendamentoPage() {
                             <button
                               type="button"
                               onClick={() => handleAvaliarAgendamento(ag)}
-                              className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700"
+                              className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700"
                             >
                               Avaliar serviço
                             </button>
@@ -833,7 +833,7 @@ export default function AgendamentoPage() {
                             <button
                               type="button"
                               onClick={() => handleEditarRelato(ag)}
-                              className="px-3 py-2 rounded-lg border border-[#F89D13] text-[#F89D13] text-sm font-semibold hover:bg-[#F89D13]/5"
+                              className="px-4 py-2 rounded-lg border border-[#F89D13] text-[#8F1D14] text-sm font-semibold hover:bg-[#F89D13]/5"
                             >
                               Editar relato do serviço
                             </button>
@@ -846,7 +846,7 @@ export default function AgendamentoPage() {
                                 type="button"
                                 onClick={() => toggleQr(ag)}
                                 disabled={qrLoadingId === ag.id}
-                                className="px-3 py-2 rounded-lg border border-[#8F1D14]/40 text-[#8F1D14] text-sm font-semibold hover:bg-[#8F1D14]/5 disabled:opacity-60 self-end"
+                                className="px-4 py-2 rounded-lg bg-white border border-[#8F1D14]/50 text-[#8F1D14] text-sm font-semibold hover:bg-[#8F1D14]/5 disabled:opacity-60 self-end"
                               >
                                 {qrLoadingId === ag.id
                                   ? 'Carregando QRs...'
@@ -865,7 +865,7 @@ export default function AgendamentoPage() {
                                       </span>
                                       <button
                                         type="button"
-                                        className="text-[11px] px-2 py-0.5 rounded-full border border-emerald-300 text-emerald-800 hover:bg-emerald-100"
+                                        className="text-xs px-3 py-1 rounded-full border border-emerald-400 text-emerald-900 font-semibold hover:bg-emerald-100"
                                         onClick={() =>
                                           setQrStartVisible((prev) => ({
                                             ...prev,
@@ -908,7 +908,7 @@ export default function AgendamentoPage() {
                                       </span>
                                       <button
                                         type="button"
-                                        className="text-[11px] px-2 py-0.5 rounded-full border border-sky-300 text-sky-800 hover:bg-sky-100"
+                                        className="text-xs px-3 py-1 rounded-full border border-sky-400 text-sky-900 font-semibold hover:bg-sky-100"
                                         onClick={() =>
                                           setQrEndVisible((prev) => ({
                                             ...prev,
@@ -966,7 +966,7 @@ export default function AgendamentoPage() {
                                     setManualCode('');
                                   }}
                                   disabled={scanLoadingId === ag.id}
-                                  className="px-3 py-2 rounded-lg border border-blue-400 text-blue-700 text-sm font-semibold hover:bg-blue-50 disabled:opacity-60"
+                                  className="px-3 py-1.5 rounded-lg bg-white border border-[#F89D13] text-[#8F1D14] text-sm font-semibold hover:bg-[#F89D13]/5 disabled:opacity-60"
                                 >
                                   {scanLoadingId === ag.id &&
                                   scanUI.tipo === 'start'
@@ -989,7 +989,7 @@ export default function AgendamentoPage() {
                                     setManualCode('');
                                   }}
                                   disabled={scanLoadingId === ag.id}
-                                  className="px-3 py-2 rounded-lg border border-purple-400 text-purple-700 text-sm font-semibold hover:bg-purple-50 disabled:opacity-60"
+                                  className="px-3 py-1.5 rounded-lg bg-white border border-[#8F1D14] text-[#8F1D14] text-sm font-semibold hover:bg-[#8F1D14]/5 disabled:opacity-60"
                                 >
                                   {scanLoadingId === ag.id &&
                                   scanUI.tipo === 'end'
