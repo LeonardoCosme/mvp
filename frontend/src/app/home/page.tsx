@@ -165,6 +165,75 @@ export default function LandingPage() {
           </nav>
         </div>
       </section>
+
+      {/* Seção "Como funciona" */}
+      <section className="w-full bg-[#fef3e7] py-10 md:py-12">
+        <div className="max-w-6xl mx-auto px-4">
+          <header className="text-center mb-6 md:mb-8">
+            <h2 className="text-2xl md:text-3xl font-extrabold text-[#8F1D14]">
+              Como funciona na prática
+            </h2>
+            <p className="mt-2 text-sm md:text-base text-gray-700 max-w-2xl mx-auto">
+              O Marido de Aluguel organiza a ponte entre quem precisa de ajuda e
+              quem presta o serviço, deixando tudo mais claro para as duas partes.
+            </p>
+          </header>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* Cliente */}
+            <article className="bg-white/90 rounded-2xl shadow-md p-5 flex flex-col">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-10 w-10 rounded-full bg-[#F89D13]/15 flex items-center justify-center text-xl">
+                  🧑‍💼
+                </div>
+                <h3 className="font-semibold text-[#8F1D14] text-lg">
+                  Para clientes
+                </h3>
+              </div>
+              <p className="text-sm text-gray-700 leading-relaxed">
+                Você escolhe o tipo de serviço, informa data e endereço e
+                acompanha tudo pela área de{' '}
+                <span className="font-semibold">Agendamentos</span>. O histórico
+                fica salvo para futuras manutenções.
+              </p>
+            </article>
+
+            {/* Prestador */}
+            <article className="bg-white/90 rounded-2xl shadow-md p-5 flex flex-col">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-10 w-10 rounded-full bg-[#F89D13]/15 flex items-center justify-center text-xl">
+                  🛠️
+                </div>
+                <h3 className="font-semibold text-[#8F1D14] text-lg">
+                  Para prestadores
+                </h3>
+              </div>
+              <p className="text-sm text-gray-700 leading-relaxed">
+                O prestador visualiza os serviços disponíveis, aceita aqueles
+                que cabem na agenda e finaliza o atendimento via QR code,
+                garantindo registro e transparência.
+              </p>
+            </article>
+
+            {/* Segurança & registros */}
+            <article className="bg-white/90 rounded-2xl shadow-md p-5 flex flex-col">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="h-10 w-10 rounded-full bg-[#F89D13]/15 flex items-center justify-center text-xl">
+                  📋
+                </div>
+                <h3 className="font-semibold text-[#8F1D14] text-lg">
+                  Segurança e registro
+                </h3>
+              </div>
+              <p className="text-sm text-gray-700 leading-relaxed">
+                Cada atendimento é registrado: início e fim via QR code,
+                descrição do serviço realizado e histórico dentro da plataforma,
+                facilitando conferência e futuras visitas.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
