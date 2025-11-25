@@ -192,16 +192,16 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-600">
-            Ainda não tem conta?{' '}
+          <div className="mt-6 text-center text-sm text-gray-700">
+            <span>Ainda não tem conta?</span>
             <button
               type="button"
               onClick={() => router.push('/cadastro')}
-              className="text-[#F89D13] font-semibold hover:underline"
+              className="inline-flex items-center px-3 py-1.5 ml-2 rounded-full bg-[#F89D13] text-white text-xs sm:text-sm font-semibold shadow-sm hover:bg-[#d57f10] transition"
             >
               Cadastre-se
             </button>
-          </p>
+          </div>
         </div>
       </div>
     </main>
