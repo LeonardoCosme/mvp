@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import type { IDetectedBarcode } from '@yudiel/react-qr-scanner';
-import { apiFetch } from '../../utils/api';
+import { apiFetch } from '@/utils/api';
 
 type ScanPhase = 'idle' | 'processing' | 'done' | 'error';
 type ValidPhase = 'checkin' | 'start' | 'end';
