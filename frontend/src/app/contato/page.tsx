@@ -40,14 +40,16 @@ export default function ContatoPage() {
     <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 pt-28 pb-12">
       <div className="max-w-5xl mx-auto px-4">
         {/* Header */}
-        <header className="text-center mb-10">
-          <h1 className="text-3xl md:text-4xl font-extrabold text-[#8F1D14]">
-            Contato
-          </h1>
-          <p className="text-gray-700 mt-2 max-w-2xl mx-auto">
-            Conecte-se com os membros do nosso time pelo LinkedIn e acompanhe
-            o desenvolvimento do projeto.
-          </p>
+        <header className="mb-10">
+          <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-md px-6 py-6 md:px-8 md:py-7 text-center">
+            <h1 className="text-3xl md:text-4xl font-extrabold text-[#8F1D14]">
+              Contato
+            </h1>
+            <p className="text-gray-800 mt-2 max-w-2xl mx-auto">
+              Conecte-se com os membros do nosso time pelo LinkedIn e acompanhe
+              a evolução do sistema <span className="font-semibold">Marido de Aluguel</span>.
+            </p>
+          </div>
         </header>
 
         {/* Cards do time */}
@@ -66,7 +68,8 @@ export default function ContatoPage() {
                     alt={`Foto de ${m.name}`}
                     className="w-28 h-28 rounded-full object-cover border-4 border-white shadow"
                     onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                      (e.currentTarget as HTMLImageElement).style.display =
+                        'none';
                       const fallback = document.getElementById(
                         `fallback-${m.initials}`
                       );
@@ -132,7 +135,6 @@ export default function ContatoPage() {
         <section className="mt-4">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow p-4 md:p-5 flex flex-col md:flex-row items-center justify-center gap-4 text-center md:text-left">
             <div className="w-28 md:w-32 flex-shrink-0">
-              {/* Ajuste o src se o arquivo tiver outro nome/caminho */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/fatec-logo.png"
