@@ -286,7 +286,7 @@ export default function CadastroPage() {
             {form.tipo === 'prestador' && (
               <div className="space-y-4 pt-2 border-t border-gray-200">
                 <p className="text-sm text-gray-700 font-medium">
-                  Dados de prestador
+                  Dados Prestador
                 </p>
 
                 <div>
