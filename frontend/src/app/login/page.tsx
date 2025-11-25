@@ -38,14 +38,10 @@ export default function LoginPage() {
       const data = (await apiFetch('/login', {
         method: 'POST',
         noAuth: true,
-        // 👇 Aqui era o ponto do erro de tipagem:
-        // o TS achava que "body" tinha que ser BodyInit.
-        // Mantemos o objeto (para o apiFetch tratar) e
-        // apenas anotamos como "any" para o TS aceitar.
         body: {
           email: email.trim(),
-          senha: senha,    // compatível com backend (campo "senha")
-          password: senha, // compatível com variantes futuras
+          senha: senha,
+          password: senha,
           lembrar,
         } as any,
       })) as LoginResponse;
@@ -61,16 +57,13 @@ export default function LoginPage() {
       }
 
       if (typeof window !== 'undefined') {
-        // limpa qualquer lixo de sessão antiga
         window.localStorage.removeItem('token');
         window.localStorage.removeItem('nomeUsuario');
         window.localStorage.removeItem('tipo');
         window.localStorage.removeItem('tipoUsuario');
 
-        // salva token novo
         window.localStorage.setItem('token', token);
 
-        // backend manda nomeUsuario e tipo soltos:
         const nomeUsuario = data.nomeUsuario || '';
         const tipo = data.tipo || '';
 
@@ -82,7 +75,6 @@ export default function LoginPage() {
           window.localStorage.setItem('tipoUsuario', String(tipo));
         }
 
-        // avisa Header / outros componentes que o auth mudou
         window.dispatchEvent(new Event('auth-changed'));
       }
 
@@ -111,9 +103,9 @@ export default function LoginPage() {
     : '';
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#4b2506] to-[#2b1304] flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white/95 rounded-2xl shadow-xl px-8 py-10">
+    <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 pt-28 pb-12">
+      <div className="max-w-md mx-auto px-4">
+        <div className="bg-white/95 rounded-2xl shadow-2xl px-8 py-10 backdrop-blur-md">
           <h1 className="text-3xl font-bold text-center text-[#8F1D14] mb-2">
             Entrar
           </h1>
@@ -127,7 +119,10 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm text-gray-700 mb-1" htmlFor="email">
+              <label
+                className="block text-sm text-gray-700 mb-1"
+                htmlFor="email"
+              >
                 E-mail
               </label>
               <input
@@ -137,11 +132,18 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
+                placeholder="seuemail@email.com"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Use o mesmo e-mail informado no momento do cadastro.
+              </p>
             </div>
 
             <div>
-              <label className="block text-sm text-gray-700 mb-1" htmlFor="senha">
+              <label
+                className="block text-sm text-gray-700 mb-1"
+                htmlFor="senha"
+              >
                 Senha
               </label>
               <input
@@ -151,10 +153,11 @@ export default function LoginPage() {
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 autoComplete="current-password"
+                placeholder="••••••••"
               />
             </div>
 
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-sm gap-3 flex-wrap">
               <label className="inline-flex items-center gap-2 text-gray-700">
                 <input
                   type="checkbox"
@@ -168,7 +171,7 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={() => router.push('/forgot-password')}
-                className="px-3 py-1 rounded-md bg-[#F89D13] text-white font-semibold hover:opacity-90 transition"
+                className="px-3 py-1.5 rounded-lg border border-[#F89D13]/40 text-[#8F1D14] font-semibold hover:bg-[#F89D13]/5 transition"
               >
                 Esqueci minha senha
               </button>
@@ -183,7 +186,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-[#8F1D14] text-white py-2.5 rounded-lg font-semibold mt-2 hover:bg-[#a2261b] transition disabled:opacity-70"
+              className="w-full bg-[#8F1D14] text-white py-3 rounded-lg font-semibold mt-2 hover:bg-[#a2261b] transition disabled:opacity-70"
             >
               {loading ? 'Entrando…' : 'Entrar'}
             </button>
