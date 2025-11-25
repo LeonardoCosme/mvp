@@ -1,15 +1,18 @@
-// frontend/src/app/agendamento/page.tsx
 'use client';
 
-export const dynamic = 'force-dynamic';
-
-import { useEffect, useState, type ComponentType } from 'react';
+import {
+  useEffect,
+  useState,
+  type ComponentType,
+} from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import NextDynamic from 'next/dynamic';
+import dynamicImport from 'next/dynamic';
 import { apiFetch } from '@/utils/api';
 import { getToken } from '@/utils/auth';
 import { QRCodeCanvas } from 'qrcode.react';
+
+export const dynamic = 'force-dynamic';
 
 type Perfil = 'Contratante' | 'Prestador' | 'Usuário';
 
@@ -49,11 +52,11 @@ type QrStatus = {
   };
 };
 
-// Scanner de QR carregado só no navegador
-const QrScanner = NextDynamic(
+// Scanner de QR com dynamic import (sem SSR)
+const QrScanner = dynamicImport(
   () =>
     import('@yudiel/react-qr-scanner').then(
-      (mod) => mod.QrScanner as ComponentType<any>
+      (mod) => mod.Scanner as ComponentType<any>
     ),
   { ssr: false }
 );
@@ -81,20 +84,28 @@ export default function AgendamentoPage() {
   const [erro, setErro] = useState('');
   const [acaoCarregando, setAcaoCarregando] = useState<number | null>(null);
 
-  // estado para QRs (dados)
+  // estado para QRs do contratante
   const [qrcodes, setQrcodes] = useState<Record<number, QrStatus>>({});
   const [qrLoadingId, setQrLoadingId] = useState<number | null>(null);
-  const [scanLoadingId, setScanLoadingId] = useState<number | null>(null);
 
-  // qual QR está visível (início / finalização) por agendamento
-  const [qrStartVisible, setQrStartVisible] = useState<Record<number, boolean>>(
-    {}
-  );
+  // qual QR está visível dentro do card (início / finalização)
+  const [qrStartVisible, setQrStartVisible] = useState<
+    Record<number, boolean>
+  >({});
   const [qrEndVisible, setQrEndVisible] = useState<Record<number, boolean>>({});
 
-  // scanner de câmera para o prestador
-  const [scannerAgendamentoId, setScannerAgendamentoId] = useState<number | null>(null);
-  const [scannerTipo, setScannerTipo] = useState<'start' | 'end' | null>(null);
+  // estado de envio de leitura (prestador)
+  const [scanLoadingId, setScanLoadingId] = useState<number | null>(null);
+
+  // estado da UI de leitura de QR (prestador)
+  const [scanUI, setScanUI] = useState<{
+    aberto: boolean;
+    modo: 'camera' | 'manual';
+    tipo: 'start' | 'end' | null;
+    agId: number | null;
+  }>({ aberto: false, modo: 'camera', tipo: null, agId: null });
+
+  const [manualCode, setManualCode] = useState('');
 
   useEffect(() => {
     if (!getToken()) {
@@ -217,7 +228,9 @@ export default function AgendamentoPage() {
         method: 'POST',
       });
 
+      // remove da lista de disponíveis
       setDisponiveis((lista) => lista.filter((item) => item.id !== id));
+      // recarrega "meus agendamentos" do prestador
       await carregarMeusAgendamentosSePrestador();
     } catch (err: any) {
       console.error('❌ Erro ao aceitar agendamento:', err);
@@ -253,7 +266,7 @@ export default function AgendamentoPage() {
     }
   }
 
-  // --------- QR CODES ---------
+  // --------- QR CODES (CONTRATANTE) ---------
 
   async function toggleQr(ag: AgendamentoResumo) {
     const id = ag.id;
@@ -284,7 +297,7 @@ export default function AgendamentoPage() {
         `/agendamentos/${id}/qrcode`
       )) as QrStatus;
       setQrcodes((prev) => ({ ...prev, [id]: info }));
-      // padrão: mostra início, esconde finalização
+      // por padrão: mostra início, esconde finalização
       setQrStartVisible((prev) => ({ ...prev, [id]: true }));
       setQrEndVisible((prev) => ({ ...prev, [id]: false }));
     } catch (err: any) {
@@ -300,22 +313,13 @@ export default function AgendamentoPage() {
     }
   }
 
-  // Função única para registrar o scan (tanto câmera quanto código colado)
-  async function handleScanQr(
+  // --------- SCAN DO QR (PRESTADOR) ---------
+
+  async function processScan(
     ag: AgendamentoResumo,
     tipo: 'start' | 'end',
-    codigoFromCamera?: string
+    codigo: string
   ) {
-    let codigo = codigoFromCamera;
-
-    if (!codigo) {
-      codigo = window.prompt(
-        tipo === 'start'
-          ? 'Cole aqui o código lido do QR de INÍCIO:'
-          : 'Cole aqui o código lido do QR de FINALIZAÇÃO:'
-      )?.trim() || '';
-    }
-
     if (!codigo) return;
 
     // se for QR de finalização, pergunta o relato do serviço
@@ -323,7 +327,7 @@ export default function AgendamentoPage() {
     if (tipo === 'end') {
       const texto = window.prompt(
         'Descreva brevemente o serviço realizado (opcional):',
-        ag.relato_servico || ''
+        ''
       );
       if (texto && texto.trim()) {
         relato = texto.trim();
@@ -372,6 +376,8 @@ export default function AgendamentoPage() {
       );
     } finally {
       setScanLoadingId(null);
+      setScanUI((prev) => ({ ...prev, aberto: false }));
+      setManualCode('');
     }
   }
 
@@ -736,12 +742,15 @@ export default function AgendamentoPage() {
                     const startVisivel = !!qrStartVisible[ag.id];
                     const endVisivel = !!qrEndVisible[ag.id];
 
+                    const isScanUIOpenHere =
+                      scanUI.aberto && scanUI.agId === ag.id;
+
                     return (
                       <article
                         key={ag.id}
-                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
+                        className="rounded-xl border border-gray-200 bg-white px-4 py-3 flex flex-col md:flex-row md:items-start md:justify-between gap-3"
                       >
-                        <div>
+                        <div className="flex-1">
                           <p className="text-sm font-semibold text-gray-900">
                             {ag.tipo_nome || 'Serviço'}{' '}
                             <span className="text-xs text-gray-500">
@@ -832,12 +841,12 @@ export default function AgendamentoPage() {
 
                           {/* Contratante: visualizar QRs */}
                           {podeMostrarQrContratante && (
-                            <div className="flex flex-col items-end gap-1 mt-1 w-full md:w-auto">
+                            <div className="flex flex-col items-stretch gap-1 mt-1 w-full">
                               <button
                                 type="button"
                                 onClick={() => toggleQr(ag)}
                                 disabled={qrLoadingId === ag.id}
-                                className="px-3 py-1.5 rounded-lg border border-[#8F1D14]/40 text-[#8F1D14] text-xs font-semibold hover:bg-[#8F1D14]/5 disabled:opacity-60"
+                                className="px-3 py-1.5 rounded-lg border border-[#8F1D14]/40 text-[#8F1D14] text-xs font-semibold hover:bg-[#8F1D14]/5 disabled:opacity-60 self-end"
                               >
                                 {qrLoadingId === ag.id
                                   ? 'Carregando QRs...'
@@ -847,9 +856,9 @@ export default function AgendamentoPage() {
                               </button>
 
                               {qrInfo && (
-                                <div className="mt-2 flex flex-col md:flex-row gap-4 w-full max-w-xl">
+                                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
                                   {/* CARD QR INÍCIO */}
-                                  <div className="flex-1 rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-3 flex flex-col items-stretch">
+                                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-3 py-3 flex flex-col items-stretch">
                                     <div className="flex items-center justify-between mb-2">
                                       <span className="text-xs font-semibold text-emerald-900">
                                         QR início
@@ -857,21 +866,16 @@ export default function AgendamentoPage() {
                                       <button
                                         type="button"
                                         className="text-[11px] px-2 py-0.5 rounded-full border border-emerald-300 text-emerald-800 hover:bg-emerald-100"
-                                        onClick={() => {
-                                          const novoVisivel = !startVisivel;
+                                        onClick={() =>
                                           setQrStartVisible((prev) => ({
                                             ...prev,
-                                            [ag.id]: novoVisivel,
-                                          }));
-                                          if (novoVisivel) {
-                                            setQrEndVisible((prev) => ({
-                                              ...prev,
-                                              [ag.id]: false,
-                                            }));
-                                          }
-                                        }}
+                                            [ag.id]: !startVisivel,
+                                          }))
+                                        }
                                       >
-                                        {startVisivel ? 'Esconder' : 'Mostrar'}
+                                        {startVisivel
+                                          ? 'Esconder'
+                                          : 'Mostrar'}
                                       </button>
                                     </div>
 
@@ -889,14 +893,15 @@ export default function AgendamentoPage() {
                                         </p>
                                         <p className="text-[11px] text-emerald-900 text-center">
                                           Mostre este QR para o prestador ler
-                                          com a câmera do celular.
+                                          com a câmera do celular ou copie o
+                                          código, se preferir.
                                         </p>
                                       </>
                                     )}
                                   </div>
 
                                   {/* CARD QR FINALIZAÇÃO */}
-                                  <div className="flex-1 rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-3 flex flex-col items-stretch">
+                                  <div className="rounded-xl border border-sky-200 bg-sky-50/60 px-3 py-3 flex flex-col items-stretch">
                                     <div className="flex items-center justify-between mb-2">
                                       <span className="text-xs font-semibold text-sky-900">
                                         QR finalização
@@ -904,21 +909,16 @@ export default function AgendamentoPage() {
                                       <button
                                         type="button"
                                         className="text-[11px] px-2 py-0.5 rounded-full border border-sky-300 text-sky-800 hover:bg-sky-100"
-                                        onClick={() => {
-                                          const novoVisivel = !endVisivel;
+                                        onClick={() =>
                                           setQrEndVisible((prev) => ({
                                             ...prev,
-                                            [ag.id]: novoVisivel,
-                                          }));
-                                          if (novoVisivel) {
-                                            setQrStartVisible((prev) => ({
-                                              ...prev,
-                                              [ag.id]: false,
-                                            }));
-                                          }
-                                        }}
+                                            [ag.id]: !endVisivel,
+                                          }))
+                                        }
                                       >
-                                        {endVisivel ? 'Esconder' : 'Mostrar'}
+                                        {endVisivel
+                                          ? 'Esconder'
+                                          : 'Mostrar'}
                                       </button>
                                     </div>
 
@@ -946,97 +946,197 @@ export default function AgendamentoPage() {
                             </div>
                           )}
 
-                          {/* Prestador: ler QRs com câmera ou colando código */}
+                          {/* Prestador: ler QRs (câmera ou colar código) */}
                           {podeLerQrPrestador && (
                             <div className="flex flex-col gap-2 mt-1 w-full md:w-auto">
-                              <div className="text-[11px] text-gray-500 text-right">
-                                Como deseja registrar a leitura?
-                              </div>
-
                               <div className="flex flex-wrap gap-2 justify-end">
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setScannerAgendamentoId(ag.id);
-                                    setScannerTipo('start');
+                                    const jaAberto =
+                                      scanUI.aberto &&
+                                      scanUI.agId === ag.id &&
+                                      scanUI.tipo === 'start';
+                                    setScanUI({
+                                      aberto: !jaAberto,
+                                      modo: 'camera',
+                                      tipo: 'start',
+                                      agId: ag.id,
+                                    });
+                                    setManualCode('');
                                   }}
                                   disabled={scanLoadingId === ag.id}
                                   className="px-3 py-1.5 rounded-lg border border-blue-300 text-blue-700 text-xs font-semibold hover:bg-blue-50 disabled:opacity-60"
                                 >
-                                  📷 Início com câmera
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleScanQr(ag, 'start')}
-                                  disabled={scanLoadingId === ag.id}
-                                  className="px-3 py-1.5 rounded-lg border border-blue-300 text-blue-700 text-xs font-semibold hover:bg-blue-50 disabled:opacity-60"
-                                >
-                                  ⏱️ Início colando código
+                                  {scanLoadingId === ag.id &&
+                                  scanUI.tipo === 'start'
+                                    ? 'Registrando início...'
+                                    : 'Ler QR de início'}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setScannerAgendamentoId(ag.id);
-                                    setScannerTipo('end');
+                                    const jaAberto =
+                                      scanUI.aberto &&
+                                      scanUI.agId === ag.id &&
+                                      scanUI.tipo === 'end';
+                                    setScanUI({
+                                      aberto: !jaAberto,
+                                      modo: 'camera',
+                                      tipo: 'end',
+                                      agId: ag.id,
+                                    });
+                                    setManualCode('');
                                   }}
                                   disabled={scanLoadingId === ag.id}
                                   className="px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 text-xs font-semibold hover:bg-purple-50 disabled:opacity-60"
                                 >
-                                  📷 Fim com câmera
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleScanQr(ag, 'end')}
-                                  disabled={scanLoadingId === ag.id}
-                                  className="px-3 py-1.5 rounded-lg border border-purple-300 text-purple-700 text-xs font-semibold hover:bg-purple-50 disabled:opacity-60"
-                                >
-                                  🏁 Fim colando código
+                                  {scanLoadingId === ag.id &&
+                                  scanUI.tipo === 'end'
+                                    ? 'Registrando fim...'
+                                    : 'Ler QR de finalização'}
                                 </button>
                               </div>
 
-                              {scannerAgendamentoId === ag.id && scannerTipo && (
-                                <div className="mt-2 w-full max-w-xs rounded-xl border border-blue-200 bg-blue-50/60 p-3">
+                              {/* Bloco da UI de leitura (câmera / manual) */}
+                              {isScanUIOpenHere && scanUI.tipo && (
+                                <div className="mt-2 w-full max-w-xs rounded-xl border border-gray-200 bg-gray-50 px-3 py-3 text-xs">
                                   <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[11px] font-semibold text-blue-900">
-                                      Leitura com câmera (
-                                      {scannerTipo === 'start'
-                                        ? 'início'
-                                        : 'fim'}
-                                      )
+                                    <span className="font-semibold text-gray-800">
+                                      {scanUI.tipo === 'start'
+                                        ? 'Leitura do QR de início'
+                                        : 'Leitura do QR de finalização'}
                                     </span>
                                     <button
                                       type="button"
-                                      className="text-[11px] px-2 py-0.5 rounded-full border border-blue-300 text-blue-800 hover:bg-blue-100"
                                       onClick={() => {
-                                        setScannerAgendamentoId(null);
-                                        setScannerTipo(null);
+                                        setScanUI((prev) => ({
+                                          ...prev,
+                                          aberto: false,
+                                        }));
+                                        setManualCode('');
                                       }}
+                                      className="text-[11px] px-2 py-0.5 rounded-full border border-gray-300 text-gray-600 hover:bg-gray-100"
                                     >
                                       Fechar
                                     </button>
                                   </div>
 
-                                  <QrScanner
-                                    constraints={{ facingMode: 'environment' }}
-                                    onDecode={(result: string) => {
-                                      if (!result) return;
-                                      handleScanQr(ag, scannerTipo!, result);
-                                      setScannerAgendamentoId(null);
-                                      setScannerTipo(null);
-                                    }}
-                                    onError={(err: any) => {
-                                      console.error(
-                                        'Erro no scanner de QR:',
-                                        err
-                                      );
-                                    }}
-                                    style={{ width: '100%' }}
-                                  />
+                                  <div className="flex justify-center gap-2 mb-2">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setScanUI((prev) => ({
+                                          ...prev,
+                                          modo: 'camera',
+                                        }))
+                                      }
+                                      className={`px-2 py-1 rounded-lg border text-[11px] ${
+                                        scanUI.modo === 'camera'
+                                          ? 'bg-[#8F1D14] text-white border-[#8F1D14]'
+                                          : 'bg-white text-gray-700 border-gray-300'
+                                      }`}
+                                    >
+                                      Usar câmera
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setScanUI((prev) => ({
+                                          ...prev,
+                                          modo: 'manual',
+                                        }))
+                                      }
+                                      className={`px-2 py-1 rounded-lg border text-[11px] ${
+                                        scanUI.modo === 'manual'
+                                          ? 'bg-[#F89D13] text-white border-[#F89D13]'
+                                          : 'bg-white text-gray-700 border-gray-300'
+                                      }`}
+                                    >
+                                      Colar código
+                                    </button>
+                                  </div>
 
-                                  <p className="mt-1 text-[11px] text-blue-900">
-                                    Aponte a câmera para o QR code enviado pelo
-                                    contratante.
-                                  </p>
+                                  {scanUI.modo === 'camera' ? (
+                                    <div className="rounded-lg overflow-hidden border border-gray-300 bg-black/80">
+                                      <QrScanner
+                                        onScan={(result: any) => {
+                                          if (!result) return;
+                                          if (!scanUI.tipo) return;
+                                          if (scanLoadingId === ag.id) return;
+
+                                          let text = '';
+                                          if (typeof result === 'string') {
+                                            text = result;
+                                          } else if (Array.isArray(result)) {
+                                            const first = result[0];
+                                            text =
+                                              first?.rawValue ||
+                                              first?.text ||
+                                              '';
+                                          } else if (
+                                            typeof result === 'object'
+                                          ) {
+                                            text =
+                                              (result as any)?.rawValue ||
+                                              (result as any)?.text ||
+                                              '';
+                                          }
+
+                                          if (!text) return;
+                                          // dispara leitura e fecha
+                                          void processScan(
+                                            ag,
+                                            scanUI.tipo!,
+                                            text
+                                          );
+                                        }}
+                                        onError={(error: any) => {
+                                          console.error(
+                                            'Erro no scanner:',
+                                            error
+                                          );
+                                        }}
+                                        constraints={{
+                                          facingMode: 'environment',
+                                        }}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      <label className="block text-[11px] text-gray-700">
+                                        Cole aqui o código do QR:
+                                      </label>
+                                      <input
+                                        type="text"
+                                        className="w-full rounded-lg border border-gray-300 px-2 py-1 text-xs"
+                                        value={manualCode}
+                                        onChange={(e) =>
+                                          setManualCode(e.target.value)
+                                        }
+                                      />
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          !manualCode.trim() ||
+                                          scanLoadingId === ag.id
+                                        }
+                                        onClick={() => {
+                                          if (!scanUI.tipo) return;
+                                          void processScan(
+                                            ag,
+                                            scanUI.tipo,
+                                            manualCode.trim()
+                                          );
+                                        }}
+                                        className="w-full px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-60"
+                                      >
+                                        {scanLoadingId === ag.id
+                                          ? 'Enviando...'
+                                          : 'Confirmar código'}
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
