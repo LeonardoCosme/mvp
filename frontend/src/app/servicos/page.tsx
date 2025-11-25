@@ -3,14 +3,17 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { getToken } from '../../utils/auth';
+
+type Perfil = 'Contratante' | 'Prestador' | 'Visitante';
 
 type TipoServico = {
   id: number;
   nomeServico?: string; // vem do backend como alias de 'nome'
-  nome?: string; // fallback se um dia voltar a ser 'nome'
+  nome?: string;        // fallback se um dia voltar a ser 'nome'
+  descricao?: string;   // se o backend trouxer algo a mais
 };
 
 type FormAgendamento = {
@@ -25,84 +28,26 @@ function rotuloServico(s: TipoServico): string {
   return s.nomeServico || s.nome || 'Serviço';
 }
 
-// Escolhe um ícone de acordo com o tipo de serviço
-function iconServico(s: TipoServico): string {
+// descrição padrão, caso queira personalizar por nome/id depois
+function descricaoCurta(s: TipoServico): string {
   const nome = rotuloServico(s);
-  const lower = nome.toLowerCase();
-
-  if (lower.includes('elétric') || lower.includes('eletric')) {
-    return '⚡'; // elétrica
-  }
-
-  if (lower.includes('hidrául') || lower.includes('hidraul') || lower.includes('encan') || lower.includes('vazamento')) {
-    return '💧'; // hidráulica / encanamento
-  }
-
-  if (lower.includes('pintur')) {
-    return '🎨'; // pintura
-  }
-
-  if (lower.includes('montagem') || lower.includes('móvel') || lower.includes('moveis') || lower.includes('móveis')) {
-    return '🧰'; // montagem de móveis
-  }
-
-  if (lower.includes('reforma') || lower.includes('alvenaria') || lower.includes('parede')) {
-    return '🧱'; // pequenos reparos / reforma
-  }
-
-  // genérico
-  return '🔧';
+  return (
+    s.descricao ||
+    `Serviço de ${nome.toLowerCase()} realizado por profissionais qualificados, com foco em segurança e qualidade.`
+  );
 }
 
-// Gera uma descrição amigável a partir do nome do serviço
-function descricaoServico(s: TipoServico): string {
+function descricaoLonga(s: TipoServico): string {
   const nome = rotuloServico(s);
-  const lower = nome.toLowerCase();
-
-  if (lower.includes('elétric') || lower.includes('eletric')) {
-    return (
-      'Serviço de manutenção elétrica para sua casa ou empresa. ' +
-      'Inclui verificação de disjuntores, troca de tomadas, interruptores, luminárias e pequenos reparos ' +
-      'para garantir segurança e bom funcionamento da rede elétrica.'
-    );
-  }
-
-  if (lower.includes('hidrául') || lower.includes('hidraul') || lower.includes('encan') || lower.includes('vazamento')) {
-    return (
-      'Serviço de manutenção hidráulica: conserto de vazamentos, troca de torneiras, registro, sifão, ' +
-      'chuveiro, descarga e demais ajustes na parte de encanamento, sempre que possível sem quebra de parede.'
-    );
-  }
-
-  if (lower.includes('pintur')) {
-    return (
-      'Serviço de pintura e retoques: preparação da parede (limpeza leve, correção de pequenos furos), ' +
-      'aplicação de tinta em ambientes internos, portas ou grades, conforme combinado previamente.'
-    );
-  }
-
-  if (lower.includes('montagem') || lower.includes('móvel') || lower.includes('moveis') || lower.includes('móveis')) {
-    return (
-      'Serviço de montagem e desmontagem de móveis: guarda-roupas, mesas, camas, estantes e outros itens, ' +
-      'seguindo o manual do fabricante sempre que disponível, garantindo estabilidade e bom acabamento.'
-    );
-  }
-
-  if (lower.includes('reforma') || lower.includes('alvenaria')) {
-    return (
-      'Serviço de pequenos reparos e reformas: ajustes em paredes, rejuntes, pequenos acabamentos, ' +
-      'correção de imperfeições e melhorias pontuais conforme a necessidade do ambiente.'
-    );
-  }
-
-  // Genérico
   return (
-    'Serviço prestado por profissional especializado, com foco em pequenos reparos, ajustes e manutenção. ' +
-    'Os detalhes podem ser combinados na descrição do agendamento para que o prestador entenda exatamente o que você precisa.'
+    s.descricao ||
+    `O serviço de ${nome.toLowerCase()} inclui visita do prestador no endereço informado, análise da necessidade e execução dos reparos combinados com o cliente. Os valores podem variar conforme a complexidade, tempo de execução e materiais utilizados.`
   );
 }
 
 export default function ServicosPage() {
+  const [perfil, setPerfil] = useState<Perfil>('Visitante');
+
   const [servicos, setServicos] = useState<TipoServico[]>([]);
   const [busca, setBusca] = useState('');
   const [form, setForm] = useState<FormAgendamento>({
@@ -116,17 +61,31 @@ export default function ServicosPage() {
   const [loading, setLoading] = useState(false);
   const [loadingServicos, setLoadingServicos] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
 
   // Modal de descrição
-  const [servicoDetalhe, setServicoDetalhe] = useState<TipoServico | null>(null);
+  const [modalAberto, setModalAberto] = useState(false);
+  const [servicoSelecionado, setServicoSelecionado] = useState<TipoServico | null>(null);
 
-  // ref para rolar até o formulário
-  const formRef = useRef<HTMLDivElement | null>(null);
-
-  // 🔑 verifica login só no cliente (evita erro de hydration)
+  // 🔑 verifica login e perfil só no cliente (evita erro de hydration)
   useEffect(() => {
-    setIsLoggedIn(!!getToken());
+    const hasToken = !!getToken();
+    setIsLoggedIn(hasToken);
+
+    if (typeof window === 'undefined') return;
+
+    const tipoLocal =
+      window.localStorage.getItem('tipo') ||
+      window.localStorage.getItem('tipoUsuario') ||
+      '';
+
+    const tipoNorm = tipoLocal.toLowerCase().trim();
+    if (tipoNorm === 'prestador') {
+      setPerfil('Prestador');
+    } else if (tipoNorm === 'contratante') {
+      setPerfil('Contratante');
+    } else {
+      setPerfil('Visitante');
+    }
   }, []);
 
   // 🚀 carrega os tipos de serviço DIRETO da API Railway
@@ -173,27 +132,6 @@ export default function ServicosPage() {
     );
   }, [servicos, busca]);
 
-  // Seleciona um serviço e rola até o formulário
-  function handleSelecionarServico(s: TipoServico) {
-    setSelectedServiceId(s.id);
-    setForm((p) => ({
-      ...p,
-      tipo_servico_id: String(s.id),
-      // Se o usuário ainda não escreveu nada, sugerimos uma frase inicial:
-      descricao: p.descricao || `Serviço de ${rotuloServico(s)}.`,
-    }));
-
-    // rola até o formulário
-    if (formRef.current) {
-      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }
-
-  // Abre modal de descrição
-  function handleVerDescricao(s: TipoServico) {
-    setServicoDetalhe(s);
-  }
-
   // 🧾 envio do agendamento
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -236,7 +174,7 @@ export default function ServicosPage() {
       if (!resp.ok) {
         throw new Error(
           (result && (result.message as string)) ||
-            `Erro HTTP ${resp.status}`
+          `Erro HTTP ${resp.status}`
         );
       }
 
@@ -248,7 +186,6 @@ export default function ServicosPage() {
         endereco: '',
         descricao: '',
       });
-      setSelectedServiceId(null);
     } catch (err: any) {
       setMsg(`❌ Erro: ${err?.message || 'Falha ao criar agendamento.'}`);
     } finally {
@@ -256,7 +193,29 @@ export default function ServicosPage() {
     }
   }
 
+  function selecionarServicoParaAgendar(s: TipoServico) {
+    setForm((p) => ({
+      ...p,
+      tipo_servico_id: String(s.id),
+      // se o usuário ainda não escreveu nada, sugerimos uma breve descrição
+      descricao: p.descricao || descricaoCurta(s),
+    }));
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  }
+
+  function abrirDescricaoServico(s: TipoServico) {
+    setServicoSelecionado(s);
+    setModalAberto(true);
+  }
+
+  function fecharModal() {
+    setModalAberto(false);
+    setServicoSelecionado(null);
+  }
+
   const msgClass = msg.startsWith('✅') ? 'text-green-700' : 'text-red-700';
+
+  const isPrestador = perfil === 'Prestador';
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#F89D13]/30 to-[#8F1D14]/10 pb-20">
@@ -264,84 +223,178 @@ export default function ServicosPage() {
       <section className="pt-24 md:pt-28">
         <div className="max-w-6xl mx-auto px-4">
           <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 md:p-10">
-            <div className="flex flex-col md:flex-row items-center gap-6">
-              <div className="flex-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F89D13]/10 border border-[#F89D13]/30 text-xs font-semibold text-[#8F1D14] mb-2">
-                  <span>🔧 Serviços para casa e empresa</span>
-                  {isLoggedIn ? (
-                    <span className="hidden sm:inline text-[11px] text-emerald-700">
-                      Você está logado e pronto para agendar.
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-8">
+              <div className="flex-1 space-y-4">
+                {/* Badge topo, mudando mensagem para prestador */}
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F89D13]/10 border border-[#F89D13]/40 text-xs md:text-sm text-[#8F1D14] font-semibold">
+                  <span aria-hidden>🛠️</span>
+                  {isPrestador ? (
+                    <span>
+                      Você está logado como <strong>Prestador</strong> — esta é a vitrine
+                      que os clientes usam para escolher serviços.
                     </span>
                   ) : (
-                    <span className="hidden sm:inline text-[11px] text-red-700">
-                      Faça login para concluir o agendamento.
+                    <span>
+                      Serviços para casa e empresa —{' '}
+                      <strong>
+                        {isLoggedIn
+                          ? 'você está logado e pronto para agendar.'
+                          : 'faça login para agendar um serviço.'}
+                      </strong>
                     </span>
                   )}
                 </div>
-                <h1 className="text-3xl md:text-4xl font-extrabold text-[#8F1D14]">
-                  Catálogo de Serviços
-                </h1>
-                <p className="mt-3 text-gray-700">
-                  Encontre o serviço ideal e agende em poucos cliques — rápido,
-                  seguro e sem complicação. Você escolhe o serviço, define data
-                  e endereço e nós conectamos com o prestador.
-                </p>
 
-                {/* Como funciona */}
-                <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs md:text-sm">
-                  <div className="flex items-start gap-2">
-                    <div className="w-6 h-6 rounded-full bg-[#F89D13]/20 flex items-center justify-center text-[11px] font-bold text-[#8F1D14]">
-                      1
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-800">
-                        Escolha o serviço
-                      </p>
-                      <p className="text-gray-600">
-                        Clique em um card para selecionar o serviço desejado.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="w-6 h-6 rounded-full bg-[#F89D13]/20 flex items-center justify-center text-[11px] font-bold text-[#8F1D14]">
-                      2
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-800">
-                        Informe data e endereço
-                      </p>
-                      <p className="text-gray-600">
-                        Preencha o dia, horário e local onde o serviço será feito.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <div className="w-6 h-6 rounded-full bg-[#F89D13]/20 flex items-center justify-center text-[11px] font-bold text-[#8F1D14]">
-                      3
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-800">
-                        Aguarde a confirmação
-                      </p>
-                      <p className="text-gray-600">
-                        O prestador aceita o serviço e você acompanha tudo no app.
-                      </p>
-                    </div>
-                  </div>
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-extrabold text-[#8F1D14]">
+                    Catálogo de Serviços
+                  </h1>
+                  {isPrestador ? (
+                    <p className="mt-3 text-gray-800">
+                      Aqui você visualiza exatamente como o cliente enxerga os serviços.
+                      Use este catálogo para entender a demanda e organize seu trabalho
+                      pela aba{' '}
+                      <span className="font-semibold text-[#F89D13]">
+                        Agendamentos
+                      </span>
+                      , onde você aceita e acompanha os serviços.
+                    </p>
+                  ) : (
+                    <p className="mt-3 text-gray-800">
+                      Encontre o serviço ideal e agende em poucos cliques —
+                      rápido, seguro e sem complicação. Você escolhe o serviço,
+                      define data e endereço e nós conectamos com o prestador.
+                    </p>
+                  )}
+                </div>
+
+                {/* Passo a passo – versão cliente x prestador */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-sm">
+                  {isPrestador ? (
+                    <>
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F89D13]/15 text-xs font-bold text-[#8F1D14]">
+                          1
+                        </span>
+                        <div>
+                          <p className="font-semibold text-gray-900">
+                            Entenda o catálogo
+                          </p>
+                          <p className="text-gray-600">
+                            Veja como seus serviços aparecem para o cliente e
+                            quais tipos estão disponíveis na plataforma.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F89D13]/15 text-xs font-bold text-[#8F1D14]">
+                          2
+                        </span>
+                        <div>
+                          <p className="font-semibold text-gray-900">
+                            Aceite serviços
+                          </p>
+                          <p className="text-gray-600">
+                            Acesse a aba{' '}
+                            <span className="font-semibold">Agendamentos</span>{' '}
+                            para visualizar os serviços disponíveis e aceitar
+                            aqueles que se encaixam na sua agenda.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F89D13]/15 text-xs font-bold text-[#8F1D14]">
+                          3
+                        </span>
+                        <div>
+                          <p className="font-semibold text-gray-900">
+                            Construa sua reputação
+                          </p>
+                          <p className="text-gray-600">
+                            Preste um bom atendimento, finalize o serviço pelo
+                            QR code e receba avaliações positivas dos clientes.
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F89D13]/15 text-xs font-bold text-[#8F1D14]">
+                          1
+                        </span>
+                        <div>
+                          <p className="font-semibold text-gray-900">
+                            Escolha o serviço
+                          </p>
+                          <p className="text-gray-600">
+                            Clique em um card para selecionar o serviço desejado.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F89D13]/15 text-xs font-bold text-[#8F1D14]">
+                          2
+                        </span>
+                        <div>
+                          <p className="font-semibold text-gray-900">
+                            Informe data e endereço
+                          </p>
+                          <p className="text-gray-600">
+                            Preencha o dia, horário e local onde o serviço será feito.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F89D13]/15 text-xs font-bold text-[#8F1D14]">
+                          3
+                        </span>
+                        <div>
+                          <p className="font-semibold text-gray-900">
+                            Aguarde a confirmação
+                          </p>
+                          <p className="text-gray-600">
+                            O prestador aceita o serviço e você acompanha tudo
+                            no app.
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
-              <div className="w-full md:w-80">
-                <div className="aspect-[4/3] w-full bg-[#F89D13]/20 rounded-xl flex flex-col items-center justify-center gap-2 border border-[#F89D13]/40">
-                  <span className="text-[#8F1D14] font-semibold text-lg">
-                    Marido de Aluguel
-                  </span>
-                  <p className="text-xs text-gray-700 max-w-[220px] text-center">
-                    Seu parceiro para pequenos reparos, manutenção e serviços
-                    do dia a dia.
-                  </p>
+              {/* Bloco lateral com texto institucional */}
+              <aside className="w-full md:w-80">
+                <div className="rounded-2xl border border-[#F89D13]/40 bg-[#FDF4E6] p-5 h-full flex flex-col justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-[#8F1D14] mb-1">
+                      Marido de Aluguel
+                    </h2>
+                    {isPrestador ? (
+                      <p className="text-sm text-gray-700">
+                        Seu painel de oportunidades: acompanhe os serviços que
+                        os clientes estão solicitando e organize sua rotina com
+                        mais previsibilidade.
+                      </p>
+                    ) : (
+                      <p className="text-sm text-gray-700">
+                        Seu parceiro para pequenos reparos, manutenção e
+                        serviços do dia a dia — com atendimento organizado e
+                        registro de cada serviço realizado.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 text-xs text-gray-600">
+                    <p>
+                      {/* Espaço para mensagem curta extra, se quiser. */}
+                      Plataforma em desenvolvimento como projeto de TCC da
+                      Fatec Ipiranga.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              </aside>
             </div>
 
             {/* Campo de busca */}
@@ -353,8 +406,12 @@ export default function ServicosPage() {
                 id="busca"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar por ex.: elétrica, pintura, hidráulica…"
-                className="w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition"
+                placeholder={
+                  isPrestador
+                    ? 'Buscar serviços como o cliente enxerga: elétrica, pintura, hidráulica…'
+                    : 'Buscar por ex.: elétrica, pintura, hidráulica…'
+                }
+                className="w-full border rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#F89D13] transition bg-white/80"
               />
             </div>
           </div>
@@ -369,7 +426,7 @@ export default function ServicosPage() {
               {[...Array(3)].map((_, i) => (
                 <div
                   key={i}
-                  className="bg-white/80 rounded-xl h-24 animate-pulse"
+                  className="bg-white/80 rounded-xl h-28 animate-pulse"
                 />
               ))}
             </div>
@@ -379,235 +436,231 @@ export default function ServicosPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filtrados.map((s) => {
-                const selected = selectedServiceId === s.id;
-                return (
-                  <article
-                    key={s.id}
-                    onClick={() => handleSelecionarServico(s)}
-                    className={`cursor-pointer bg-white rounded-xl p-4 shadow-sm border transition 
-                      ${
-                        selected
-                          ? 'border-[#F89D13] shadow-md bg-[#FFF8ED]'
-                          : 'border-gray-100 hover:shadow-md hover:border-[#F89D13]/60'
-                      }`}
-                  >
-                    <div className="flex items-start gap-3">
+              {filtrados.map((s) => (
+                <article
+                  key={s.id}
+                  className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition border border-gray-100 flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-[#F89D13]/20 flex items-center justify-center">
-                        <span className="text-xl" aria-hidden>
-                          {iconServico(s)}
+                        <span className="text-[#8F1D14]" aria-hidden>
+                          🔧
                         </span>
                       </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <h3 className="font-semibold text-gray-900">
-                            {rotuloServico(s)}
-                          </h3>
-                          {selected && (
-                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#F89D13]/10 text-[#8F1D14] border border-[#F89D13]/40">
-                              Selecionado
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-1 text-xs text-gray-600 line-clamp-2">
-                          {descricaoServico(s)}
-                        </p>
-                      </div>
+                      <h3 className="font-semibold text-gray-900">
+                        {rotuloServico(s)}
+                      </h3>
                     </div>
 
-                    <div className="mt-3 flex gap-2">
+                    <p className="mt-2 text-xs text-gray-600 line-clamp-3">
+                      {descricaoCurta(s)}
+                    </p>
+                  </div>
+
+                  <div className="mt-3 flex gap-2">
+                    {!isPrestador && (
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSelecionarServico(s);
-                        }}
+                        onClick={() => selecionarServicoParaAgendar(s)}
                         className="text-sm bg-[#F89D13] text-white px-3 py-1.5 rounded-lg hover:opacity-90 transition"
                       >
                         Agendar
                       </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleVerDescricao(s);
-                        }}
-                        className="text-sm bg-[#FFF0DA] border border-[#F89D13]/40 text-[#8F1D14] px-3 py-1.5 rounded-lg hover:bg-[#FFE2B8] transition"
-                      >
-                        Ver descrição
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => abrirDescricaoServico(s)}
+                      className="text-sm bg-[#FDF4E6] text-[#8F1D14] px-3 py-1.5 rounded-lg border border-[#F89D13]/40 hover:bg-[#FBE7C6] transition"
+                    >
+                      Ver descrição
+                    </button>
+                  </div>
+                </article>
+              ))}
             </div>
           )}
         </div>
       </section>
 
-      {/* Formulário de agendamento */}
-      <section className="mt-10">
-        <div className="max-w-6xl mx-auto px-4">
-          <div
-            ref={formRef}
-            className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 md:p-8"
-          >
-            <h2 className="text-xl md:text-2xl font-bold text-[#8F1D14] mb-4">
-              Agendar um serviço
-            </h2>
+      {/* Formulário de agendamento – só faz sentido para cliente/visitante */}
+      {!isPrestador && (
+        <section className="mt-10">
+          <div className="max-w-6xl mx-auto px-4">
+            <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-lg p-6 md:p-8">
+              <h2 className="text-xl md:text-2xl font-bold text-[#8F1D14] mb-4">
+                Agendar um serviço
+              </h2>
 
-            <form onSubmit={handleSubmit} className="grid gap-4">
-              <div>
-                <label
-                  htmlFor="tipo_servico_id"
-                  className="block text-sm text-gray-700 mb-1"
-                >
-                  Tipo de serviço
-                </label>
-                <select
-                  id="tipo_servico_id"
-                  className="w-full border rounded-lg px-3 py-2"
-                  value={form.tipo_servico_id}
-                  onChange={(e) => {
-                    const id = e.target.value;
-                    setForm((p) => ({ ...p, tipo_servico_id: id }));
-                    setSelectedServiceId(id ? Number(id) : null);
-                  }}
-                  required
-                >
-                  <option value="">Selecione</option>
-                  {servicos.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {rotuloServico(s)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4">
+              <form onSubmit={handleSubmit} className="grid gap-4">
                 <div>
                   <label
-                    htmlFor="data"
+                    htmlFor="tipo_servico_id"
                     className="block text-sm text-gray-700 mb-1"
                   >
-                    Data
+                    Tipo de serviço
+                  </label>
+                  <select
+                    id="tipo_servico_id"
+                    className="w-full border rounded-lg px-3 py-2"
+                    value={form.tipo_servico_id}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        tipo_servico_id: e.target.value,
+                      }))
+                    }
+                    required
+                  >
+                    <option value="">Selecione</option>
+                    {servicos.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {rotuloServico(s)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div>
+                    <label
+                      htmlFor="data"
+                      className="block text-sm text-gray-700 mb-1"
+                    >
+                      Data
+                    </label>
+                    <input
+                      id="data"
+                      type="date"
+                      className="w-full border rounded-lg px-3 py-2"
+                      value={form.data}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, data: e.target.value }))
+                      }
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="hora"
+                      className="block text-sm text-gray-700 mb-1"
+                    >
+                      Hora
+                    </label>
+                    <input
+                      id="hora"
+                      type="time"
+                      className="w-full border rounded-lg px-3 py-2"
+                      value={form.hora}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, hora: e.target.value }))
+                      }
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="endereco"
+                    className="block text-sm text-gray-700 mb-1"
+                  >
+                    Endereço
                   </label>
                   <input
-                    id="data"
-                    type="date"
+                    id="endereco"
+                    placeholder="Rua, nº, bairro"
                     className="w-full border rounded-lg px-3 py-2"
-                    value={form.data}
+                    value={form.endereco}
                     onChange={(e) =>
-                      setForm((p) => ({ ...p, data: e.target.value }))
+                      setForm((p) => ({ ...p, endereco: e.target.value }))
                     }
                     required
                   />
                 </div>
+
                 <div>
                   <label
-                    htmlFor="hora"
+                    htmlFor="descricao"
                     className="block text-sm text-gray-700 mb-1"
                   >
-                    Hora
+                    Descrição (opcional)
                   </label>
-                  <input
-                    id="hora"
-                    type="time"
+                  <textarea
+                    id="descricao"
+                    rows={3}
+                    placeholder="Detalhes do serviço"
                     className="w-full border rounded-lg px-3 py-2"
-                    value={form.hora}
+                    value={form.descricao}
                     onChange={(e) =>
-                      setForm((p) => ({ ...p, hora: e.target.value }))
+                      setForm((p) => ({ ...p, descricao: e.target.value }))
                     }
-                    required
                   />
                 </div>
-              </div>
 
-              <div>
-                <label
-                  htmlFor="endereco"
-                  className="block text-sm text-gray-700 mb-1"
-                >
-                  Endereço
-                </label>
-                <input
-                  id="endereco"
-                  placeholder="Rua, nº, bairro"
-                  className="w-full border rounded-lg px-3 py-2"
-                  value={form.endereco}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, endereco: e.target.value }))
-                  }
-                  required
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="descricao"
-                  className="block text-sm text-gray-700 mb-1"
-                >
-                  Descrição (opcional)
-                </label>
-                <textarea
-                  id="descricao"
-                  rows={3}
-                  placeholder="Detalhes do serviço (ex.: trocar tomada da sala, verificar vazamento na pia do banheiro...)"
-                  className="w-full border rounded-lg px-3 py-2"
-                  value={form.descricao}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, descricao: e.target.value }))
-                  }
-                />
-              </div>
-
-              <div className="flex items-center gap-3 flex-wrap">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="bg-[#8F1D14] text-white px-5 py-2 rounded-lg font-semibold shadow hover:bg-[#a2261b] transition disabled:opacity-60"
-                >
-                  {loading ? 'Enviando…' : 'Agendar serviço'}
-                </button>
-
-                {!isLoggedIn && (
-                  <Link
-                    href="/login?next=/servicos"
-                    className="text-[#8F1D14] underline hover:opacity-80 text-sm"
+                <div className="flex items-center gap-3 flex-wrap">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="bg-[#8F1D14] text-white px-5 py-2 rounded-lg font-semibold shadow hover:bg-[#a2261b] transition disabled:opacity-60"
                   >
-                    Fazer login para agendar
-                  </Link>
+                    {loading ? 'Enviando…' : 'Agendar serviço'}
+                  </button>
+
+                  {!isLoggedIn && (
+                    <Link
+                      href="/login?next=/servicos"
+                      className="text-[#8F1D14] underline hover:opacity-80 text-sm"
+                    >
+                      Fazer login para agendar
+                    </Link>
+                  )}
+                </div>
+
+                {msg && (
+                  <p className={`text-sm mt-1 ${msgClass}`}>
+                    {msg}
+                  </p>
                 )}
-              </div>
-
-              {msg && <p className={`text-sm mt-1 ${msgClass}`}>{msg}</p>}
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Modal de descrição do serviço */}
-      {servicoDetalhe && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 px-4">
-          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-5 relative">
+      {modalAberto && servicoSelecionado && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 relative">
+            <h3 className="text-xl font-bold text-[#8F1D14] mb-2">
+              {rotuloServico(servicoSelecionado)}
+            </h3>
+            <p className="text-sm text-gray-700 mb-4">
+              {descricaoLonga(servicoSelecionado)}
+            </p>
+
             <button
               type="button"
-              onClick={() => setServicoDetalhe(null)}
-              className="absolute top-3 right-3 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200"
+              onClick={fecharModal}
+              className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
+              aria-label="Fechar"
             >
-              Fechar
+              ×
             </button>
-            <h3 className="text-lg font-bold text-[#8F1D14] mb-2">
-              {rotuloServico(servicoDetalhe)}
-            </h3>
-            <p className="text-sm text-gray-700 whitespace-pre-line">
-              {descricaoServico(servicoDetalhe)}
-            </p>
-            <p className="mt-3 text-[11px] text-gray-500">
-              Dica: se precisar de algo mais específico, descreva no campo
-              &quot;Descrição&quot; do agendamento para que o prestador chegue
-              preparado.
-            </p>
+
+            {!isPrestador && (
+              <button
+                type="button"
+                onClick={() => {
+                  selecionarServicoParaAgendar(servicoSelecionado);
+                  fecharModal();
+                }}
+                className="mt-2 bg-[#F89D13] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition"
+              >
+                Usar este serviço no agendamento
+              </button>
+            )}
           </div>
         </div>
       )}
