@@ -25,6 +25,35 @@ function rotuloServico(s: TipoServico): string {
   return s.nomeServico || s.nome || 'Serviço';
 }
 
+// Escolhe um ícone de acordo com o tipo de serviço
+function iconServico(s: TipoServico): string {
+  const nome = rotuloServico(s);
+  const lower = nome.toLowerCase();
+
+  if (lower.includes('elétric') || lower.includes('eletric')) {
+    return '⚡'; // elétrica
+  }
+
+  if (lower.includes('hidrául') || lower.includes('hidraul') || lower.includes('encan') || lower.includes('vazamento')) {
+    return '💧'; // hidráulica / encanamento
+  }
+
+  if (lower.includes('pintur')) {
+    return '🎨'; // pintura
+  }
+
+  if (lower.includes('montagem') || lower.includes('móvel') || lower.includes('moveis') || lower.includes('móveis')) {
+    return '🧰'; // montagem de móveis
+  }
+
+  if (lower.includes('reforma') || lower.includes('alvenaria') || lower.includes('parede')) {
+    return '🧱'; // pequenos reparos / reforma
+  }
+
+  // genérico
+  return '🔧';
+}
+
 // Gera uma descrição amigável a partir do nome do serviço
 function descricaoServico(s: TipoServico): string {
   const nome = rotuloServico(s);
@@ -305,7 +334,7 @@ export default function ServicosPage() {
               <div className="w-full md:w-80">
                 <div className="aspect-[4/3] w-full bg-[#F89D13]/20 rounded-xl flex flex-col items-center justify-center gap-2 border border-[#F89D13]/40">
                   <span className="text-[#8F1D14] font-semibold text-lg">
-                    InterServ
+                    Marido de Aluguel
                   </span>
                   <p className="text-xs text-gray-700 max-w-[220px] text-center">
                     Seu parceiro para pequenos reparos, manutenção e serviços
@@ -365,8 +394,8 @@ export default function ServicosPage() {
                   >
                     <div className="flex items-start gap-3">
                       <div className="w-10 h-10 rounded-full bg-[#F89D13]/20 flex items-center justify-center">
-                        <span className="text-[#8F1D14]" aria-hidden>
-                          🔧
+                        <span className="text-xl" aria-hidden>
+                          {iconServico(s)}
                         </span>
                       </div>
                       <div className="flex-1">
@@ -403,7 +432,7 @@ export default function ServicosPage() {
                           e.stopPropagation();
                           handleVerDescricao(s);
                         }}
-                        className="text-sm bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition"
+                        className="text-sm bg-[#FFF0DA] border border-[#F89D13]/40 text-[#8F1D14] px-3 py-1.5 rounded-lg hover:bg-[#FFE2B8] transition"
                       >
                         Ver descrição
                       </button>
