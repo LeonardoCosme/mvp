@@ -422,31 +422,99 @@ export async function accept(req, res) {
 }
 
 /* ==========================================================
-   ❌ RECUSAR AGENDAMENTO
+   ❌ RECUSAR AGENDAMENTO (PRESTADOR)
    POST /api/agendamentos/:id/recusar
 ========================================================== */
 export async function reject(req, res) {
   try {
-    const { id } = req.params;
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado." });
+    }
 
+    // Prestador logado
+    const prestador = await Prestador.findOne({
+      where: { usuario_id: userId },
+      attributes: ["id"],
+    });
+
+    if (!prestador) {
+      return res
+        .status(403)
+        .json({ error: "Perfil de prestador não encontrado." });
+    }
+
+    const { id } = req.params;
     const ag = await Agendamento.findByPk(id);
+
     if (!ag) {
       return res.status(404).json({ error: "Agendamento não encontrado." });
     }
 
-    ag.status = "recusada";
-    if (typeof ag.set === "function") {
-      ag.set("status", "recusada");
+    const agPrestadorId = getField(ag, "prestador_id", "prestadorId");
+    const statusAtual = (getField(ag, "status") || "").toLowerCase();
+
+    // Se o agendamento já está vinculado a outro prestador, não deixa mexer
+    if (
+      agPrestadorId != null &&
+      String(agPrestadorId) !== String(prestador.id)
+    ) {
+      return res.status(403).json({
+        error: "Este agendamento não está vinculado a este prestador.",
+      });
     }
 
-    await ag.save();
+    // Status nos quais faz sentido recusar
+    const statusValidos = [
+      "pendente",
+      "aguardando",
+      "aguardando confirmação",
+      "disponivel",
+      "disponível",
+      "aceita",
+    ];
+
+    if (!statusValidos.includes(statusAtual)) {
+      return res.status(400).json({
+        error: "Este agendamento não pode ser recusado.",
+      });
+    }
+
+    /**
+     * Regras:
+     * - Se estiver ACEITO para este prestador:
+     *   - remove o prestador do agendamento
+     *   - volta o status para 'pendente' (volta para fila de disponíveis)
+     * - Se ainda não havia prestador vinculado, apenas retorna ok.
+     */
+
+    if (
+      agPrestadorId != null &&
+      String(agPrestadorId) === String(prestador.id)
+    ) {
+      if (typeof ag.set === "function") {
+        ag.set("prestador_id", null);
+        ag.set("prestadorId", null);
+        ag.set("status", "pendente");
+      } else {
+        ag.prestador_id = null;
+        ag.status = "pendente";
+      }
+
+      await ag.save();
+    }
 
     console.log("[AGENDAMENTOS][RECUSAR]", {
       id: ag.id,
-      status: ag.status,
+      prestadorId: prestador.id,
+      status: getField(ag, "status"),
+      prestador_id: getField(ag, "prestador_id", "prestadorId"),
     });
 
-    return res.json(mapAgendamentoDto(ag));
+    return res.json({
+      ok: true,
+      agendamento: mapAgendamentoDto(ag),
+    });
   } catch (err) {
     console.error("❌ Erro ao recusar agendamento:", err);
     return res
